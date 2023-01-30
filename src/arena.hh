@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 struct Arena {
 	uint8_t* data;
