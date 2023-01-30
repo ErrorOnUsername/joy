@@ -17,7 +17,8 @@ set( SOURCES
 add_executable( ${CMAKE_PROJECT_NAME} ${SOURCES} )
 
 add_custom_target( run
-	COMMAND ./dragonfly
+	COMMAND ./build/dragonfly
 	VERBATIM
+	WORKING_DIRECTORY ..
 	DEPENDS dragonfly
 )

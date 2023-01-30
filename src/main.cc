@@ -11,7 +11,7 @@ int main()
 {
 	Compiler::init();
 
-	Lexer lexer("../test.df");
+	Lexer lexer("test.df");
 
 	std::vector<Token> token_stream;
 	Token tk = lexer.next_tk();
