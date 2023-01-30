@@ -1,10 +1,10 @@
-#include "lexer.h"
+#include "lexer.hh"
 #include <cassert>
+#include <cmath>
 #include <string>
 #include <iostream>
 
-#include "compiler.h"
-
+#include "compiler.hh"
 
 #define TK_WITH_B_FORM(kind) \
 { \
@@ -415,7 +415,7 @@ Token Lexer::tokenize_char_literal()
 	m_idx++;
 
 	tk.str.push_back(c);
-	tk.span.end_idx;
+	tk.span.end_idx = m_idx;
 
 	return tk;
 }

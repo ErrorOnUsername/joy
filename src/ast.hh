@@ -2,8 +2,8 @@
 #include <vector>
 #include <unordered_map>
 
-#include "token.h"
-#include "type.h"
+#include "token.hh"
+#include "type.hh"
 
 enum ExprKind {
 	EXPR_BOOL,
@@ -57,7 +57,7 @@ struct ProcCallExpr : public Expr {
 
 void dump_expr(Expr* expr, size_t indent_level);
 
-enum BinOpKind {
+enum BinOpKind : uint32_t {
 	B_OP_INVAL,
 
 	B_OP_MEMBER_ACCESS,

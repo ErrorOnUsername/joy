@@ -1,5 +1,5 @@
-#include "token.h"
-#include "ast.h"
+#include "token.hh"
+#include "ast.hh"
 
 char const* tk_as_str(TokenKind kind)
 {

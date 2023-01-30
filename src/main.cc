@@ -2,16 +2,16 @@
 #include <filesystem>
 #include <vector>
 
-#include "compiler.h"
-#include "lexer.h"
-#include "parser.h"
+#include "compiler.hh"
+#include "lexer.hh"
+#include "parser.hh"
 
 
 int main()
 {
 	Compiler::init();
 
-	Lexer lexer("test.amds");
+	Lexer lexer("../test.df");
 
 	std::vector<Token> token_stream;
 	Token tk = lexer.next_tk();

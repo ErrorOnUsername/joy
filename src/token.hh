@@ -149,7 +149,7 @@ struct Token {
 	{ }
 };
 
-enum BinOpKind;
+enum BinOpKind : uint32_t;
 
 char const* tk_as_str(TokenKind kind);
 BinOpKind tk_as_operator(TokenKind kind);

@@ -1,7 +1,7 @@
-#include "parser.h"
+#include "parser.hh"
 #include <iostream>
 
-#include "compiler.h"
+#include "compiler.hh"
 
 Parser::Parser(std::vector<Token>& token_stream)
 	: m_token_stream(token_stream)

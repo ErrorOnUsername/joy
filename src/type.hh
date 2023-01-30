@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 enum TypeKind {
 	TY_NOTHING,
@@ -30,7 +31,7 @@ struct Expr;
 struct Type {
 	TypeKind kind = TY_UNKNOWN;
 	std::string name;
-	
+
 	union {
 		Expr* size_expr;
 		int64_t size;

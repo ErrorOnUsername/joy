@@ -1,11 +1,12 @@
-#include "compiler.h"
+#include "compiler.hh"
 #include <cassert>
 #include <cstdarg>
 #include <cstdio>
+#include <unistd.h>
 #include <fstream>
 #include <iostream>
 
-#include "token.h"
+#include "token.hh"
 
 Compiler* Compiler::s_the = nullptr;
 
@@ -16,8 +17,7 @@ void Compiler::init()
 
 size_t Compiler::open_file(std::string const& filepath)
 {
-	FILE* file;
-	fopen_s(&file, filepath.c_str(), "r");
+	FILE* file = fopen(filepath.c_str(), "r");
 	assert(file);
 
 	fseek(file, 0, SEEK_END);
@@ -71,7 +71,7 @@ void Compiler::panic(Span span, char const* msg, ...)
 
 	size_t line_size = line_end - line_start;
 
-	printf("%4zu| %s\n", span.line, s_the->m_file_data_registry[span.file_id].substr(line_start, line_size).c_str());
+	printf("%4lld| %s\n", span.line, s_the->m_file_data_registry[span.file_id].substr(line_start, line_size).c_str());
 	// FIXME: In the future, get the width of the number
 	printf("      ");
 	for (size_t i = line_start; i < line_end; i++) {
@@ -80,6 +80,7 @@ void Compiler::panic(Span span, char const* msg, ...)
 		else
 			printf(" ");
 	}
+	printf("\n");
 
 	va_end(args);
 

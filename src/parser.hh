@@ -1,9 +1,9 @@
 #pragma once
 #include <vector>
 
-#include "arena.h"
-#include "ast.h"
-#include "token.h"
+#include "arena.hh"
+#include "ast.hh"
+#include "token.hh"
 
 class Parser {
 public:

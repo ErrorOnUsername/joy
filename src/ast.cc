@@ -1,4 +1,4 @@
-#include "ast.h"
+#include "ast.hh"
 #include <iostream>
 
 char const* bin_op_as_str(BinOpKind kind)
