@@ -135,6 +135,19 @@ struct Span {
 	int64_t line;
 };
 
+inline Span join_span(Span span_0, Span span_1)
+{
+	assert(span_0.file_id == span_1.file_id);
+	assert(span_0.start_idx < span_1.start_idx);
+
+	return Span {
+		span_0.file_id,
+		span_0.start_idx,
+		span_1.end_idx,
+		span_1.line
+	};
+}
+
 struct Token {
 	TokenKind kind;
 	Span span;

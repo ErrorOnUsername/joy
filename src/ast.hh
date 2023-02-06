@@ -18,6 +18,7 @@ enum ExprKind {
 };
 
 struct Expr {
+	Span span;
 	ExprKind kind;
 	TypeID result_ty;
 };
@@ -96,6 +97,7 @@ enum BinOpKind : uint32_t {
 
 bool is_assign_op(BinOpKind kind);
 int64_t op_priority(BinOpKind kind);
+char const* bin_op_as_str(BinOpKind kind);
 
 struct BinOpExpr : public Expr {
 	BinOpKind op_kind;
@@ -135,11 +137,15 @@ enum StmntKind {
 	STMNT_FOR,
 	STMNT_WHILE,
 	STMNT_LOOP,
+	STMNT_CONTINUE,
+	STMNT_BREAK,
+	STMNT_RETURN,
 	STMNT_BLOCK,
 	STMNT_EXPR,
 };
 
 struct Stmnt {
+	Span span;
 	StmntKind kind;
 };
 
@@ -169,11 +175,13 @@ struct EnumDeclStmnt : public Stmnt {
 
 struct ProcParameter {
 	std::string name;
+	size_t var_id;
 	TypeID type;
 	Expr* default_value;
 };
 
 struct Block {
+	size_t scope_id;
 	std::vector<Stmnt*> stmnts;
 };
 
@@ -203,8 +211,13 @@ struct IfStmnt : public Stmnt {
 	Stmnt* else_chain;
 };
 
+struct ForLoopIterator {
+	std::string name;
+	size_t var_id;
+};
+
 struct ForLoopStmnt : public Stmnt {
-	VarDeclStmnt* it;
+	ForLoopIterator it;
 	RangeExpr* range;
 	Block body;
 };
@@ -218,6 +231,10 @@ struct LoopStmnt : public Stmnt {
 	Block body;
 };
 
+struct ReturnStmnt : public Stmnt {
+	Expr* val;
+};
+
 struct BlockStmnt : public Stmnt {
 	Block block;
 };
@@ -227,7 +244,7 @@ struct ExprStmnt : public Stmnt {
 };
 
 struct Scope {
-	std::unordered_map<std::string, size_t> vars;
+	std::unordered_map<std::string, size_t> vars_id_map;
 };
 
 struct Module {

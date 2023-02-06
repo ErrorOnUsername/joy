@@ -2,4 +2,25 @@ decl main : (param0: bool)
 {
 	let a := 1 + 2 / 3 * 4;
 	let b := (1 + 2) * 3;
+	let c := 10;
+
+	if a > b {
+		a = b;
+	}
+
+	while a > b {
+		++a;
+		break;
+	}
+
+	loop {
+		a--;
+	}
+
+	return a;
+
+	for i in [0..10) {
+		let a := 20;
+		continue;
+	}
 }

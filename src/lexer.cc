@@ -91,6 +91,7 @@ Token Lexer::next_tk()
 			case ';': TK_WITH_B_FORM(TK_SEMICOLON);
 			case ':': TK_WITH_BO_FORM(TK_COLON, ':', TK_DOUBLE_COLON, '=', TK_COLON_ASSIGN);
 			case ',': TK_WITH_B_FORM(TK_COMMA);
+			case '.': TK_WITH_BX_FORM(TK_DOT, '.', TK_DOT_DOT);
 			case '<': TK_WITH_BX_FORM(TK_L_ANGLE, '=', TK_LEQ);
 			case '>': TK_WITH_BX_FORM(TK_R_ANGLE, '=', TK_GEQ);
 			case '/': {
@@ -196,26 +197,28 @@ Token Lexer::tokenize_number()
 
 	if (c == '.') {
 		assert(radix == 10);
-		m_idx++;
-		is_float = true;
-
-		int place = 1;
-		char c = current();
-		while (!at_eof() && is_valid_number_char(c)) {
-			if (c == 'e' || c == 'E') break;
-
-			uint64_t val = ch_to_val(c);
-			assert(val < radix);
-
-			fractional_tail *= radix;
-			fractional_tail += val;
-
-			place *= 10;
+		if (is_valid_number_char(peek())) {
 			m_idx++;
-			c = current();
-		}
+			is_float = true;
 
-		f_num += ((double)fractional_tail / place);
+			int place = 1;
+			char c = current();
+			while (!at_eof() && is_valid_number_char(c)) {
+				if (c == 'e' || c == 'E') break;
+
+				uint64_t val = ch_to_val(c);
+				assert(val < radix);
+
+				fractional_tail *= radix;
+				fractional_tail += val;
+
+				place *= 10;
+				m_idx++;
+				c = current();
+			}
+
+			f_num += ((double)fractional_tail / place);
+		}
 	}
 
 	c = current();
@@ -266,6 +269,8 @@ Token Lexer::tokenize_ident()
 	std::string str;
 	char c = current();
 
+	assert(is_valid_ident_char(c));
+
 	while (!at_eof() && is_valid_ident_char(c)) {
 		str.push_back(c);
 		m_idx++;
@@ -294,6 +299,8 @@ Token Lexer::tokenize_ident()
 		tk.kind = TK_KW_CONTINUE;
 	else if (str == "break")
 		tk.kind = TK_KW_BREAK;
+	else if (str == "return")
+		tk.kind = TK_KW_RETURN;
 	else if (str == "in")
 		tk.kind = TK_KW_IN;
 	else if (str == "as")

@@ -57,28 +57,30 @@ void Compiler::panic(Span span, char const* msg, ...)
 	size_t line_start = span.start_idx;
 	size_t line_end = span.end_idx;
 
+	std::string const& file_data = s_the->m_file_data_registry[span.file_id];
+
 	for (; line_start > 0; line_start--) {
-		if (s_the->m_file_data_registry[span.file_id][line_start] == '\n') {
+		if (file_data[line_start] == '\n') {
 			line_start++;
 			break;
 		}
 	}
 
-	for (; line_end < s_the->m_file_data_registry[span.file_id].size(); line_end++) {
-		if (s_the->m_file_data_registry[span.file_id][line_end] == '\n')
+	for (; line_end < file_data.size(); line_end++) {
+		if (file_data[line_end] == '\n')
 			break;
 	}
 
 	size_t line_size = line_end - line_start;
 
-	printf("%4lld| %s\n", span.line, s_the->m_file_data_registry[span.file_id].substr(line_start, line_size).c_str());
+	printf("%4lld| %s\n", span.line, file_data.substr(line_start, line_size).c_str());
 	// FIXME: In the future, get the width of the number
 	printf("      ");
 	for (size_t i = line_start; i < line_end; i++) {
 		if (i >= (size_t)span.start_idx && i < (size_t)span.end_idx)
 			printf("^");
 		else
-			printf(" ");
+			printf(file_data[i] == '\t' ? "\t" : " ");
 	}
 	printf("\n");
 
