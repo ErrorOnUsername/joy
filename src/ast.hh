@@ -5,6 +5,8 @@
 #include "token.hh"
 #include "type.hh"
 
+using ScopeID = int64_t;
+
 enum ExprKind {
 	EXPR_BOOL,
 	EXPR_NUMBER,
@@ -181,7 +183,7 @@ struct ProcParameter {
 };
 
 struct Block {
-	size_t scope_id;
+	ScopeID scope_id;
 	std::vector<Stmnt*> stmnts;
 };
 
@@ -199,7 +201,7 @@ struct ProcDeclStmnt : public Stmnt {
 };
 
 struct VarDeclStmnt : public Stmnt {
-	size_t scope_id;
+	ScopeID scope_id;
 	std::string name;
 	TypeID type;
 	Expr* default_value;
@@ -244,6 +246,7 @@ struct ExprStmnt : public Stmnt {
 };
 
 struct Scope {
+	ScopeID parent;
 	std::unordered_map<std::string, size_t> vars_id_map;
 };
 

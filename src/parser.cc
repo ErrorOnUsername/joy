@@ -12,7 +12,9 @@ Parser::Parser(std::vector<Token>& token_stream)
 	, m_stmnt_arena(16 * 1024)
 	, m_expr_arena(16 * 1024)
 {
-	m_root_module.scopes.push_back(Scope { });
+	Scope root_scope { };
+	root_scope.parent = -1;
+	m_root_module.scopes.emplace_back(std::move(root_scope));
 }
 
 void Parser::parse_module()
@@ -557,6 +559,10 @@ Expr* Parser::parse_operand()
 			VarExpr* var_ref = (VarExpr*)m_expr_arena.alloc_bytes(sizeof(VarExpr));
 			var_ref->kind = EXPR_VAR;
 			var_ref->name = current().str;
+			var_ref->span = current().span;
+
+			if (!is_ident_defined(var_ref->name))
+				Compiler::panic(var_ref->span, "Error! Use of undefined variable: %s\n", var_ref->name.c_str());
 
 			m_idx++;
 
@@ -915,8 +921,13 @@ Block Parser::parse_stmnt_block()
 
 	eat_current_specific(TK_L_CURLY);
 
-	m_root_module.scopes.push_back(Scope { });
-	size_t scope_id = ++m_current_scope;
+	Scope new_scope { };
+	new_scope.parent = m_current_scope;
+
+	m_current_scope = m_root_module.scopes.size();
+	ScopeID new_scope_id = m_current_scope;
+
+	m_root_module.scopes.emplace_back(std::move(new_scope));
 
 	eat_whitespace();
 
@@ -930,7 +941,23 @@ Block Parser::parse_stmnt_block()
 
 	eat_current_specific(TK_R_CURLY);
 
-	return Block{ scope_id, std::move(stmnts) };
+	m_current_scope = m_root_module.scopes[new_scope_id].parent;
+
+	return Block{ new_scope_id, std::move(stmnts) };
+}
+
+bool Parser::is_ident_defined(std::string const& name) const
+{
+	ScopeID scope = m_current_scope;
+	while (scope != -1) {
+		Scope const& curr_scope = m_root_module.scopes[scope];
+		if (curr_scope.vars_id_map.contains(name))
+			return true;
+
+		scope = curr_scope.parent;
+	}
+
+	return false;
 }
 
 Token Parser::current()

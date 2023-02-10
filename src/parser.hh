@@ -20,6 +20,8 @@ public:
 	std::vector<ProcParameter> parse_proc_decl_param_list();
 	Block parse_stmnt_block();
 
+	bool is_ident_defined(std::string const& name) const;
+
 	Token current();
 	Token next();
 	void eat_next_specific(TokenKind kind);
