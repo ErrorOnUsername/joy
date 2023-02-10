@@ -103,7 +103,11 @@ Token Lexer::next_tk()
 					continue;
 				} else if (peek() == '*') {
 					while (!at_eof()) {
-						if (current() == '/' && peek(-1) == '*') break;
+						if (current() == '/' && peek(-1) == '*') {
+							m_idx++;
+							break;
+						}
+
 						if (current() == '\n') m_line++;
 						m_idx++;
 					}

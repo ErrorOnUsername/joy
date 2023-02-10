@@ -21,8 +21,8 @@ decl main : (param0: bool)
 	return a;
 
 	for i in [0..10) {
-		let a := haha;
 		let haha := 0;
+		let a := haha;
 		continue;
 	}
 }
