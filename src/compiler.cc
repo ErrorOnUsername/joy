@@ -24,11 +24,12 @@ size_t Compiler::open_file(std::string const& filepath)
 	size_t f_size = ftell(file);
 	rewind(file);
 
-	char* temp = (char*)malloc(f_size);
+	char* temp = (char*)malloc(f_size + 1);
 	assert(temp);
 	memset(temp, 0, f_size);
 
 	fread(temp, 1, f_size, file);
+	temp[f_size] = 0;
 
 	std::string buf(temp);
 
