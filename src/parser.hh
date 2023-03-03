@@ -10,7 +10,19 @@ public:
 	Parser(std::vector<Token>& token_stream);
 
 	void parse_module();
+
 	Stmnt* parse_statement();
+	void parse_decl_stmnt();
+	void parse_let_stmnt();
+	Stmnt* parse_if_stmnt();
+	Stmnt* parse_for_stmnt();
+	Stmnt* parse_while_stmnt();
+	Stmnt* parse_loop_stmnt();
+	Stmnt* parse_continue_stmnt();
+	Stmnt* parse_break_stmnt();
+	Stmnt* parse_return_stmnt();
+	Stmnt* parse_expr_stmnt();
+
 	Expr* parse_expr(bool can_assign, bool allow_newlines);
 	Expr* parse_operand();
 	Type parse_raw_type();
@@ -21,6 +33,7 @@ public:
 	Block parse_stmnt_block();
 
 	bool is_ident_defined(std::string const& name) const;
+	VarID get_ident_var_id(std::string const& name) const;
 
 	Token current();
 	Token next();

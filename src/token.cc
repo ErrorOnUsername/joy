@@ -197,6 +197,8 @@ char const* tk_as_str(TokenKind kind)
 		return "TK_TY_RAWPTR";
 	case TK_TY_STR:
 		return "TK_TY_STR";
+	case TK_TY_CSTR:
+		return "TK_TY_CSTR";
 
 	default:
 		return "UNKNOWN (ADD TO token.h)";

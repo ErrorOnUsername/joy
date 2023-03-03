@@ -17,75 +17,14 @@ Parser::Parser(std::vector<Token>& token_stream)
 	m_root_module.scopes.emplace_back(std::move(root_scope));
 }
 
+
 void Parser::parse_module()
 {
 	Token tk = current();
 	while (tk.kind != TK_EOF) {
 		switch (tk.kind) {
 			case TK_KW_DECL: {
-				Span start_span = tk.span;
-
-				Token name = next();
-				if (name.kind != TK_IDENT)
-					Compiler::panic(name.span, "Syntax Error! Expected identifier, got: %s\n", tk_as_str(name.kind));
-
-				eat_next_specific(TK_COLON);
-
-				Token determinant = current();
-				Span fnl_span = join_span(start_span, determinant.span);
-				switch (determinant.kind) {
-					case TK_KW_STRUCT: {
-						auto members = parse_struct_members();
-
-						StructDeclStmnt decl{ };
-						decl.span = fnl_span;
-						decl.kind = STMNT_STRUCT_DECL;
-						decl.name = name.str;
-						decl.members = std::move(members);
-
-						printf("Struct: %s\n", decl.name.c_str());
-						for (auto const& el : decl.members) {
-							printf("  %s: %s[%lld]\n", el.name.c_str(), m_root_module.types[el.type].name.c_str(), el.type);
-						}
-
-						m_root_module.structs.emplace_back(std::move(decl));
-						break;
-					}
-					case TK_KW_ENUM:
-						[[fallthrough]];
-					case TK_KW_UNION:
-						TODO();
-						[[fallthrough]];
-					case TK_L_PAREN: {
-						auto params = parse_proc_decl_param_list();
-
-						eat_current_specific(TK_R_PAREN);
-
-						auto body = parse_stmnt_block();
-						size_t root_scope = body.scope_id;
-						for (auto const& p : params) {
-							Scope& current_scope = m_root_module.scopes[root_scope];
-							if (current_scope.vars_id_map.contains(p.name)) {
-								VarDeclStmnt var = m_root_module.vars[current_scope.vars_id_map[p.name]];
-								Compiler::panic(var.span, "Error! Found variable declaration in scope with the same name as parameter: %s\n", p.name.c_str());
-							}
-						}
-
-						ProcDeclStmnt decl{ };
-						decl.span = fnl_span;
-						decl.kind = STMNT_PROC_DECL;
-						decl.name = name.str;
-						decl.params = std::move(params);
-						decl.body = std::move(body);
-						decl.linkage = PROC_LINKAGE_INTERNAL;
-						decl.linking_lib_name = "";
-
-						m_root_module.procs.emplace_back(std::move(decl));
-						break;
-					}
-					default:
-						break;
-				};
+				parse_decl_stmnt();
 				break;
 			}
 			case TK_CD_LOAD: {
@@ -96,7 +35,8 @@ void Parser::parse_module()
 				Compiler::panic(tk.span, "Syntax Error! Unexpected token: %s\n", tk_as_str(tk.kind));
 		};
 
-		tk = next();
+		eat_whitespace();
+		tk = current();
 	}
 }
 
@@ -107,213 +47,17 @@ Stmnt* Parser::parse_statement()
 	Token tk = current();
 	switch (tk.kind) {
 		case TK_KW_LET: {
-			Span start_span = tk.span;
-
-			Token name = next();
-			if (name.kind != TK_IDENT)
-				Compiler::panic(name.span, "Syntax Error! Expected identifer in variable declaration, got: %s\n", tk_as_str(name.kind));
-
-			Span fnl_span = join_span(start_span, name.span);
-
-			VarDeclStmnt var{ };
-			var.span = fnl_span;
-			var.kind = STMNT_VAR_DECL;
-			var.scope_id = 0;
-			var.name = name.str;
-
-			Token colon_or_autotype = next();
-			if (colon_or_autotype.kind == TK_COLON) {
-				Type raw_type = parse_raw_type();
-				TypeID type = register_type(raw_type);
-
-				var.type = type;
-			} else if (colon_or_autotype.kind == TK_COLON_ASSIGN) {
-				var.type = -1;
-			} else {
-				Compiler::panic(colon_or_autotype.span, "Syntax Error! Expected ':' or ':=' in variable declaration, got: %s", tk_as_str(colon_or_autotype.kind));
-			}
-
-			Token eq_or_semicolon = next();
-			if (eq_or_semicolon.kind == TK_ASSIGN) {
-				m_idx++;
-				var.default_value = parse_expr(false, true);
-			}
-			else if (eq_or_semicolon.kind == TK_SEMICOLON) {
-				var.default_value = nullptr;
-			} else if (colon_or_autotype.kind == TK_COLON_ASSIGN) {
-				var.default_value = parse_expr(false, true);
-				dump_expr(var.default_value, 0);
-				eat_current_specific(TK_SEMICOLON);
-			} else {
-				Compiler::panic(eq_or_semicolon.span, "Syntax Error! Expected '=' or ';' in variable declaraton, got: %s\n", tk_as_str(eq_or_semicolon.kind));
-			}
-
-			Scope& curr_scope = m_root_module.scopes[m_current_scope];
-			if (curr_scope.vars_id_map.contains(var.name))
-				Compiler::panic(var.span, "Redefinition of identifier: '%s'\n", var.name.c_str());
-
-			curr_scope.vars_id_map[var.name] = m_root_module.vars.size();
-			m_root_module.vars.push_back(var);
+			parse_let_stmnt();
 			break;
 		}
-		case TK_KW_IF: {
-			eat_current_specific(TK_KW_IF);
-
-			Expr* condition = parse_expr(false, true);
-
-			eat_whitespace();
-
-			Block body = parse_stmnt_block();
-
-			eat_whitespace();
-
-			IfStmnt* if_stmnt = (IfStmnt*)m_stmnt_arena.alloc_bytes(sizeof(IfStmnt));
-			if_stmnt->kind = STMNT_IF;
-			if_stmnt->condition = condition;
-			if_stmnt->body = std::move(body);
-			if_stmnt->else_chain = nullptr;
-
-			if (current().kind == TK_KW_ELSE) {
-				eat_current_specific(TK_KW_ELSE);
-
-				eat_whitespace();
-
-				if (current().kind == TK_KW_IF) {
-					if_stmnt->else_chain = parse_statement();
-				} else {
-					IfStmnt* else_stmnt = (IfStmnt*)m_stmnt_arena.alloc_bytes(sizeof(IfStmnt));
-					else_stmnt->kind = STMNT_IF;
-					else_stmnt->condition = nullptr;
-					else_stmnt->body = parse_stmnt_block();
-					else_stmnt->else_chain = nullptr;
-				}
-			}
-
-			return if_stmnt;
-		}
-		case TK_KW_FOR: {
-			eat_current_specific(TK_KW_FOR);
-
-			Token iter_name = current();
-			if (iter_name.kind != TK_IDENT)
-				Compiler::panic(iter_name.span, "Syntax Error! Expected identifier for loop iterator name, got: %s\n", tk_as_str(iter_name.kind));
-
-			eat_next_specific(TK_KW_IN);
-
-			Expr* range = parse_expr(false, true);
-			if (range->kind != EXPR_RANGE)
-				Compiler::panic(range->span, "Syntax Error! Expected a range expression, got something else.");
-
-			eat_whitespace();
-
-			Block body = parse_stmnt_block();
-			Scope& root_scope = m_root_module.scopes[body.scope_id];
-			if (root_scope.vars_id_map.contains(iter_name.str)) {
-				VarDeclStmnt& var = m_root_module.vars[root_scope.vars_id_map[iter_name.str]];
-				Compiler::panic(var.span, "Error! Found variable declaration in scope with the same name as iterator: %s\n", iter_name.str.c_str());
-			}
-
-			eat_whitespace();
-
-			VarDeclStmnt iter { };
-			iter.scope_id = body.scope_id;
-			iter.name = iter_name.str;
-			iter.type = -1;
-			iter.default_value = ((RangeExpr*)range)->lhs;
-
-			root_scope.vars_id_map[iter.name] = m_root_module.vars.size();
-			m_root_module.vars.push_back(iter);
-
-			ForLoopStmnt* for_loop = (ForLoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ForLoopStmnt));
-			for_loop->kind = STMNT_FOR;
-			for_loop->it = { iter.name, m_root_module.vars.size() - 1 };
-			for_loop->range = (RangeExpr*)range;
-			for_loop->body = std::move(body);
-
-			return for_loop;
-		}
-		case TK_KW_WHILE: {
-			eat_current_specific(TK_KW_WHILE);
-
-			Expr* condition = parse_expr(false, true);
-
-			eat_whitespace();
-
-			Block body = parse_stmnt_block();
-
-			eat_whitespace();
-
-			WhileLoopStmnt* while_loop = (WhileLoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(WhileLoopStmnt));
-			while_loop->kind = STMNT_WHILE;
-			while_loop->condition = condition;
-			while_loop->body = std::move(body);
-
-			return while_loop;
-		}
-		case TK_KW_LOOP: {
-			eat_current_specific(TK_KW_LOOP);
-
-			eat_whitespace();
-
-			Block body = parse_stmnt_block();
-
-			eat_whitespace();
-
-			LoopStmnt* loop_stmnt = (LoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(LoopStmnt));
-			loop_stmnt->kind = STMNT_LOOP;
-			loop_stmnt->body = std::move(body);
-
-			return loop_stmnt;
-		}
-		case TK_KW_CONTINUE: {
-			eat_current_specific(TK_KW_CONTINUE);
-
-			Stmnt* continue_stmnt = (Stmnt*)m_stmnt_arena.alloc_bytes(sizeof(Stmnt));
-			continue_stmnt->kind = STMNT_CONTINUE;
-
-			eat_current_specific(TK_SEMICOLON);
-			eat_whitespace();
-
-			return continue_stmnt;
-		}
-		case TK_KW_BREAK: {
-			eat_current_specific(TK_KW_BREAK);
-
-			Stmnt* break_stmnt = (Stmnt*)m_stmnt_arena.alloc_bytes(sizeof(Stmnt));
-			break_stmnt->kind = STMNT_BREAK;
-
-			eat_current_specific(TK_SEMICOLON);
-			eat_whitespace();
-
-			return break_stmnt;
-		}
-		case TK_KW_RETURN: {
-			eat_current_specific(TK_KW_RETURN);
-
-			Expr* ret_val = parse_expr(false, true);
-			eat_current_specific(TK_SEMICOLON);
-
-			eat_whitespace();
-
-			ReturnStmnt* ret_stmnt = (ReturnStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ReturnStmnt));
-			ret_stmnt->kind = STMNT_RETURN;
-			ret_stmnt->val = ret_val;
-
-			return ret_stmnt;
-		}
-		default:
-			ExprStmnt* expr = (ExprStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ExprStmnt));
-			expr->kind = STMNT_EXPR;
-			expr->expr = parse_expr(true, true);
-			expr->span = expr->expr->span;
-
-			dump_expr(expr->expr, 0);
-
-			eat_whitespace();
-			eat_current_specific(TK_SEMICOLON);
-			eat_whitespace();
-
-			return (Stmnt*)expr;
+		case TK_KW_IF: return parse_if_stmnt();
+		case TK_KW_FOR: return parse_for_stmnt();
+		case TK_KW_WHILE: return parse_while_stmnt();
+		case TK_KW_LOOP: return parse_loop_stmnt();
+		case TK_KW_CONTINUE: return parse_continue_stmnt();
+		case TK_KW_BREAK: return parse_break_stmnt();
+		case TK_KW_RETURN: return parse_return_stmnt();
+		default: return parse_expr_stmnt();
 	}
 
 	eat_whitespace();
@@ -420,6 +164,302 @@ Expr* Parser::parse_expr(bool can_assign, bool allow_newlines)
 	expr->span = join_span(start_span, end_span);
 
 	return expr;
+}
+
+void Parser::parse_decl_stmnt()
+{
+	Token tk = current();
+
+	Span start_span = tk.span;
+
+	Token name = next();
+	if (name.kind != TK_IDENT)
+		Compiler::panic(name.span, "Syntax Error! Expected identifier, got: %s\n", tk_as_str(name.kind));
+
+	eat_next_specific(TK_COLON);
+
+	Token determinant = current();
+	Span fnl_span = join_span(start_span, determinant.span);
+	switch (determinant.kind) {
+		case TK_KW_STRUCT: {
+			auto members = parse_struct_members();
+
+			StructDeclStmnt decl{ };
+			decl.span = fnl_span;
+			decl.kind = STMNT_STRUCT_DECL;
+			decl.name = name.str;
+			decl.members = std::move(members);
+
+			printf("Struct: %s\n", decl.name.c_str());
+			for (auto const& el : decl.members) {
+				printf("  %s: %s[%lld]\n", el.name.c_str(), m_root_module.types[el.type].name.c_str(), el.type);
+			}
+
+			m_root_module.structs.emplace_back(std::move(decl));
+			break;
+		}
+		case TK_KW_ENUM:
+			[[fallthrough]];
+		case TK_KW_UNION:
+			TODO();
+			[[fallthrough]];
+		case TK_L_PAREN: {
+			auto params = parse_proc_decl_param_list();
+
+			eat_current_specific(TK_R_PAREN);
+
+			auto body = parse_stmnt_block();
+			size_t root_scope = body.scope_id;
+			for (auto const& p : params) {
+				Scope& current_scope = m_root_module.scopes[root_scope];
+				if (current_scope.vars_id_map.contains(p.name)) {
+					VarDeclStmnt var = m_root_module.vars[current_scope.vars_id_map[p.name]];
+					Compiler::panic(var.span, "Error! Found variable declaration in scope with the same name as parameter: %s\n", p.name.c_str());
+				}
+			}
+
+			ProcDeclStmnt decl{ };
+			decl.span = fnl_span;
+			decl.kind = STMNT_PROC_DECL;
+			decl.name = name.str;
+			decl.params = std::move(params);
+			decl.body = std::move(body);
+			decl.linkage = PROC_LINKAGE_INTERNAL;
+			decl.linking_lib_name = "";
+
+			m_root_module.procs.emplace_back(std::move(decl));
+			break;
+		}
+		default:
+			break;
+	};
+}
+
+void Parser::parse_let_stmnt()
+{
+	Token tk = current();
+	Span start_span = tk.span;
+
+	Token name = next();
+	if (name.kind != TK_IDENT)
+		Compiler::panic(name.span, "Syntax Error! Expected identifer in variable declaration, got: %s\n", tk_as_str(name.kind));
+
+	Span fnl_span = join_span(start_span, name.span);
+
+	VarDeclStmnt var{ };
+	var.span = fnl_span;
+	var.kind = STMNT_VAR_DECL;
+	var.scope_id = 0;
+	var.name = name.str;
+
+	Token colon_or_autotype = next();
+	if (colon_or_autotype.kind == TK_COLON) {
+		Type raw_type = parse_raw_type();
+		TypeID type = register_type(raw_type);
+
+		var.type = type;
+	} else if (colon_or_autotype.kind == TK_COLON_ASSIGN) {
+		var.type = -1;
+	} else {
+		Compiler::panic(colon_or_autotype.span, "Syntax Error! Expected ':' or ':=' in variable declaration, got: %s", tk_as_str(colon_or_autotype.kind));
+	}
+
+	Token eq_or_semicolon = next();
+	if (eq_or_semicolon.kind == TK_ASSIGN) {
+		m_idx++;
+		var.default_value = parse_expr(false, true);
+	}
+	else if (eq_or_semicolon.kind == TK_SEMICOLON) {
+		var.default_value = nullptr;
+	} else if (colon_or_autotype.kind == TK_COLON_ASSIGN) {
+		var.default_value = parse_expr(false, true);
+		dump_expr(var.default_value, 0);
+		eat_current_specific(TK_SEMICOLON);
+	} else {
+		Compiler::panic(eq_or_semicolon.span, "Syntax Error! Expected '=' or ';' in variable declaraton, got: %s\n", tk_as_str(eq_or_semicolon.kind));
+	}
+
+	Scope& curr_scope = m_root_module.scopes[m_current_scope];
+	if (curr_scope.vars_id_map.contains(var.name))
+		Compiler::panic(var.span, "Redefinition of identifier: '%s'\n", var.name.c_str());
+
+	curr_scope.vars_id_map[var.name] = m_root_module.vars.size();
+	m_root_module.vars.push_back(var);
+}
+
+Stmnt* Parser::parse_if_stmnt()
+{
+	eat_current_specific(TK_KW_IF);
+
+	Expr* condition = parse_expr(false, true);
+
+	eat_whitespace();
+
+	Block body = parse_stmnt_block();
+
+	eat_whitespace();
+
+	IfStmnt* if_stmnt = (IfStmnt*)m_stmnt_arena.alloc_bytes(sizeof(IfStmnt));
+	if_stmnt->kind = STMNT_IF;
+	if_stmnt->condition = condition;
+	if_stmnt->body = std::move(body);
+	if_stmnt->else_chain = nullptr;
+
+	if (current().kind == TK_KW_ELSE) {
+		eat_current_specific(TK_KW_ELSE);
+
+		eat_whitespace();
+
+		if (current().kind == TK_KW_IF) {
+			if_stmnt->else_chain = parse_statement();
+		} else {
+			IfStmnt* else_stmnt = (IfStmnt*)m_stmnt_arena.alloc_bytes(sizeof(IfStmnt));
+			else_stmnt->kind = STMNT_IF;
+			else_stmnt->condition = nullptr;
+			else_stmnt->body = parse_stmnt_block();
+			else_stmnt->else_chain = nullptr;
+		}
+	}
+
+	return if_stmnt;
+}
+
+Stmnt* Parser::parse_for_stmnt()
+{
+	eat_current_specific(TK_KW_FOR);
+
+	Token iter_name = current();
+	if (iter_name.kind != TK_IDENT)
+		Compiler::panic(iter_name.span, "Syntax Error! Expected identifier for loop iterator name, got: %s\n", tk_as_str(iter_name.kind));
+
+	eat_next_specific(TK_KW_IN);
+
+	Expr* range = parse_expr(false, true);
+	if (range->kind != EXPR_RANGE)
+		Compiler::panic(range->span, "Syntax Error! Expected a range expression, got something else.");
+
+	eat_whitespace();
+
+	Block body = parse_stmnt_block();
+	Scope& root_scope = m_root_module.scopes[body.scope_id];
+	if (root_scope.vars_id_map.contains(iter_name.str)) {
+		VarDeclStmnt& var = m_root_module.vars[root_scope.vars_id_map[iter_name.str]];
+		Compiler::panic(var.span, "Error! Found variable declaration in scope with the same name as iterator: %s\n", iter_name.str.c_str());
+	}
+
+	eat_whitespace();
+
+	VarDeclStmnt iter { };
+	iter.scope_id = body.scope_id;
+	iter.name = iter_name.str;
+	iter.type = -1;
+	iter.default_value = ((RangeExpr*)range)->lhs;
+
+	root_scope.vars_id_map[iter.name] = m_root_module.vars.size();
+	m_root_module.vars.push_back(iter);
+
+	ForLoopStmnt* for_loop = (ForLoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ForLoopStmnt));
+	for_loop->kind = STMNT_FOR;
+	for_loop->it = { iter.name, (VarID)m_root_module.vars.size() - 1 };
+	for_loop->range = (RangeExpr*)range;
+	for_loop->body = std::move(body);
+
+	return for_loop;
+}
+
+Stmnt* Parser::parse_while_stmnt()
+{
+	eat_current_specific(TK_KW_WHILE);
+
+	Expr* condition = parse_expr(false, true);
+
+	eat_whitespace();
+
+	Block body = parse_stmnt_block();
+
+	eat_whitespace();
+
+	WhileLoopStmnt* while_loop = (WhileLoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(WhileLoopStmnt));
+	while_loop->kind = STMNT_WHILE;
+	while_loop->condition = condition;
+	while_loop->body = std::move(body);
+
+	return while_loop;
+}
+
+Stmnt* Parser::parse_loop_stmnt()
+{
+	eat_current_specific(TK_KW_LOOP);
+
+	eat_whitespace();
+
+	Block body = parse_stmnt_block();
+
+	eat_whitespace();
+
+	LoopStmnt* loop_stmnt = (LoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(LoopStmnt));
+	loop_stmnt->kind = STMNT_LOOP;
+	loop_stmnt->body = std::move(body);
+
+	return loop_stmnt;
+}
+
+Stmnt* Parser::parse_continue_stmnt()
+{
+	eat_current_specific(TK_KW_CONTINUE);
+
+	Stmnt* continue_stmnt = (Stmnt*)m_stmnt_arena.alloc_bytes(sizeof(Stmnt));
+	continue_stmnt->kind = STMNT_CONTINUE;
+
+	eat_current_specific(TK_SEMICOLON);
+	eat_whitespace();
+
+	return continue_stmnt;
+}
+
+Stmnt* Parser::parse_break_stmnt()
+{
+	eat_current_specific(TK_KW_BREAK);
+
+	Stmnt* break_stmnt = (Stmnt*)m_stmnt_arena.alloc_bytes(sizeof(Stmnt));
+	break_stmnt->kind = STMNT_BREAK;
+
+	eat_current_specific(TK_SEMICOLON);
+	eat_whitespace();
+
+	return break_stmnt;
+}
+
+Stmnt* Parser::parse_return_stmnt()
+{
+	eat_current_specific(TK_KW_RETURN);
+
+	Expr* ret_val = parse_expr(false, true);
+	eat_current_specific(TK_SEMICOLON);
+
+	eat_whitespace();
+
+	ReturnStmnt* ret_stmnt = (ReturnStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ReturnStmnt));
+	ret_stmnt->kind = STMNT_RETURN;
+	ret_stmnt->val = ret_val;
+
+	return ret_stmnt;
+}
+
+Stmnt* Parser::parse_expr_stmnt()
+{
+	ExprStmnt* expr = (ExprStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ExprStmnt));
+	expr->kind = STMNT_EXPR;
+	expr->expr = parse_expr(true, true);
+	expr->span = expr->expr->span;
+
+	dump_expr(expr->expr, 0);
+
+	eat_whitespace();
+	eat_current_specific(TK_SEMICOLON);
+	eat_whitespace();
+
+	return (Stmnt*)expr;
 }
 
 Expr* Parser::parse_operand()
@@ -556,13 +596,30 @@ Expr* Parser::parse_operand()
 			break;
 		}
 		case TK_IDENT: {
-			VarExpr* var_ref = (VarExpr*)m_expr_arena.alloc_bytes(sizeof(VarExpr));
-			var_ref->kind = EXPR_VAR;
-			var_ref->name = current().str;
-			var_ref->span = current().span;
+			if (peek().kind == TK_L_PAREN) {
+				eat_next_specific(TK_L_PAREN);
 
-			if (!is_ident_defined(var_ref->name))
-				Compiler::panic(var_ref->span, "Error! Use of undefined variable: %s\n", var_ref->name.c_str());
+				eat_whitespace();
+
+				std::vector<Expr*> params;
+				while(current().kind != TK_R_PAREN) {
+
+					params.push_back(parse_expr(false, true));
+
+					Token t = current();
+					eat_whitespace();
+					if (t.kind == TK_COMMA)
+						eat_current_specific(TK_COMMA);
+					else if (t.kind != TK_R_PAREN)
+						Compiler::panic(t.span, "Expected ',' or ')' in procedure call, but got: %s\n", tk_as_str(t.kind));
+				}
+			}
+
+			VarExpr* var_ref = (VarExpr*)m_expr_arena.alloc_bytes(sizeof(VarExpr));
+			var_ref->kind    = EXPR_VAR;
+			var_ref->span    = current().span;
+			var_ref->name    = current().str;
+			var_ref->var_id  = get_ident_var_id(var_ref->name);
 
 			m_idx++;
 
@@ -816,6 +873,14 @@ Type Parser::parse_raw_type()
 
 			return ty;
 		}
+		case TK_TY_CSTR: {
+			Type ty{};
+			ty.kind = TY_CSTR;
+			ty.name = "$internal$_cstr";
+			ty.size = -1;
+
+			return ty;
+		}
 		default:
 			Compiler::panic(tk.span, "Syntax Error! Unexpected token in typename: %s\n", tk_as_str(tk.kind));
 	}
@@ -837,7 +902,9 @@ std::vector<StructMember> Parser::parse_struct_members()
 {
 	std::vector<StructMember> members;
 
-	eat_next_specific(TK_L_CURLY);
+	eat_current_specific(TK_KW_STRUCT);
+	eat_whitespace();
+	eat_current_specific(TK_L_CURLY);
 
 	for (;;) {
 		Token name = current();
@@ -861,10 +928,14 @@ std::vector<StructMember> Parser::parse_struct_members()
 			type,
 		});
 
-		Token end = next();
+		eat_whitespace();
+
+		Token end = current();
 		if (end.kind == TK_R_CURLY)
 			break;
 	}
+
+	eat_current_specific(TK_R_CURLY);
 
 	return members;
 }
@@ -958,6 +1029,20 @@ bool Parser::is_ident_defined(std::string const& name) const
 	}
 
 	return false;
+}
+
+VarID Parser::get_ident_var_id(std::string const& name) const
+{
+	ScopeID scope = m_current_scope;
+	while (scope != -1) {
+		Scope const& curr_scope = m_root_module.scopes[scope];
+		if (curr_scope.vars_id_map.contains(name))
+			return curr_scope.vars_id_map.at(name);
+
+		scope = curr_scope.parent;
+	}
+
+	return -1;
 }
 
 Token Parser::current()

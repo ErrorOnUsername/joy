@@ -18,6 +18,7 @@ enum TypeKind {
 	TY_PTR,
 	TY_RAWPTR,
 	TY_STR,
+	TY_CSTR,
 	TY_ARRAY,
 	TY_STRUCT,
 	TY_ENUM,

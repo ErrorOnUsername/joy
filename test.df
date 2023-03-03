@@ -1,7 +1,14 @@
-decl main : (param0: bool)
+decl MyType : struct
+{
+	my_int:    i32;
+	my_string: string;
+	my_thing:  cstring;
+}
+
+decl main : ( param0: bool )
 {
 	let a := 1 + 2 / 3 * 4;
-	let b := (1 + 2) * 3;
+	let b := ( 1 + 2 ) * 3;
 	let c := a;
 	let d := 1;
 

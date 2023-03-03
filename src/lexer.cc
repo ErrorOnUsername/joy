@@ -345,6 +345,8 @@ Token Lexer::tokenize_ident()
 		tk.kind = TK_TY_RAWPTR;
 	else if (str == "string")
 		tk.kind = TK_TY_STR;
+	else if (str == "cstring")
+		tk.kind = TK_TY_CSTR;
 	else
 		tk.str = std::move(str);
 

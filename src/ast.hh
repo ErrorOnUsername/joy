@@ -6,6 +6,7 @@
 #include "type.hh"
 
 using ScopeID = int64_t;
+using VarID   = int64_t;
 
 enum ExprKind {
 	EXPR_BOOL,
@@ -43,7 +44,7 @@ struct ConstCharExpr : public Expr {
 
 struct VarExpr : public Expr {
 	std::string name;
-	size_t var_id;
+	VarID var_id;
 };
 
 struct RangeExpr : public Expr {
@@ -177,7 +178,7 @@ struct EnumDeclStmnt : public Stmnt {
 
 struct ProcParameter {
 	std::string name;
-	size_t var_id;
+	VarID var_id;
 	TypeID type;
 	Expr* default_value;
 };
@@ -215,7 +216,7 @@ struct IfStmnt : public Stmnt {
 
 struct ForLoopIterator {
 	std::string name;
-	size_t var_id;
+	VarID var_id;
 };
 
 struct ForLoopStmnt : public Stmnt {
@@ -247,7 +248,7 @@ struct ExprStmnt : public Stmnt {
 
 struct Scope {
 	ScopeID parent;
-	std::unordered_map<std::string, size_t> vars_id_map;
+	std::unordered_map<std::string, VarID> vars_id_map;
 };
 
 struct Module {

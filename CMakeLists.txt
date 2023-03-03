@@ -1,5 +1,5 @@
 cmake_minimum_required( VERSION 3.8 )
-project( dragonfly CXX )
+project( swarm CXX )
 
 set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
 set( CMAKE_CXX_STANDARD 20 )
@@ -12,13 +12,14 @@ set( SOURCES
 	src/main.cc
 	src/parser.cc
 	src/token.cc
+	src/typechecker.cc
 )
 
 add_executable( ${CMAKE_PROJECT_NAME} ${SOURCES} )
 
 add_custom_target( run
-	COMMAND ./build/dragonfly
+	COMMAND ./build/swarm
 	VERBATIM
 	WORKING_DIRECTORY ..
-	DEPENDS dragonfly
+	DEPENDS swarm
 )

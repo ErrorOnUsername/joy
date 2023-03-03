@@ -111,6 +111,7 @@ enum TokenKind {
 	TK_TY_F64,
 	TK_TY_RAWPTR,
 	TK_TY_STR,
+	TK_TY_CSTR,
 };
 
 enum NumberKind {
