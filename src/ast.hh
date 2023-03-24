@@ -1,7 +1,9 @@
 #pragma once
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 
+#include "arena.hh"
 #include "token.hh"
 #include "type.hh"
 
@@ -251,7 +253,15 @@ struct Scope {
 	std::unordered_map<std::string, VarID> vars_id_map;
 };
 
+using ModuleID = int64_t;
+
 struct Module {
+	std::string directory;
+
+	Arena stmnt_arena;
+	Arena expr_arena;
+
+	std::unordered_set<Module*> imports;
 	std::unordered_map<std::string, size_t> type_id_map;
 	std::vector<Scope> scopes;
 	std::vector<Type> types;

@@ -3,18 +3,20 @@
 
 #include "ast.hh"
 #include "compiler.hh"
+#include "job_system.hh"
+#include "program.hh"
 
-Parser::Parser(std::vector<Token>& token_stream)
+Parser::Parser(Module& working_module, std::vector<Token>& token_stream, std::string const& directory)
 	: m_token_stream(token_stream)
 	, m_idx(0)
 	, m_current_scope(0)
-	, m_root_module()
-	, m_stmnt_arena(16 * 1024)
-	, m_expr_arena(16 * 1024)
+	, m_working_module(working_module)
 {
+	m_working_module.directory = directory;
+
 	Scope root_scope { };
 	root_scope.parent = -1;
-	m_root_module.scopes.emplace_back(std::move(root_scope));
+	m_working_module.scopes.emplace_back(std::move(root_scope));
 }
 
 
@@ -28,6 +30,29 @@ void Parser::parse_module()
 				break;
 			}
 			case TK_CD_LOAD: {
+				/*
+				eat_current_specific(TK_CD_LOAD);
+
+				Token module_path_tk = current();
+				if (module_path_tk.kind != TK_STR_LIT)
+					Compiler::panic(module_path_tk.span, "Expected string literal path after '#load' directive, got: '%s'\n", tk_as_str(module_path_tk.kind) );
+
+				std::string path = m_working_module.directory + module_path_tk.str;
+
+				Module* module = Program::get_or_add_module(path);
+				assert(module);
+
+				// TODO: warn multiple includes
+				m_working_module.imports.insert(module);
+
+				CompileJob job = {
+					.filepath = path,
+					.module   = module,
+					.proc     = Compiler::compile_module_job,
+				};
+
+				JobSystem::enqueue_job(job);
+				*/
 				TODO();
 				break;
 			}
@@ -50,14 +75,14 @@ Stmnt* Parser::parse_statement()
 			parse_let_stmnt();
 			break;
 		}
-		case TK_KW_IF: return parse_if_stmnt();
-		case TK_KW_FOR: return parse_for_stmnt();
-		case TK_KW_WHILE: return parse_while_stmnt();
-		case TK_KW_LOOP: return parse_loop_stmnt();
+		case TK_KW_IF:       return parse_if_stmnt();
+		case TK_KW_FOR:      return parse_for_stmnt();
+		case TK_KW_WHILE:    return parse_while_stmnt();
+		case TK_KW_LOOP:     return parse_loop_stmnt();
 		case TK_KW_CONTINUE: return parse_continue_stmnt();
-		case TK_KW_BREAK: return parse_break_stmnt();
-		case TK_KW_RETURN: return parse_return_stmnt();
-		default: return parse_expr_stmnt();
+		case TK_KW_BREAK:    return parse_break_stmnt();
+		case TK_KW_RETURN:   return parse_return_stmnt();
+		default:             return parse_expr_stmnt();
 	}
 
 	eat_whitespace();
@@ -102,7 +127,7 @@ Expr* Parser::parse_expr(bool can_assign, bool allow_newlines)
 			if (expr)
 				Compiler::panic(rator.span, "Syntax Error! Operating on a range in not allowed\n");
 
-			RangeExpr* range = (RangeExpr*)m_expr_arena.alloc_bytes(sizeof(RangeExpr));
+			RangeExpr* range = (RangeExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(RangeExpr));
 			range->kind = EXPR_RANGE;
 			range->lhs = lhs;
 
@@ -120,7 +145,7 @@ Expr* Parser::parse_expr(bool can_assign, bool allow_newlines)
 
 			return range;
 		} else if (!expr) {
-			expr = (BinOpExpr*)m_expr_arena.alloc_bytes(sizeof(BinOpExpr));
+			expr = (BinOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(BinOpExpr));
 			expr->kind = EXPR_BIN_OP;
 		}
 
@@ -149,7 +174,7 @@ Expr* Parser::parse_expr(bool can_assign, bool allow_newlines)
 			} else {
 				lhs = expr;
 
-				expr = (BinOpExpr*)m_expr_arena.alloc_bytes(sizeof(BinOpExpr));
+				expr = (BinOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(BinOpExpr));
 				expr->kind = EXPR_BIN_OP;
 			}
 		} else {
@@ -192,10 +217,10 @@ void Parser::parse_decl_stmnt()
 
 			printf("Struct: %s\n", decl.name.c_str());
 			for (auto const& el : decl.members) {
-				printf("  %s: %s[%lld]\n", el.name.c_str(), m_root_module.types[el.type].name.c_str(), el.type);
+				printf("  %s: %s[%lld]\n", el.name.c_str(), m_working_module.types[el.type].name.c_str(), el.type);
 			}
 
-			m_root_module.structs.emplace_back(std::move(decl));
+			m_working_module.structs.emplace_back(std::move(decl));
 			break;
 		}
 		case TK_KW_ENUM:
@@ -211,9 +236,9 @@ void Parser::parse_decl_stmnt()
 			auto body = parse_stmnt_block();
 			size_t root_scope = body.scope_id;
 			for (auto const& p : params) {
-				Scope& current_scope = m_root_module.scopes[root_scope];
+				Scope& current_scope = m_working_module.scopes[root_scope];
 				if (current_scope.vars_id_map.contains(p.name)) {
-					VarDeclStmnt var = m_root_module.vars[current_scope.vars_id_map[p.name]];
+					VarDeclStmnt var = m_working_module.vars[current_scope.vars_id_map[p.name]];
 					Compiler::panic(var.span, "Error! Found variable declaration in scope with the same name as parameter: %s\n", p.name.c_str());
 				}
 			}
@@ -227,7 +252,7 @@ void Parser::parse_decl_stmnt()
 			decl.linkage = PROC_LINKAGE_INTERNAL;
 			decl.linking_lib_name = "";
 
-			m_root_module.procs.emplace_back(std::move(decl));
+			m_working_module.procs.emplace_back(std::move(decl));
 			break;
 		}
 		default:
@@ -279,12 +304,12 @@ void Parser::parse_let_stmnt()
 		Compiler::panic(eq_or_semicolon.span, "Syntax Error! Expected '=' or ';' in variable declaraton, got: %s\n", tk_as_str(eq_or_semicolon.kind));
 	}
 
-	Scope& curr_scope = m_root_module.scopes[m_current_scope];
+	Scope& curr_scope = m_working_module.scopes[m_current_scope];
 	if (curr_scope.vars_id_map.contains(var.name))
 		Compiler::panic(var.span, "Redefinition of identifier: '%s'\n", var.name.c_str());
 
-	curr_scope.vars_id_map[var.name] = m_root_module.vars.size();
-	m_root_module.vars.push_back(var);
+	curr_scope.vars_id_map[var.name] = m_working_module.vars.size();
+	m_working_module.vars.push_back(var);
 }
 
 Stmnt* Parser::parse_if_stmnt()
@@ -299,7 +324,7 @@ Stmnt* Parser::parse_if_stmnt()
 
 	eat_whitespace();
 
-	IfStmnt* if_stmnt = (IfStmnt*)m_stmnt_arena.alloc_bytes(sizeof(IfStmnt));
+	IfStmnt* if_stmnt = (IfStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(IfStmnt));
 	if_stmnt->kind = STMNT_IF;
 	if_stmnt->condition = condition;
 	if_stmnt->body = std::move(body);
@@ -313,7 +338,7 @@ Stmnt* Parser::parse_if_stmnt()
 		if (current().kind == TK_KW_IF) {
 			if_stmnt->else_chain = parse_statement();
 		} else {
-			IfStmnt* else_stmnt = (IfStmnt*)m_stmnt_arena.alloc_bytes(sizeof(IfStmnt));
+			IfStmnt* else_stmnt = (IfStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(IfStmnt));
 			else_stmnt->kind = STMNT_IF;
 			else_stmnt->condition = nullptr;
 			else_stmnt->body = parse_stmnt_block();
@@ -341,9 +366,9 @@ Stmnt* Parser::parse_for_stmnt()
 	eat_whitespace();
 
 	Block body = parse_stmnt_block();
-	Scope& root_scope = m_root_module.scopes[body.scope_id];
+	Scope& root_scope = m_working_module.scopes[body.scope_id];
 	if (root_scope.vars_id_map.contains(iter_name.str)) {
-		VarDeclStmnt& var = m_root_module.vars[root_scope.vars_id_map[iter_name.str]];
+		VarDeclStmnt& var = m_working_module.vars[root_scope.vars_id_map[iter_name.str]];
 		Compiler::panic(var.span, "Error! Found variable declaration in scope with the same name as iterator: %s\n", iter_name.str.c_str());
 	}
 
@@ -355,12 +380,12 @@ Stmnt* Parser::parse_for_stmnt()
 	iter.type = -1;
 	iter.default_value = ((RangeExpr*)range)->lhs;
 
-	root_scope.vars_id_map[iter.name] = m_root_module.vars.size();
-	m_root_module.vars.push_back(iter);
+	root_scope.vars_id_map[iter.name] = m_working_module.vars.size();
+	m_working_module.vars.push_back(iter);
 
-	ForLoopStmnt* for_loop = (ForLoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ForLoopStmnt));
+	ForLoopStmnt* for_loop = (ForLoopStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(ForLoopStmnt));
 	for_loop->kind = STMNT_FOR;
-	for_loop->it = { iter.name, (VarID)m_root_module.vars.size() - 1 };
+	for_loop->it = { iter.name, (VarID)m_working_module.vars.size() - 1 };
 	for_loop->range = (RangeExpr*)range;
 	for_loop->body = std::move(body);
 
@@ -379,7 +404,7 @@ Stmnt* Parser::parse_while_stmnt()
 
 	eat_whitespace();
 
-	WhileLoopStmnt* while_loop = (WhileLoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(WhileLoopStmnt));
+	WhileLoopStmnt* while_loop = (WhileLoopStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(WhileLoopStmnt));
 	while_loop->kind = STMNT_WHILE;
 	while_loop->condition = condition;
 	while_loop->body = std::move(body);
@@ -397,7 +422,7 @@ Stmnt* Parser::parse_loop_stmnt()
 
 	eat_whitespace();
 
-	LoopStmnt* loop_stmnt = (LoopStmnt*)m_stmnt_arena.alloc_bytes(sizeof(LoopStmnt));
+	LoopStmnt* loop_stmnt = (LoopStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(LoopStmnt));
 	loop_stmnt->kind = STMNT_LOOP;
 	loop_stmnt->body = std::move(body);
 
@@ -408,7 +433,7 @@ Stmnt* Parser::parse_continue_stmnt()
 {
 	eat_current_specific(TK_KW_CONTINUE);
 
-	Stmnt* continue_stmnt = (Stmnt*)m_stmnt_arena.alloc_bytes(sizeof(Stmnt));
+	Stmnt* continue_stmnt = (Stmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(Stmnt));
 	continue_stmnt->kind = STMNT_CONTINUE;
 
 	eat_current_specific(TK_SEMICOLON);
@@ -421,7 +446,7 @@ Stmnt* Parser::parse_break_stmnt()
 {
 	eat_current_specific(TK_KW_BREAK);
 
-	Stmnt* break_stmnt = (Stmnt*)m_stmnt_arena.alloc_bytes(sizeof(Stmnt));
+	Stmnt* break_stmnt = (Stmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(Stmnt));
 	break_stmnt->kind = STMNT_BREAK;
 
 	eat_current_specific(TK_SEMICOLON);
@@ -439,7 +464,7 @@ Stmnt* Parser::parse_return_stmnt()
 
 	eat_whitespace();
 
-	ReturnStmnt* ret_stmnt = (ReturnStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ReturnStmnt));
+	ReturnStmnt* ret_stmnt = (ReturnStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(ReturnStmnt));
 	ret_stmnt->kind = STMNT_RETURN;
 	ret_stmnt->val = ret_val;
 
@@ -448,7 +473,7 @@ Stmnt* Parser::parse_return_stmnt()
 
 Stmnt* Parser::parse_expr_stmnt()
 {
-	ExprStmnt* expr = (ExprStmnt*)m_stmnt_arena.alloc_bytes(sizeof(ExprStmnt));
+	ExprStmnt* expr = (ExprStmnt*)m_working_module.stmnt_arena.alloc_bytes(sizeof(ExprStmnt));
 	expr->kind = STMNT_EXPR;
 	expr->expr = parse_expr(true, true);
 	expr->span = expr->expr->span;
@@ -528,7 +553,7 @@ Expr* Parser::parse_operand()
 		case TK_BANG: {
 			m_idx++;
 
-			UnaryOpExpr* expr = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* expr = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 			expr->kind = EXPR_UNARY_OP;
 			expr->op_kind = U_OP_L_NOT;
 
@@ -542,7 +567,7 @@ Expr* Parser::parse_operand()
 		case TK_PLUS_PLUS: {
 			m_idx++;
 
-			UnaryOpExpr* expr = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* expr = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 			expr->kind = EXPR_UNARY_OP;
 			expr->op_kind = U_OP_PRE_INC;
 
@@ -556,7 +581,7 @@ Expr* Parser::parse_operand()
 		case TK_MINUS_MINUS: {
 			m_idx++;
 
-			UnaryOpExpr* expr = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* expr = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 			expr->kind = EXPR_UNARY_OP;
 			expr->op_kind = U_OP_PRE_DEC;
 
@@ -570,7 +595,7 @@ Expr* Parser::parse_operand()
 		case TK_STAR: {
 			m_idx++;
 
-			UnaryOpExpr* expr = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* expr = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 			expr->kind = EXPR_UNARY_OP;
 			expr->op_kind = U_OP_DEREF;
 
@@ -584,7 +609,7 @@ Expr* Parser::parse_operand()
 		case TK_DOLLAR: {
 			m_idx++;
 
-			UnaryOpExpr* expr = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* expr = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 			expr->kind = EXPR_UNARY_OP;
 			expr->op_kind = U_OP_ADDR_OF;
 
@@ -615,7 +640,7 @@ Expr* Parser::parse_operand()
 				}
 			}
 
-			VarExpr* var_ref = (VarExpr*)m_expr_arena.alloc_bytes(sizeof(VarExpr));
+			VarExpr* var_ref = (VarExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(VarExpr));
 			var_ref->kind    = EXPR_VAR;
 			var_ref->span    = current().span;
 			var_ref->name    = current().str;
@@ -628,7 +653,7 @@ Expr* Parser::parse_operand()
 			break;
 		}
 		case TK_STR_LIT: {
-			ConstStringExpr* str = (ConstStringExpr*)m_expr_arena.alloc_bytes(sizeof(ConstStringExpr));
+			ConstStringExpr* str = (ConstStringExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(ConstStringExpr));
 			str->kind = EXPR_STRING;
 			str->str = lead.str;
 
@@ -639,7 +664,7 @@ Expr* Parser::parse_operand()
 			break;
 		}
 		case TK_NUMBER: {
-			ConstNumberExpr* number = (ConstNumberExpr*)m_expr_arena.alloc_bytes(sizeof(ConstNumberExpr));
+			ConstNumberExpr* number = (ConstNumberExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(ConstNumberExpr));
 			number->kind = EXPR_NUMBER;
 			number->num = current().number;
 
@@ -650,7 +675,7 @@ Expr* Parser::parse_operand()
 			break;
 		}
 		case TK_BOOL_T: {
-			ConstBoolExpr* boolean = (ConstBoolExpr*)m_expr_arena.alloc_bytes(sizeof(ConstBoolExpr));
+			ConstBoolExpr* boolean = (ConstBoolExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(ConstBoolExpr));
 			boolean->kind = EXPR_BOOL;
 			boolean->value = true;
 
@@ -661,7 +686,7 @@ Expr* Parser::parse_operand()
 			break;
 		}
 		case TK_BOOL_F: {
-			ConstBoolExpr* boolean = (ConstBoolExpr*)m_expr_arena.alloc_bytes(sizeof(ConstBoolExpr));
+			ConstBoolExpr* boolean = (ConstBoolExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(ConstBoolExpr));
 			boolean->kind = EXPR_BOOL;
 			boolean->value = false;
 
@@ -680,7 +705,7 @@ Expr* Parser::parse_operand()
 	Token tail = current();
 	switch (tail.kind) {
 		case TK_PLUS_PLUS: {
-			UnaryOpExpr* op = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* op = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 
 			op->kind = EXPR_UNARY_OP;
 			op->op_kind = U_OP_POST_INC;
@@ -693,7 +718,7 @@ Expr* Parser::parse_operand()
 			break;
 		}
 		case TK_MINUS_MINUS: {
-			UnaryOpExpr* op = (UnaryOpExpr*)m_expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
+			UnaryOpExpr* op = (UnaryOpExpr*)m_working_module.expr_arena.alloc_bytes(sizeof(UnaryOpExpr));
 
 			op->kind = EXPR_UNARY_OP;
 			op->op_kind = U_OP_POST_DEC;
@@ -890,12 +915,12 @@ Type Parser::parse_raw_type()
 
 TypeID Parser::register_type(Type& type)
 {
-	if (m_root_module.type_id_map.find(type.name) != m_root_module.type_id_map.end())
-		return m_root_module.type_id_map[type.name];
+	if (m_working_module.type_id_map.find(type.name) != m_working_module.type_id_map.end())
+		return m_working_module.type_id_map[type.name];
 
-	m_root_module.types.push_back(type);
-	m_root_module.type_id_map[type.name] = m_root_module.types.size() - 1;
-	return m_root_module.types.size() - 1;
+	m_working_module.types.push_back(type);
+	m_working_module.type_id_map[type.name] = m_working_module.types.size() - 1;
+	return m_working_module.types.size() - 1;
 }
 
 std::vector<StructMember> Parser::parse_struct_members()
@@ -995,10 +1020,10 @@ Block Parser::parse_stmnt_block()
 	Scope new_scope { };
 	new_scope.parent = m_current_scope;
 
-	m_current_scope = m_root_module.scopes.size();
+	m_current_scope = m_working_module.scopes.size();
 	ScopeID new_scope_id = m_current_scope;
 
-	m_root_module.scopes.emplace_back(std::move(new_scope));
+	m_working_module.scopes.emplace_back(std::move(new_scope));
 
 	eat_whitespace();
 
@@ -1012,7 +1037,7 @@ Block Parser::parse_stmnt_block()
 
 	eat_current_specific(TK_R_CURLY);
 
-	m_current_scope = m_root_module.scopes[new_scope_id].parent;
+	m_current_scope = m_working_module.scopes[new_scope_id].parent;
 
 	return Block{ new_scope_id, std::move(stmnts) };
 }
@@ -1021,7 +1046,7 @@ bool Parser::is_ident_defined(std::string const& name) const
 {
 	ScopeID scope = m_current_scope;
 	while (scope != -1) {
-		Scope const& curr_scope = m_root_module.scopes[scope];
+		Scope const& curr_scope = m_working_module.scopes[scope];
 		if (curr_scope.vars_id_map.contains(name))
 			return true;
 
@@ -1035,7 +1060,7 @@ VarID Parser::get_ident_var_id(std::string const& name) const
 {
 	ScopeID scope = m_current_scope;
 	while (scope != -1) {
-		Scope const& curr_scope = m_root_module.scopes[scope];
+		Scope const& curr_scope = m_working_module.scopes[scope];
 		if (curr_scope.vars_id_map.contains(name))
 			return curr_scope.vars_id_map.at(name);
 

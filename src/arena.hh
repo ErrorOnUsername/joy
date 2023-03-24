@@ -9,6 +9,15 @@ struct Arena {
 	size_t next_alloc_offset;
 	size_t size;
 
+	Arena()
+		: data(nullptr)
+		, next_alloc_offset(0)
+		, size(16 * 1024)
+	{
+		data = (uint8_t*)malloc(size);
+		memset(data, 0, size);
+	}
+
 	Arena(size_t capacity)
 		: data(nullptr)
 		, next_alloc_offset(0)

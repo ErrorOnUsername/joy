@@ -241,4 +241,6 @@ int64_t op_priority(BinOpKind kind)
 		case B_OP_XOR_ASSIGN:
 			return 1;
 	}
+
+	return -1;
 }

@@ -7,6 +7,8 @@
 #include <iostream>
 
 #include "token.hh"
+#include "lexer.hh"
+#include "parser.hh"
 
 Compiler* Compiler::s_the = nullptr;
 
@@ -37,7 +39,13 @@ size_t Compiler::open_file(std::string const& filepath)
 	fclose(file);
 
 	s_the->m_file_data_registry.push_back(std::move(buf));
+	s_the->m_filepath_registry.push_back(filepath);
 	return s_the->m_file_data_registry.size() - 1;
+}
+
+std::string const& Compiler::filepath(size_t id)
+{
+	return s_the->m_filepath_registry[id];
 }
 
 std::string const& Compiler::file_data(size_t id)
@@ -50,7 +58,7 @@ void Compiler::panic(Span span, char const* msg, ...)
 	va_list args;
 	va_start(args, msg);
 
-	printf("Span: [%lld - %lld)\n", span.start_idx, span.end_idx);
+	printf("%s: [%lld - %lld)\n", Compiler::filepath(span.file_id).c_str(), span.start_idx, span.end_idx);
 	printf("\x1b[31;1m");
 	vprintf(msg, args);
 	printf("\x1b[0m\n");
@@ -100,4 +108,30 @@ void Compiler::todo(char const* msg, ...)
 	printf("\x1b[0m\n");
 
 	exit(1);
+}
+
+void Compiler::compile_module_job(std::string const& filepath, Module& module)
+{
+	Lexer lexer(filepath);
+
+	std::vector<Token> token_stream;
+
+	Token tk = lexer.next_tk();
+	for (;;) {
+		token_stream.push_back(tk);
+		if (tk.kind == TK_EOF)
+			break;
+
+		tk = lexer.next_tk();
+	}
+
+	std::string full_path = filepath;
+	auto const position = full_path.find_last_of("\\/");
+
+	std::string directory = "./";
+	if (position != std::string::npos)
+		directory = full_path.substr(0, position + 1);
+
+	Parser parser(module, token_stream, directory);
+	parser.parse_module();
 }

@@ -7,7 +7,7 @@
 
 class Parser {
 public:
-	Parser(std::vector<Token>& token_stream);
+	Parser(Module& working_module, std::vector<Token>& token_stream, std::string const& directory);
 
 	void parse_module();
 
@@ -48,7 +48,5 @@ private:
 	size_t m_idx;
 	size_t m_current_scope;
 
-	Module m_root_module;
-	Arena m_stmnt_arena;
-	Arena m_expr_arena;
+	Module& m_working_module;
 };

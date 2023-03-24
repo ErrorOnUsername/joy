@@ -8,9 +8,11 @@ set( SOURCES
 	src/main.cc
 	src/ast.cc
 	src/compiler.cc
+	src/job_system.cc
 	src/lexer.cc
 	src/main.cc
 	src/parser.cc
+	src/program.cc
 	src/token.cc
 	src/typechecker.cc
 )
