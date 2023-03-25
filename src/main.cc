@@ -48,10 +48,10 @@ int main()
 
 	auto parse_end = Time::now();
 
-	std::chrono::duration<float, std::milli> ms = parse_end - parse_start;
-	float millis = ms.count();
+	std::chrono::duration<float> sec_duration = parse_end - parse_start;
+	float secs = sec_duration.count();
 
-	printf( "\n\tlexing & parsing: %.3fms\n", millis );
+	printf( "\n\tlexing & parsing: %.3fs\n", secs );
 
 	printf( "\nCompilation \x1b[32;1msuccessful\x1b[0m!\n" );
 
