@@ -69,6 +69,23 @@ char const* u_op_as_str( UnaryOpKind kind )
 	return "UNKNOWN UNARY OP (ast.cc)";
 }
 
+template<typename ...Args>
+static std::string format_string( std::string const& fmt, Args... args )
+{
+	int size = std::snprintf( nullptr, 0, fmt.c_str(), args... ) + 1;
+	if ( size <= 0 )
+		return std::string();
+
+	char* buf = new char[(size_t)size];
+
+	std::snprintf( buf, (size_t)size, fmt.c_str(), args... );
+	std::string ret ( buf, buf + ( ( size_t )size - 1 ) );
+
+	delete[] buf;
+
+	return ret;
+}
+
 std::string dump_expr_internal( Expr* expr, size_t indent_level )
 {
 	std::string dump_raw;
@@ -86,7 +103,7 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			ConstBoolExpr* as_bool = (ConstBoolExpr*)expr;
 
 			print_leading( dump_raw );
-			dump_raw.append( std::format( "BOOL: {}\n", as_bool->value ) );
+			dump_raw.append( format_string( "BOOL: %c\n", as_bool->value ) );
 
 			break;
 		}
@@ -100,13 +117,13 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			switch ( as_num->num.kind )
 			{
 				case NK_FLOAT:
-					dump_raw.append( std::format( "{}", as_num->num.floating_point ) );
+					dump_raw.append( format_string( "%f", as_num->num.floating_point ) );
 					break;
 				case NK_UINT:
-					dump_raw.append( std::format( "{}", as_num->num.uint ) );
+					dump_raw.append( format_string( "%u", as_num->num.uint ) );
 					break;
 				case NK_INT:
-					dump_raw.append( std::format( "{}", as_num->num.sint ) );
+					dump_raw.append( format_string( "%d", as_num->num.sint ) );
 					break;
 			}
 
@@ -119,7 +136,7 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			ConstStringExpr* str = (ConstStringExpr*)expr;
 
 			print_leading( dump_raw );
-			dump_raw.append( std::format( "STR: \"{}\"\n", str->str ) );
+			dump_raw.append( format_string( "STR: \"%s\"\n", str->str.c_str() ) );
 
 			break;
 		}
@@ -128,7 +145,7 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			ConstCharExpr* ch = (ConstCharExpr*)expr;
 
 			print_leading( dump_raw );
-			dump_raw.append( std::format( "CHAR: '{}'\n", (char)ch->codepoint ) );
+			dump_raw.append( format_string( "CHAR: '%c'\n", (char)ch->codepoint ) );
 
 			break;
 		}
@@ -137,7 +154,7 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			VarExpr* var = (VarExpr*)expr;
 
 			print_leading( dump_raw );
-			dump_raw.append( std::format( "VAR: {}\n", var->name ) );
+			dump_raw.append( format_string( "VAR: %s\n", var->name.c_str() ) );
 
 			break;
 		}
@@ -160,7 +177,7 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			BinOpExpr* bop = (BinOpExpr*)expr;
 			print_leading( dump_raw );
 
-			dump_raw.append( std::format( "BIN_OP: {}\n", bin_op_as_str( bop->op_kind ) ) );
+			dump_raw.append( format_string( "BIN_OP: %s\n", bin_op_as_str( bop->op_kind ) ) );
 			dump_raw.append( dump_expr_internal( bop->lhs, indent_level + 1 ) );
 			dump_raw.append( dump_expr_internal( bop->rhs, indent_level + 1 ) );
 
@@ -171,7 +188,7 @@ std::string dump_expr_internal( Expr* expr, size_t indent_level )
 			UnaryOpExpr* uop = (UnaryOpExpr*)expr;
 			print_leading( dump_raw );
 
-			dump_raw.append( std::format( "UNARY_OP: {}\n", u_op_as_str( uop->op_kind ) ) );
+			dump_raw.append( format_string( "UNARY_OP: %s\n", u_op_as_str( uop->op_kind ) ) );
 			dump_raw.append( dump_expr_internal( uop->operand, indent_level + 1 ) );
 
 			break;
@@ -222,6 +239,9 @@ bool is_assign_op( BinOpKind kind )
 		case B_OP_OR_ASSIGN:
 		case B_OP_XOR_ASSIGN:
 			return true;
+
+		case B_OP_INVAL:
+			return false;
 	}
 
 	Compiler::warn( "Unknown binary operator: %s", kind );
@@ -275,7 +295,11 @@ int64_t op_priority( BinOpKind kind )
 		case B_OP_OR_ASSIGN:
 		case B_OP_XOR_ASSIGN:
 			return 1;
+
+		case B_OP_INVAL:
+			return -1;
 	}
 
+	Compiler::warn( "Unknown binary operator: %s", kind );
 	return -1;
 }
