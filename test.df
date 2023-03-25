@@ -2,7 +2,7 @@
 
 decl MyType : struct
 {
-	my_int:    i32;
+	my_int:    ilong;
 	my_string: string;
 	my_thing:  cstring;
 }

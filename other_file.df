@@ -9,6 +9,6 @@ decl other_proc : ( param: ilong )
 decl ExternalStruct : struct
 {
 	other_string: string;
-	other_float:  f32;
+	other_float:  flong;
 }
 

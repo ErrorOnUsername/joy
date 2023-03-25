@@ -17,7 +17,7 @@ syn keyword df_loops           while for loop
 syn keyword df_ctrl_flow       return break continue
 syn keyword df_boolean         true false
 syn keyword df_keyword         decl let as
-syn keyword df_type            nothing bool u8 i8 u16 i16 u32 i32 u64 i64 usize isize f32 f64 string cstring rawptr
+syn keyword df_type            nothing bool byte ibyte word iword long ilong quad iquad usize isize flong fquad string cstring rawptr
 syn keyword df_complex_type    struct enum union
 syn keyword df_todo            contained NOTE TODO FIXME BUG
 
