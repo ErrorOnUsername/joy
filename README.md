@@ -3,6 +3,6 @@
 
 
 ### An example
-![An example snippet of code that calculates the fibbonacci sequence](meta/screenshots/sqrt.png)
+![An example snippet of code that calculates the fibbonacci sequence](meta/sqrt.png)
 
 
