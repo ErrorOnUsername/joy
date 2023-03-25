@@ -6,30 +6,30 @@
 
 struct Arena {
 	uint8_t* data;
-	size_t next_alloc_offset;
-	size_t size;
+	size_t   next_alloc_offset;
+	size_t   size;
 
 	Arena()
-		: data(nullptr)
-		, next_alloc_offset(0)
-		, size(16 * 1024)
+		: data( nullptr )
+		, next_alloc_offset( 0 )
+		, size( 16 * 1024 )
 	{
-		data = (uint8_t*)malloc(size);
-		memset(data, 0, size);
+		data = (uint8_t*)malloc( size );
+		memset( data, 0, size );
 	}
 
-	Arena(size_t capacity)
-		: data(nullptr)
-		, next_alloc_offset(0)
-		, size(capacity)
+	Arena( size_t capacity )
+		: data( nullptr )
+		, next_alloc_offset( 0 )
+		, size( capacity )
 	{
-		data = (uint8_t*)malloc(size);
-		memset(data, 0, size);
+		data = (uint8_t*)malloc( size );
+		memset( data, 0, size );
 	}
 
-	void* alloc_bytes(size_t bytes)
+	void* alloc_bytes( size_t bytes )
 	{
-		assert(next_alloc_offset + bytes <= size);
+		assert( next_alloc_offset + bytes <= size );
 		void* ptr = data + next_alloc_offset;
 		next_alloc_offset += bytes;
 		return ptr;

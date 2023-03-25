@@ -1,12 +1,27 @@
 #include "job_system.hh"
+#include <cassert>
 
+JobSystem* JobSystem::the = nullptr;
 
-void JobSystem::start(size_t worker_count)
+JobSystem::JobSystem()
+	: queue_mutex()
+	, state_update_cv()
+	, should_terminate( false )
+	, workers()
+	, jobs()
 {
-	workers.reserve(worker_count);
+	assert( the == nullptr );
 
-	for (size_t i = 0; i < worker_count; i++) {
-		workers[i] = std::thread(&JobSystem::worker_stub, this);
+	the = this;
+}
+
+void JobSystem::start( size_t worker_count )
+{
+	the->workers.reserve( worker_count );
+
+	for ( size_t i = 0; i < worker_count; i++ )
+	{
+		the->workers.push_back( std::thread( &JobSystem::worker_stub ) );
 	}
 }
 
@@ -14,29 +29,29 @@ void JobSystem::start(size_t worker_count)
 void JobSystem::stop()
 {
 	{
-		std::unique_lock<std::mutex> lock(queue_mutex);
-		should_terminate = true;
+		std::unique_lock<std::mutex> lock( the->queue_mutex );
+		the->should_terminate = true;
 	}
 
-	state_update_cv.notify_all();
+	the->state_update_cv.notify_all();
 
-	for (std::thread& thread : workers) {
+	for ( std::thread& thread : the->workers )
+	{
 		thread.join();
 	}
 
-	workers.clear();
+	the->workers.clear();
 }
 
 
-void JobSystem::enqueue_job(CompileJob job)
+void JobSystem::enqueue_job( CompileJob job )
 {
-	printf("*****\n");
 	{
-		std::unique_lock<std::mutex> lock(queue_mutex);
-		jobs.push(job);
+		std::unique_lock<std::mutex> lock( the->queue_mutex );
+		the->jobs.push( job );
 	}
 
-	state_update_cv.notify_one();
+	the->state_update_cv.notify_one();
 }
 
 
@@ -45,8 +60,8 @@ bool JobSystem::is_busy()
 	bool busy = false;
 
 	{
-		std::unique_lock<std::mutex> lock(queue_mutex);
-		busy = !jobs.empty();
+		std::unique_lock<std::mutex> lock( the->queue_mutex );
+		busy = !the->jobs.empty();
 	}
 
 	return busy;
@@ -55,24 +70,26 @@ bool JobSystem::is_busy()
 
 void JobSystem::worker_stub()
 {
-	for(;;) {
+	for( ;; )
+	{
 		CompileJob job;
 
 		{
-			std::unique_lock<std::mutex> lock(queue_mutex);
+			std::unique_lock<std::mutex> lock( the->queue_mutex );
 
-			state_update_cv.wait(lock, [this] () {
-				return !jobs.empty() || should_terminate;
+			the->state_update_cv.wait( lock, [] ()
+			{
+				return !JobSystem::the->jobs.empty() || JobSystem::the->should_terminate;
 			});
 
-			if (should_terminate)
+			if ( the->should_terminate )
 				return;
 
-			job = jobs.front();
-			jobs.pop();
+			job = the->jobs.front();
+			the->jobs.pop();
 		}
 
-		assert(job.module);
-		job.proc(job.filepath, *job.module);
+		assert( job.module );
+		job.proc( job.filepath, job.module );
 	}
 }

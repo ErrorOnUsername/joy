@@ -2,9 +2,10 @@
 
 #include "token.hh"
 
-class Lexer {
+class Lexer
+{
 public:
-	Lexer(std::string const& filepath);
+	Lexer( std::string const& filepath );
 
 	Token next_tk();
 	Token tokenize_number();
@@ -14,7 +15,7 @@ public:
 	Token tokenize_string_literal();
 
 	char current();
-	char peek(int64_t offset = 1);
+	char peek( int64_t offset = 1 );
 
 	bool at_eof();
 

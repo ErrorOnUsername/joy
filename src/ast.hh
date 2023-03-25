@@ -23,9 +23,9 @@ enum ExprKind {
 };
 
 struct Expr {
-	Span span;
+	Span     span;
 	ExprKind kind;
-	TypeID result_ty;
+	TypeID   result_ty;
 };
 
 struct ConstBoolExpr : public Expr {
@@ -46,22 +46,22 @@ struct ConstCharExpr : public Expr {
 
 struct VarExpr : public Expr {
 	std::string name;
-	VarID var_id;
+	VarID       var_id;
 };
 
 struct RangeExpr : public Expr {
-	bool is_left_included;
+	bool  is_left_included;
 	Expr* lhs;
 	Expr* rhs;
-	bool is_right_included;
+	bool  is_right_included;
 };
 
 struct ProcCallExpr : public Expr {
-	std::string name;
+	std::string        name;
 	std::vector<Expr*> params;
 };
 
-void dump_expr(Expr* expr, size_t indent_level);
+void dump_expr( Expr* expr );
 
 enum BinOpKind : uint32_t {
 	B_OP_INVAL,
@@ -100,14 +100,14 @@ enum BinOpKind : uint32_t {
 	B_OP_ASSIGN,
 };
 
-bool is_assign_op(BinOpKind kind);
-int64_t op_priority(BinOpKind kind);
-char const* bin_op_as_str(BinOpKind kind);
+bool is_assign_op( BinOpKind kind );
+int64_t op_priority( BinOpKind kind );
+char const* bin_op_as_str( BinOpKind kind );
 
 struct BinOpExpr : public Expr {
 	BinOpKind op_kind;
-	Expr* lhs;
-	Expr* rhs;
+	Expr*     lhs;
+	Expr*     rhs;
 };
 
 enum UnaryOpKind {
@@ -128,8 +128,8 @@ enum UnaryOpKind {
 
 struct UnaryOpExpr : public Expr {
 	UnaryOpKind op_kind;
-	Expr* operand;
-	TypeID to_type; // for U_OP_CAST
+	Expr*       operand;
+	TypeID      to_type; // for U_OP_CAST
 };
 
 enum StmntKind {
@@ -150,28 +150,28 @@ enum StmntKind {
 };
 
 struct Stmnt {
-	Span span;
+	Span      span;
 	StmntKind kind;
 };
 
 struct ConstDeclStmnt : public Stmnt {
 	std::string name;
-	Expr* const_val;
+	Expr*       const_val;
 };
 
 struct StructMember {
 	std::string name;
-	TypeID type;
+	TypeID      type;
 };
 
 struct StructDeclStmnt : public Stmnt {
-	std::string name;
+	std::string               name;
 	std::vector<StructMember> members;
 };
 
 struct EnumVariant {
 	std::string name;
-	Expr* val;
+	Expr*       val;
 };
 
 struct EnumDeclStmnt : public Stmnt {
@@ -180,13 +180,13 @@ struct EnumDeclStmnt : public Stmnt {
 
 struct ProcParameter {
 	std::string name;
-	VarID var_id;
-	TypeID type;
-	Expr* default_value;
+	VarID       var_id;
+	TypeID      type;
+	Expr*       default_value;
 };
 
 struct Block {
-	ScopeID scope_id;
+	ScopeID             scope_id;
 	std::vector<Stmnt*> stmnts;
 };
 
@@ -196,35 +196,35 @@ enum ProcLinkage {
 };
 
 struct ProcDeclStmnt : public Stmnt {
-	std::string name;
+	std::string                name;
 	std::vector<ProcParameter> params;
-	Block body;
-	ProcLinkage linkage;
-	std::string linking_lib_name;
+	Block                      body;
+	ProcLinkage                linkage;
+	std::string                linking_lib_name;
 };
 
 struct VarDeclStmnt : public Stmnt {
-	ScopeID scope_id;
+	ScopeID     scope_id;
 	std::string name;
-	TypeID type;
-	Expr* default_value;
+	TypeID      type;
+	Expr*       default_value;
 };
 
 struct IfStmnt : public Stmnt {
-	Expr* condition;
-	Block body;
+	Expr*  condition;
+	Block  body;
 	Stmnt* else_chain;
 };
 
 struct ForLoopIterator {
 	std::string name;
-	VarID var_id;
+	VarID       var_id;
 };
 
 struct ForLoopStmnt : public Stmnt {
 	ForLoopIterator it;
-	RangeExpr* range;
-	Block body;
+	RangeExpr*      range;
+	Block           body;
 };
 
 struct WhileLoopStmnt : public Stmnt {
@@ -249,23 +249,36 @@ struct ExprStmnt : public Stmnt {
 };
 
 struct Scope {
-	ScopeID parent;
+	ScopeID                                parent;
 	std::unordered_map<std::string, VarID> vars_id_map;
 };
 
 using ModuleID = int64_t;
 
 struct Module {
+	Module()
+		: directory()
+		, stmnt_arena()
+		, expr_arena()
+		, imports()
+		, type_id_map()
+		, scopes()
+		, types()
+		, vars()
+		, structs()
+		, procs()
+	{ }
+
 	std::string directory;
 
 	Arena stmnt_arena;
 	Arena expr_arena;
 
-	std::unordered_set<Module*> imports;
+	std::unordered_set<Module*>             imports;
 	std::unordered_map<std::string, size_t> type_id_map;
-	std::vector<Scope> scopes;
-	std::vector<Type> types;
-	std::vector<VarDeclStmnt> vars;
-	std::vector<StructDeclStmnt> structs;
-	std::vector<ProcDeclStmnt> procs;
+	std::vector<Scope>                      scopes;
+	std::vector<Type>                       types;
+	std::vector<VarDeclStmnt>               vars;
+	std::vector<StructDeclStmnt>            structs;
+	std::vector<ProcDeclStmnt>              procs;
 };

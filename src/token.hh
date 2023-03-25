@@ -3,7 +3,8 @@
 #include <cstdint>
 #include <string>
 
-enum TokenKind {
+enum TokenKind
+{
 	TK_INVAL,
 
 	TK_EOF,
@@ -115,34 +116,39 @@ enum TokenKind {
 	TK_TY_CSTR,
 };
 
-enum NumberKind {
+enum NumberKind
+{
 	NK_INT,
 	NK_UINT,
 	NK_FLOAT,
 };
 
-struct Number {
+struct Number
+{
 	NumberKind kind;
-	union {
-		int64_t sint;
+	union
+	{
+		int64_t  sint;
 		uint64_t uint;
-		double floating_point;
+		double   floating_point;
 	};
 };
 
-struct Span {
-	size_t file_id;
+struct Span
+{
+	size_t  file_id;
 	int64_t start_idx;
 	int64_t end_idx;
 	int64_t line;
 };
 
-inline Span join_span(Span span_0, Span span_1)
+inline Span join_span( Span span_0, Span span_1 )
 {
-	assert(span_0.file_id == span_1.file_id);
-	assert(span_0.start_idx < span_1.start_idx);
+	assert( span_0.file_id == span_1.file_id );
+	assert( span_0.start_idx < span_1.start_idx );
 
-	return Span {
+	return Span
+	{
 		span_0.file_id,
 		span_0.start_idx,
 		span_1.end_idx,
@@ -150,15 +156,16 @@ inline Span join_span(Span span_0, Span span_1)
 	};
 }
 
-struct Token {
-	TokenKind kind;
-	Span span;
-	Number number;
+struct Token
+{
+	TokenKind   kind;
+	Span        span;
+	Number      number;
 	std::string str;
 
-	Token(size_t file_id, TokenKind kind, int64_t start_idx, int64_t start_line)
-		: kind(kind)
-		, span({ file_id, start_idx, -1, start_line })
+	Token( size_t file_id, TokenKind kind, int64_t start_idx, int64_t start_line )
+		: kind( kind )
+		, span( { file_id, start_idx, -1, start_line } )
 		, number()
 		, str()
 	{ }
@@ -166,6 +173,6 @@ struct Token {
 
 enum BinOpKind : uint32_t;
 
-char const* tk_as_str(TokenKind kind);
-BinOpKind tk_as_operator(TokenKind kind);
-bool is_tk_operator(TokenKind kind);
+char const* tk_as_str( TokenKind kind );
+BinOpKind tk_as_operator( TokenKind kind );
+bool is_tk_operator( TokenKind kind );

@@ -7,26 +7,32 @@
 
 struct Module;
 
-using CompileModuleProc = void(*)(std::string const& filepath, Module& module);
+using CompileModuleProc = void(*)( std::string const& filepath, Module* module_id );
 
-struct CompileJob {
+struct CompileJob
+{
 	std::string       filepath;
 	Module*           module;
 	CompileModuleProc proc;
 };
 
-struct JobSystem {
+struct JobSystem
+{
+	static JobSystem* the;
+
 	std::mutex               queue_mutex;
 	std::condition_variable  state_update_cv;
 	bool                     should_terminate;
 	std::vector<std::thread> workers;
 	std::queue<CompileJob>   jobs;
 
-	void start(size_t worker_count);
-	void stop();
+	JobSystem();
 
-	void enqueue_job(CompileJob job);
-	bool is_busy();
+	static void start( size_t worker_count );
+	static void stop();
 
-	void worker_stub();
+	static void enqueue_job( CompileJob job );
+	static bool is_busy();
+
+	static void worker_stub();
 };

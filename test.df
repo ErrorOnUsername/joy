@@ -1,3 +1,5 @@
+#load "other_file.df";
+
 decl MyType : struct
 {
 	my_int:    i32;
@@ -12,22 +14,26 @@ decl main : ( param0: bool )
 	let c := a;
 	let d := 1;
 
-	if a > b {
+	if a > b
+	{
 		a = b;
 	}
 
-	while a > b {
+	while a > b
+	{
 		++a;
 		break;
 	}
 
-	loop {
+	loop
+	{
 		a--;
 	}
 
 	return a;
 
-	for i in [0..10) {
+	for i in [0..10)
+	{
 		let haha := 0;
 		let a := haha;
 		continue;

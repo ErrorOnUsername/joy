@@ -1,13 +1,18 @@
 #include "ast.hh"
+#include <format>
 #include <iostream>
+#include <string>
 
-char const* bin_op_as_str(BinOpKind kind)
+#include "compiler.hh"
+
+char const* bin_op_as_str( BinOpKind kind )
 {
-	switch (kind) {
+	switch ( kind )
+	{
 		case B_OP_INVAL: return "INVALID";
 
 		case B_OP_MEMBER_ACCESS: return ".";
-		case B_OP_RANGE: return "..";
+		case B_OP_RANGE:         return "..";
 
 		case B_OP_ADD: return "+";
 		case B_OP_SUB: return "-";
@@ -17,16 +22,16 @@ char const* bin_op_as_str(BinOpKind kind)
 
 		case B_OP_L_AND: return "&&";
 		case B_OP_B_AND: return "&";
-		case B_OP_L_OR: return "||";
-		case B_OP_B_OR: return "|";
+		case B_OP_L_OR:  return "||";
+		case B_OP_B_OR:  return "|";
 		case B_OP_L_XOR: return "^^";
 		case B_OP_B_XOR: return "^";
 
-		case B_OP_EQ: return "==";
+		case B_OP_EQ:  return "==";
 		case B_OP_NEQ: return "!=";
-		case B_OP_LT: return "<";
+		case B_OP_LT:  return "<";
 		case B_OP_LEQ: return "<=";
-		case B_OP_GT: return ">";
+		case B_OP_GT:  return ">";
 		case B_OP_GEQ: return ">=";
 
 		case B_OP_ADD_ASSIGN: return "+=";
@@ -35,131 +40,157 @@ char const* bin_op_as_str(BinOpKind kind)
 		case B_OP_DIV_ASSIGN: return "/=";
 		case B_OP_MOD_ASSIGN: return "%=";
 		case B_OP_AND_ASSIGN: return "&=";
-		case B_OP_OR_ASSIGN: return "|=";
+		case B_OP_OR_ASSIGN:  return "|=";
 		case B_OP_XOR_ASSIGN: return "^=";
-		case B_OP_ASSIGN: return "=";
+		case B_OP_ASSIGN:     return "=";
 	}
+
+	return "UNKNOWN OPERATOR (ast.cc)";
 }
 
-char const* u_op_as_str(UnaryOpKind kind)
+char const* u_op_as_str( UnaryOpKind kind )
 {
 	switch (kind) {
 		case U_OP_NEG: return "-x";
 
-		case U_OP_PRE_INC: return "++x";
-		case U_OP_PRE_DEC: return "--x";
+		case U_OP_PRE_INC:  return "++x";
+		case U_OP_PRE_DEC:  return "--x";
 		case U_OP_POST_INC: return "x++";
 		case U_OP_POST_DEC: return "x--";
 
 		case U_OP_ADDR_OF: return "$x";
-		case U_OP_DEREF: return "*x";
+		case U_OP_DEREF:   return "*x";
 
 		case U_OP_L_NOT: return "!x";
 
 		case U_OP_CAST: return "x as";
 	}
+
+	return "UNKNOWN UNARY OP (ast.cc)";
 }
 
-void dump_expr(Expr* expr, size_t indent_level)
+std::string dump_expr_internal( Expr* expr, size_t indent_level )
 {
-	auto print_leading = [indent_level]() {
-		for (size_t i = 0; i < indent_level; i++)
-			std::cout << "  ";
+	std::string dump_raw;
+
+	auto print_leading = [indent_level]( std::string& out )
+	{
+		for ( size_t i = 0; i < indent_level; i++ )
+			out.append( "  " );
 	};
 
-	switch (expr->kind) {
-		case EXPR_BOOL: {
+	switch ( expr->kind )
+	{
+		case EXPR_BOOL:
+		{
 			ConstBoolExpr* as_bool = (ConstBoolExpr*)expr;
 
-			print_leading();
-			std::cout << "BOOL: " << as_bool->value << std::endl;
+			print_leading( dump_raw );
+			dump_raw.append( std::format( "BOOL: {}\n", as_bool->value ) );
 
 			break;
 		}
-		case EXPR_NUMBER: {
+		case EXPR_NUMBER:
+		{
 			ConstNumberExpr* as_num = (ConstNumberExpr*)expr;
 
-			print_leading();
-			std::cout << "NUMBER: ";
+			print_leading( dump_raw );
+			dump_raw.append( "NUMBER: " );
 
-			switch (as_num->num.kind) {
+			switch ( as_num->num.kind )
+			{
 				case NK_FLOAT:
-					std::cout << as_num->num.floating_point;
+					dump_raw.append( std::format( "{}", as_num->num.floating_point ) );
 					break;
 				case NK_UINT:
-					std::cout << as_num->num.uint;
+					dump_raw.append( std::format( "{}", as_num->num.uint ) );
 					break;
 				case NK_INT:
-					std::cout << as_num->num.sint;
+					dump_raw.append( std::format( "{}", as_num->num.sint ) );
 					break;
 			}
 
-			std::cout << std::endl;
+			dump_raw.append( "\n" );
 
 			break;
 		}
-		case EXPR_STRING: {
+		case EXPR_STRING:
+		{
 			ConstStringExpr* str = (ConstStringExpr*)expr;
 
-			print_leading();
-			std::cout << "STR: \"" << str->str << "\"" << std::endl;
+			print_leading( dump_raw );
+			dump_raw.append( std::format( "STR: \"{}\"\n", str->str ) );
 
 			break;
 		}
-		case EXPR_CHAR: {
+		case EXPR_CHAR:
+		{
 			ConstCharExpr* ch = (ConstCharExpr*)expr;
 
-			print_leading();
-			std::cout << "CHAR: '" << (char)ch->codepoint << "'" << std::endl;
+			print_leading( dump_raw );
+			dump_raw.append( std::format( "CHAR: '{}'\n", (char)ch->codepoint ) );
 
 			break;
 		}
-		case EXPR_VAR: {
+		case EXPR_VAR:
+		{
 			VarExpr* var = (VarExpr*)expr;
 
-			print_leading();
-			std::cout << "VAR: " << var->name << std::endl;
+			print_leading( dump_raw );
+			dump_raw.append( std::format( "VAR: {}\n", var->name ) );
 
 			break;
 		}
-		case EXPR_RANGE: {
-			print_leading();
-			std::cout << "RANGE:" << std::endl;
+		case EXPR_RANGE:
+		{
+			print_leading( dump_raw );
+			dump_raw.append( "RANGE:\n" );
 
 			break;
 		}
-		case EXPR_PROC_CALL: {
-			print_leading();
-
-			std::cout << "PROC_CALL:" << std::endl;
+		case EXPR_PROC_CALL:
+		{
+			print_leading( dump_raw );
+			dump_raw.append( "PROC_CALL:\n" );
 
 			break;
 		}
-		case EXPR_BIN_OP: {
+		case EXPR_BIN_OP:
+		{
 			BinOpExpr* bop = (BinOpExpr*)expr;
-			print_leading();
+			print_leading( dump_raw );
 
-			std::cout << "BIN_OP: " << bin_op_as_str(bop->op_kind) << std::endl;
-			dump_expr(bop->lhs, indent_level + 1);
-			dump_expr(bop->rhs, indent_level + 1);
+			dump_raw.append( std::format( "BIN_OP: {}\n", bin_op_as_str( bop->op_kind ) ) );
+			dump_raw.append( dump_expr_internal( bop->lhs, indent_level + 1 ) );
+			dump_raw.append( dump_expr_internal( bop->rhs, indent_level + 1 ) );
 
 			break;
 		}
-		case EXPR_UNARY_OP: {
+		case EXPR_UNARY_OP:
+		{
 			UnaryOpExpr* uop = (UnaryOpExpr*)expr;
-			print_leading();
+			print_leading( dump_raw );
 
-			std::cout << "UNARY_OP: " << u_op_as_str(uop->op_kind) << std::endl;
-			dump_expr(uop->operand, indent_level + 1);
+			dump_raw.append( std::format( "UNARY_OP: {}\n", u_op_as_str( uop->op_kind ) ) );
+			dump_raw.append( dump_expr_internal( uop->operand, indent_level + 1 ) );
 
 			break;
 		}
 	}
+
+	return dump_raw;
 }
 
-bool is_assign_op(BinOpKind kind)
+void dump_expr( Expr* expr )
 {
-	switch (kind) {
+	std::string dump_raw = dump_expr_internal( expr, 0 );
+	Compiler::log( "%s", dump_raw.c_str() );
+}
+
+bool is_assign_op( BinOpKind kind )
+{
+	switch ( kind )
+	{
 		case B_OP_MEMBER_ACCESS:
 		case B_OP_RANGE:
 		case B_OP_MUL:
@@ -192,11 +223,15 @@ bool is_assign_op(BinOpKind kind)
 		case B_OP_XOR_ASSIGN:
 			return true;
 	}
+
+	Compiler::warn( "Unknown binary operator: %s", kind );
+	return false;
 }
 
-int64_t op_priority(BinOpKind kind)
+int64_t op_priority( BinOpKind kind )
 {
-	switch (kind) {
+	switch ( kind )
+	{
 		case B_OP_MEMBER_ACCESS:
 			return 14;
 

@@ -1,7 +1,8 @@
 #pragma once
 #include <string>
 
-enum TypeKind {
+enum TypeKind
+{
 	TY_NOTHING,
 	TY_BOOL,
 	TY_CHAR,
@@ -29,16 +30,19 @@ using TypeID = int64_t;
 
 struct Expr;
 
-struct Type {
-	TypeKind kind = TY_UNKNOWN;
+struct Type
+{
+	TypeKind    kind = TY_UNKNOWN;
 	std::string name;
 
-	union {
-		Expr* size_expr;
+	union
+	{
+		Expr*   size_expr;
 		int64_t size;
 	};
 
-	union {
+	union
+	{
 		size_t str_len;
 		size_t struct_id;
 		size_t enum_id;

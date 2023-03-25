@@ -1,1 +1,14 @@
-#this_should_break
+decl other_proc : ( param: ilong )
+{
+	for i in [0..10)
+	{
+		let a := i * i;
+	}
+}
+
+decl ExternalStruct : struct
+{
+	other_string: string;
+	other_float:  f32;
+}
+

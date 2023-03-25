@@ -7,68 +7,69 @@ Program* Program::the = nullptr;
 
 Program::Program()
 {
-	assert(the == nullptr);
+	assert( the == nullptr );
 	Program::the = this;
 }
 
 
-Module* Program::add_module(std::string const& path)
+Module* Program::add_module( std::string const& path )
 {
 	Program* the_program = Program::the;
-	assert(the_program);
+	assert( the_program );
 
-	std::string full_path = std::filesystem::absolute(path);
+	std::string full_path = std::filesystem::absolute( path ).string();
 
-	std::scoped_lock<std::mutex> lock(Program::the->module_mutex);
+	std::scoped_lock<std::mutex> lock( Program::the->module_mutex );
 
-	assert(the_program->module_map.find(full_path) == the_program->module_map.cend());
+	assert( the_program->module_map.find( full_path ) == the_program->module_map.cend() );
 
-	ModuleID id = the_program->modules.size();
+	Module* mod = (Module*)the_program->module_arena.alloc_bytes( sizeof( Module ) );
+	new (mod) Module(); // essentially zero-out the data
 
-	the_program->modules.push_back(Module {});
-	the_program->module_map[full_path] = id;
-	return &Program::the->modules[id];
+	the_program->module_map[full_path] = mod;
+
+	return mod;
 }
 
 
-Module* Program::get_module(std::string const& path)
+Module* Program::get_module( std::string const& path )
 {
 	Program* the_program = Program::the;
-	assert(the_program);
+	assert( the_program );
 
-	std::string full_path = std::filesystem::absolute(path);
+	std::string full_path = std::filesystem::absolute( path ).string();
 
-	std::scoped_lock<std::mutex> lock(Program::the->module_mutex);
+	std::scoped_lock<std::mutex> lock( Program::the->module_mutex );
 
-	assert(the_program->module_map.find(full_path) != the_program->module_map.cend());
+	assert( the_program->module_map.find( full_path ) != the_program->module_map.cend() );
 
-	ModuleID id = the_program->module_map.at(full_path);
-	return &Program::the->modules[id];
+	return the_program->module_map.at( full_path );
 }
 
 
-Module* Program::get_or_add_module(std::string const& path)
+Module* Program::get_or_add_module( std::string const& path )
 {
 	Program* the_program = Program::the;
-	assert(the_program);
+	assert( the_program );
 
-	std::string full_path = std::filesystem::absolute(path);
+	std::string full_path = std::filesystem::absolute( path ).string();
 
-	std::scoped_lock<std::mutex> lock(Program::the->module_mutex);
+	std::scoped_lock<std::mutex> lock( Program::the->module_mutex );
 
-	ModuleID id = -1;
-
-	if (the_program->module_map.find(full_path) != the_program->module_map.cend())
+	Module* mod = nullptr;
+	if ( the_program->module_map.find( full_path ) != the_program->module_map.cend() )
 	{
-		id = the_program->module_map.at(full_path);
+		mod = the_program->module_map.at( full_path );
 	}
 	else
 	{
-		id = the_program->modules.size();
+		mod = (Module*)the_program->module_arena.alloc_bytes( sizeof( Module ) );
+		new (mod) Module(); // essentially zero-out the data
 
-		the_program->modules.push_back(Module {});
-		the_program->module_map[full_path] = id;
+		the_program->module_map[full_path] = mod;
 	}
 
-	return &Program::the->modules[id];
+	assert( mod != nullptr );
+
+	return mod;
 }

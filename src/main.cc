@@ -12,16 +12,18 @@
 
 
 using namespace std::chrono_literals;
+using Time = std::chrono::high_resolution_clock;
 
 
 int main()
 {
-	new Program();
+	Program the_program;
+	JobSystem the_job_system;
 	Compiler::init();
 
 	// Create the root module
 	char const* path = "./test.df";
-	Module* root = Program::add_module(path);
+	Module* root = Program::add_module( path );
 
 	CompileJob start_job = {
 		.filepath = path,
@@ -29,22 +31,29 @@ int main()
 		.proc     = Compiler::compile_module_job,
 	};
 
+	auto parse_start = Time::now();
+
 	// TODO: Command line arg "-j[n]"
-	JobSystem job_system;
-
 	size_t worker_count = 8;
-	job_system.start(worker_count);
+	JobSystem::start( worker_count );
 
-	job_system.enqueue_job(start_job);
+	JobSystem::enqueue_job( start_job );
 
 	do {
 		// FIXME: Is this too long? too short? test...
-		std::this_thread::sleep_for(5ms);
-	} while (job_system.is_busy());
+		std::this_thread::sleep_for( 1ms );
+	} while ( JobSystem::is_busy() );
 
-	job_system.stop();
+	JobSystem::stop();
 
-	printf("\nCompilation \x1b[32;1msuccessful\x1b[0m!\n");
+	auto parse_end = Time::now();
+
+	std::chrono::duration<float, std::milli> ms = parse_end - parse_start;
+	float millis = ms.count();
+
+	printf( "\n\tlexing & parsing: %.3fms\n", millis );
+
+	printf( "\nCompilation \x1b[32;1msuccessful\x1b[0m!\n" );
 
 	return 0;
 }
