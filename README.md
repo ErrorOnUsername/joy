@@ -66,7 +66,7 @@ Obviously you can omit the return type if you don't want to return anything, or
 omit the parameters if you don't want parameters.
 
 ### `let`
-This keyword is used to declate variables. And with these, we get to use the `:=`
+This keyword is used to declare variables. And with these, we get to use the `:=`
 operator. `:=` lets us implicity type a variable. For example:
 ```
 // implicity typed as string
