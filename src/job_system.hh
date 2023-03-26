@@ -22,6 +22,7 @@ struct JobSystem
 
 	std::mutex               queue_mutex;
 	std::condition_variable  state_update_cv;
+	bool                     is_working;
 	bool                     should_terminate;
 	std::vector<std::thread> workers;
 	std::queue<CompileJob>   jobs;

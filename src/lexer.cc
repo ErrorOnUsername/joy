@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "compiler.hh"
+#include "profiling.hh"
 
 #define TK_WITH_B_FORM( kind ) \
 {                                               \
@@ -57,6 +58,8 @@ Lexer::Lexer( std::string const& filepath )
 
 Token Lexer::next_tk()
 {
+	TIME_PROC();
+
 	while ( !at_eof() )
 	{
 		switch ( current() )

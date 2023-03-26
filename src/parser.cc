@@ -4,6 +4,7 @@
 #include "ast.hh"
 #include "compiler.hh"
 #include "job_system.hh"
+#include "profiling.hh"
 #include "program.hh"
 
 Parser::Parser( Module* working_module, std::vector<Token>& token_stream, std::string const& directory )
@@ -22,6 +23,8 @@ Parser::Parser( Module* working_module, std::vector<Token>& token_stream, std::s
 
 void Parser::parse_module()
 {
+	TIME_PROC();
+
 	Token tk = current();
 	while ( tk.kind != TK_EOF )
 	{
@@ -74,6 +77,8 @@ void Parser::parse_module()
 
 Stmnt* Parser::parse_statement()
 {
+	TIME_PROC();
+
 	eat_whitespace();
 
 	Token tk = current();
@@ -105,6 +110,8 @@ Stmnt* Parser::parse_statement()
 
 Expr* Parser::parse_expr( bool can_assign, bool allow_newlines )
 {
+	TIME_PROC();
+
 	BinOpExpr* expr = nullptr;
 
 	int64_t last_operator_priority = 100'000;
@@ -216,6 +223,8 @@ Expr* Parser::parse_expr( bool can_assign, bool allow_newlines )
 
 void Parser::parse_decl_stmnt()
 {
+	TIME_PROC();
+
 	Token tk = current();
 
 	Span start_span = tk.span;
@@ -285,6 +294,8 @@ void Parser::parse_decl_stmnt()
 
 void Parser::parse_let_stmnt()
 {
+	TIME_PROC();
+
 	Token tk         = current();
 	Span  start_span = tk.span;
 
@@ -347,6 +358,8 @@ void Parser::parse_let_stmnt()
 
 Stmnt* Parser::parse_if_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_IF );
 
 	Expr* condition = parse_expr( false, true );
@@ -388,6 +401,8 @@ Stmnt* Parser::parse_if_stmnt()
 
 Stmnt* Parser::parse_for_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_FOR );
 
 	Token iter_name = current();
@@ -433,6 +448,8 @@ Stmnt* Parser::parse_for_stmnt()
 
 Stmnt* Parser::parse_while_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_WHILE );
 
 	Expr* condition = parse_expr( false, true );
@@ -453,6 +470,8 @@ Stmnt* Parser::parse_while_stmnt()
 
 Stmnt* Parser::parse_loop_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_LOOP );
 
 	eat_whitespace();
@@ -470,6 +489,8 @@ Stmnt* Parser::parse_loop_stmnt()
 
 Stmnt* Parser::parse_continue_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_CONTINUE );
 
 	Stmnt* continue_stmnt = (Stmnt*)m_working_module->stmnt_arena.alloc_bytes( sizeof( Stmnt ) );
@@ -483,6 +504,8 @@ Stmnt* Parser::parse_continue_stmnt()
 
 Stmnt* Parser::parse_break_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_BREAK );
 
 	Stmnt* break_stmnt = (Stmnt*)m_working_module->stmnt_arena.alloc_bytes( sizeof( Stmnt ) );
@@ -496,6 +519,8 @@ Stmnt* Parser::parse_break_stmnt()
 
 Stmnt* Parser::parse_return_stmnt()
 {
+	TIME_PROC();
+
 	eat_current_specific( TK_KW_RETURN );
 
 	Expr* ret_val = parse_expr( false, true );
@@ -512,6 +537,8 @@ Stmnt* Parser::parse_return_stmnt()
 
 Stmnt* Parser::parse_expr_stmnt()
 {
+	TIME_PROC();
+
 	ExprStmnt* expr = (ExprStmnt*)m_working_module->stmnt_arena.alloc_bytes( sizeof( ExprStmnt ) );
 	expr->kind = STMNT_EXPR;
 	expr->expr = parse_expr( true, true );
@@ -526,6 +553,8 @@ Stmnt* Parser::parse_expr_stmnt()
 
 Expr* Parser::parse_operand()
 {
+	TIME_PROC();
+
 	Expr* prefix = nullptr;
 
 	Token lead = current();
@@ -799,6 +828,8 @@ Expr* Parser::parse_operand()
 
 Type Parser::parse_raw_type()
 {
+	TIME_PROC();
+
 	Token tk = current();
 	switch ( tk.kind )
 	{
@@ -995,6 +1026,8 @@ Type Parser::parse_raw_type()
 
 TypeID Parser::register_type( Type& type )
 {
+	TIME_PROC();
+
 	if ( m_working_module->type_id_map.find( type.name ) != m_working_module->type_id_map.end() )
 		return m_working_module->type_id_map[type.name];
 
@@ -1005,6 +1038,8 @@ TypeID Parser::register_type( Type& type )
 
 std::vector<StructMember> Parser::parse_struct_members()
 {
+	TIME_PROC();
+
 	std::vector<StructMember> members;
 
 	eat_current_specific( TK_KW_STRUCT );
@@ -1049,6 +1084,8 @@ std::vector<StructMember> Parser::parse_struct_members()
 
 std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 {
+	TIME_PROC();
+
 	std::vector<ProcParameter> params;
 
 	Token curr = current();
@@ -1099,6 +1136,8 @@ std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 
 Block Parser::parse_stmnt_block()
 {
+	TIME_PROC();
+
 	std::vector<Stmnt*> stmnts;
 
 	eat_whitespace();
@@ -1133,6 +1172,8 @@ Block Parser::parse_stmnt_block()
 
 bool Parser::is_ident_defined( std::string const& name ) const
 {
+	TIME_PROC();
+
 	ScopeID scope = m_current_scope;
 	while ( scope != -1 )
 	{
@@ -1148,6 +1189,8 @@ bool Parser::is_ident_defined( std::string const& name ) const
 
 VarID Parser::get_ident_var_id( std::string const& name ) const
 {
+	TIME_PROC();
+
 	ScopeID scope = m_current_scope;
 	while ( scope != -1 )
 	{
@@ -1163,17 +1206,23 @@ VarID Parser::get_ident_var_id( std::string const& name ) const
 
 Token Parser::current()
 {
+	TIME_PROC();
+
 	return peek( 0 );
 }
 
 Token Parser::next()
 {
+	TIME_PROC();
+
 	m_idx++;
 	return current();
 }
 
 void Parser::eat_next_specific( TokenKind kind )
 {
+	TIME_PROC();
+
 	Token tk = next();
 	m_idx++;
 	if ( tk.kind != kind )
@@ -1182,6 +1231,8 @@ void Parser::eat_next_specific( TokenKind kind )
 
 void Parser::eat_current_specific( TokenKind kind )
 {
+	TIME_PROC();
+
 	Token tk = current();
 	m_idx++;
 	if ( tk.kind != kind )
@@ -1190,6 +1241,8 @@ void Parser::eat_current_specific( TokenKind kind )
 
 void Parser::eat_whitespace()
 {
+	TIME_PROC();
+
 	Token tk = current();
 	while ( tk.kind == TK_EOL )
 	{
@@ -1199,6 +1252,8 @@ void Parser::eat_whitespace()
 
 Token Parser::peek( int64_t offset )
 {
+	TIME_PROC();
+
 	assert( m_idx + offset < m_token_stream.size() );
 
 	return m_token_stream[m_idx + offset];

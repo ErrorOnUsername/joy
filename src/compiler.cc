@@ -9,7 +9,9 @@
 #include "token.hh"
 #include "lexer.hh"
 #include "parser.hh"
+#include "profiling.hh"
 
+static std::mutex s_file_data_mutex;
 static std::mutex s_logging_mutex;
 
 Compiler* Compiler::s_the = nullptr;
@@ -21,6 +23,8 @@ void Compiler::init()
 
 size_t Compiler::open_file( std::string const& filepath )
 {
+	TIME_PROC();
+
 	FILE* file = fopen( filepath.c_str(), "r" );
 	assert( file );
 
@@ -40,18 +44,28 @@ size_t Compiler::open_file( std::string const& filepath )
 	free( temp );
 	fclose( file );
 
-	s_the->m_file_data_registry.push_back( std::move( buf ) );
-	s_the->m_filepath_registry.push_back( filepath );
-	return s_the->m_file_data_registry.size() - 1;
+	size_t id;
+
+	{
+		std::scoped_lock<std::mutex> lock( s_file_data_mutex );
+
+		s_the->m_file_data_registry.push_back( std::move( buf ) );
+		s_the->m_filepath_registry.push_back( filepath );
+
+		id = s_the->m_file_data_registry.size() - 1;
+	}
+	return id;
 }
 
 std::string const& Compiler::filepath( size_t id )
 {
+	std::scoped_lock<std::mutex> lock( s_file_data_mutex );
 	return s_the->m_filepath_registry[id];
 }
 
 std::string const& Compiler::file_data( size_t id )
 {
+	std::scoped_lock<std::mutex> lock( s_file_data_mutex );
 	return s_the->m_file_data_registry[id];
 }
 

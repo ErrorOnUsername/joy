@@ -8,6 +8,7 @@
 #include "job_system.hh"
 #include "lexer.hh"
 #include "parser.hh"
+#include "profiling.hh"
 #include "program.hh"
 
 
@@ -17,6 +18,9 @@ using Time = std::chrono::high_resolution_clock;
 
 int main()
 {
+	PROF_APP( "swarm" );
+	TIME_MAIN();
+
 	Program the_program;
 	JobSystem the_job_system;
 	Compiler::init();
@@ -33,18 +37,18 @@ int main()
 
 	auto parse_start = Time::now();
 
-	// TODO: Command line arg "-j[n]"
-	size_t worker_count = 8;
-	JobSystem::start( worker_count );
+	{
+		TIME_SCOPE( "Lexing & Parsing" );
+		// TODO: Command line arg "-j[n]"
+		size_t worker_count = 8;
+		JobSystem::start( worker_count );
 
-	JobSystem::enqueue_job( start_job );
+		JobSystem::enqueue_job( start_job );
 
-	do {
-		// FIXME: Is this too long? too short? test...
-		std::this_thread::sleep_for( 1ms );
-	} while ( JobSystem::is_busy() );
+		while ( JobSystem::is_busy() );
 
-	JobSystem::stop();
+		JobSystem::stop();
+	}
 
 	auto parse_end = Time::now();
 

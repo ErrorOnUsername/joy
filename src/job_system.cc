@@ -1,11 +1,14 @@
 #include "job_system.hh"
 #include <cassert>
 
+#include "profiling.hh"
+
 JobSystem* JobSystem::the = nullptr;
 
 JobSystem::JobSystem()
 	: queue_mutex()
 	, state_update_cv()
+	, is_working( false )
 	, should_terminate( false )
 	, workers()
 	, jobs()
@@ -61,7 +64,7 @@ bool JobSystem::is_busy()
 
 	{
 		std::unique_lock<std::mutex> lock( the->queue_mutex );
-		busy = !the->jobs.empty();
+		busy = !the->jobs.empty() || the->is_working;
 	}
 
 	return busy;
@@ -72,9 +75,12 @@ void JobSystem::worker_stub()
 {
 	for( ;; )
 	{
+		TIME_THREAD( "Worker" );
 		CompileJob job;
 
 		{
+			TIME_SCOPE( "Worker::wait_for_job" );
+
 			std::unique_lock<std::mutex> lock( the->queue_mutex );
 
 			the->state_update_cv.wait( lock, [] ()
@@ -87,9 +93,19 @@ void JobSystem::worker_stub()
 
 			job = the->jobs.front();
 			the->jobs.pop();
+
+			the->is_working = true;
 		}
 
 		assert( job.module );
 		job.proc( job.filepath, job.module );
+
+		{
+			TIME_SCOPE( "Worker::end_job" );
+
+			std::unique_lock<std::mutex> lock( the->queue_mutex );
+
+			the->is_working = false;
+		}
 	}
 }
