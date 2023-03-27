@@ -47,6 +47,29 @@
 	return tk;                                       \
 }
 
+#define TK_WITH_BT_FORM( kind_0, char_1, kind_1, char_2, kind_2, char_3, kind_3 ) \
+{                                                    \
+	Token tk( m_file_id, kind_0, m_idx, m_line );    \
+	m_idx++;                                         \
+	if ( current() == char_1 )                       \
+	{                                                \
+		tk.kind = kind_1;                            \
+		m_idx++;                                     \
+	}                                                \
+	else if ( current() == char_2 )                  \
+	{                                                \
+		tk.kind = kind_2;                            \
+		m_idx++;                                     \
+	}                                                \
+	else if ( current() == char_3 )                  \
+	{                                                \
+		tk.kind = kind_3;                            \
+		m_idx++;                                     \
+	}                                                \
+	tk.span.end_idx = m_idx;                         \
+	return tk;                                       \
+}
+
 Lexer::Lexer( std::string const& filepath )
 	: m_file_id()
 	, m_file_data()
@@ -95,7 +118,7 @@ Token Lexer::next_tk()
 			case '^': TK_WITH_BO_FORM( TK_CARET, '^', TK_XOR, '=', TK_CARET_ASSIGN );
 			case '&': TK_WITH_BO_FORM( TK_AMPERSAND, '&', TK_AND, '=', TK_AMPERSAND_ASSIGN );
 			case '*': TK_WITH_BX_FORM( TK_STAR, '=', TK_STAR_ASSIGN );
-			case '-': TK_WITH_BO_FORM( TK_MINUS, '-', TK_MINUS_MINUS, '=', TK_MINUS_ASSIGN );
+			case '-': TK_WITH_BT_FORM( TK_MINUS, '-', TK_MINUS_MINUS, '=', TK_MINUS_ASSIGN, '>', TK_THIN_ARROW );
 			case '+': TK_WITH_BO_FORM( TK_PLUS, '+', TK_PLUS_PLUS, '=', TK_PLUS_ASSIGN );
 			case '=': TK_WITH_BO_FORM( TK_ASSIGN, '=', TK_EQ, '>', TK_THICC_ARROW );
 			case '|': TK_WITH_BO_FORM( TK_PIPE, '|', TK_OR, '=', TK_PIPE_ASSIGN );

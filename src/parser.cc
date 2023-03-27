@@ -262,6 +262,25 @@ void Parser::parse_decl_stmnt()
 
 			eat_current_specific( TK_R_PAREN );
 
+			TypeID return_type_id = -1;
+
+			Token maybe_arrow = current();
+			if ( maybe_arrow.kind == TK_THIN_ARROW )
+			{
+				eat_current_specific( TK_THIN_ARROW );
+
+				Type raw_type = parse_raw_type();
+				return_type_id = register_type( raw_type );
+			}
+			else
+			{
+				Type nothing_type;
+				nothing_type.kind = TY_NOTHING;
+				nothing_type.size = 0;
+
+				return_type_id = register_type( nothing_type );
+			}
+
 			auto   body       = parse_stmnt_block();
 			size_t root_scope = body.scope_id;
 
@@ -280,6 +299,7 @@ void Parser::parse_decl_stmnt()
 			decl.kind             = STMNT_PROC_DECL;
 			decl.name             = name.str;
 			decl.params           = std::move(params);
+			decl.return_type      = return_type_id;
 			decl.body             = std::move(body);
 			decl.linkage          = PROC_LINKAGE_INTERNAL;
 			decl.linking_lib_name = "";
@@ -328,7 +348,7 @@ void Parser::parse_let_stmnt()
 		Compiler::panic( colon_or_autotype.span, "Syntax Error! Expected ':' or ':=' in variable declaration, got: %s", tk_as_str( colon_or_autotype.kind ) );
 	}
 
-	Token eq_or_semicolon = next();
+	Token eq_or_semicolon = current();
 	if ( eq_or_semicolon.kind == TK_ASSIGN )
 	{
 		m_idx++;
@@ -340,6 +360,7 @@ void Parser::parse_let_stmnt()
 	}
 	else if ( colon_or_autotype.kind == TK_COLON_ASSIGN )
 	{
+		m_idx++;
 		var.default_value = parse_expr( false, true );
 		eat_current_specific( TK_SEMICOLON );
 	}
@@ -704,6 +725,11 @@ Expr* Parser::parse_operand()
 		{
 			if ( peek().kind == TK_L_PAREN )
 			{
+				Token current_tk = current();
+
+				std::string proc_name       = current_tk.str;
+				Span        start_call_span = current_tk.span;
+
 				eat_next_specific( TK_L_PAREN );
 
 				eat_whitespace();
@@ -720,17 +746,29 @@ Expr* Parser::parse_operand()
 					else if ( t.kind != TK_R_PAREN )
 						Compiler::panic( t.span, "Expected ',' or ')' in procedure call, but got: %s\n", tk_as_str( t.kind ) );
 				}
+
+				eat_current_specific( TK_R_PAREN );
+
+				ProcCallExpr* call_expr = (ProcCallExpr*)m_working_module->expr_arena.alloc_bytes( sizeof( ProcCallExpr ) );
+				call_expr->kind   = EXPR_PROC_CALL;
+				call_expr->span   = start_call_span; // TODO: Is just giving the span of the name enough?
+				call_expr->name   = proc_name;
+				call_expr->params = params;
+
+				prefix = call_expr;
 			}
+			else
+			{
+				VarExpr* var_ref = (VarExpr*)m_working_module->expr_arena.alloc_bytes( sizeof( VarExpr ) );
+				var_ref->kind   = EXPR_VAR;
+				var_ref->span   = current().span;
+				var_ref->name   = current().str;
+				var_ref->var_id = get_ident_var_id( var_ref->name );
 
-			VarExpr* var_ref = (VarExpr*)m_working_module->expr_arena.alloc_bytes( sizeof( VarExpr ) );
-			var_ref->kind   = EXPR_VAR;
-			var_ref->span   = current().span;
-			var_ref->name   = current().str;
-			var_ref->var_id = get_ident_var_id( var_ref->name );
+				m_idx++;
 
-			m_idx++;
-
-			prefix = var_ref;
+				prefix = var_ref;
+			}
 
 			break;
 		}
@@ -866,6 +904,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_IDENT:
 		{
+			m_idx++;
+
 			Type ty {};
 			ty.kind = TY_UNKNOWN;
 			ty.name = tk.str;
@@ -875,6 +915,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_NOTHING:
 		{
+			m_idx++;
+
 			Type ty {};
 			ty.kind = TY_NOTHING;
 			ty.name = "$internal$_nothing";
@@ -884,6 +926,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_BOOL:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_BOOL;
 			ty.name = "$internal$_bool";
@@ -893,6 +937,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_CHAR:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_CHAR;
 			ty.name = "$internal$_char";
@@ -902,6 +948,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_U8:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_U8;
 			ty.name = "$internal$_u8";
@@ -911,6 +959,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_I8:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_I8;
 			ty.name = "$internal$_i8";
@@ -920,6 +970,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_U16:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_U16;
 			ty.name = "$internal$_u16";
@@ -929,6 +981,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_I16:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_I16;
 			ty.name = "$internal$_i16";
@@ -938,6 +992,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_U32:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_U32;
 			ty.name = "$internal$_u32";
@@ -947,6 +1003,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_I32:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_I32;
 			ty.name = "$internal$_i32";
@@ -956,6 +1014,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_U64:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_U64;
 			ty.name = "$internal$_u64";
@@ -965,6 +1025,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_I64:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_I64;
 			ty.name = "$internal$_i64";
@@ -974,6 +1036,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_F32:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_F32;
 			ty.name = "$internal$_f32";
@@ -983,6 +1047,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_F64:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_F64;
 			ty.name = "$internal$_f64";
@@ -992,6 +1058,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_RAWPTR:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_RAWPTR;
 			ty.name = "$internal$_rawptr";
@@ -1001,6 +1069,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_STR:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_STR;
 			ty.name = "$internal$_str";
@@ -1010,6 +1080,8 @@ Type Parser::parse_raw_type()
 		}
 		case TK_TY_CSTR:
 		{
+			m_idx++;
+
 			Type ty{};
 			ty.kind = TY_CSTR;
 			ty.name = "$internal$_cstr";
@@ -1063,7 +1135,7 @@ std::vector<StructMember> Parser::parse_struct_members()
 		Type   raw_type = parse_raw_type();
 		TypeID type     = register_type( raw_type );
 
-		eat_next_specific( TK_SEMICOLON );
+		eat_current_specific( TK_SEMICOLON );
 
 		members.push_back( StructMember {
 			name.str,
@@ -1093,7 +1165,7 @@ std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 		Compiler::panic( curr.span, "Syntax Error! Expected '(', got: %s\n", tk_as_str( curr.kind ) );
 
 	Token tk = next();
-	for ( ;; )
+	while ( current().kind != TK_R_PAREN )
 	{
 		Token name = current();
 		if ( name.kind != TK_IDENT )
@@ -1115,7 +1187,7 @@ std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 
 		params.push_back( param );
 
-		Token comma = next();
+		Token comma = current();
 		if ( comma.kind == TK_COMMA )
 		{
 			m_idx++;

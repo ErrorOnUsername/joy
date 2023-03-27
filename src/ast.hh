@@ -198,6 +198,7 @@ enum ProcLinkage {
 struct ProcDeclStmnt : public Stmnt {
 	std::string                name;
 	std::vector<ProcParameter> params;
+	TypeID                     return_type;
 	Block                      body;
 	ProcLinkage                linkage;
 	std::string                linking_lib_name;

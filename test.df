@@ -7,7 +7,7 @@ decl MyType : struct
 	my_thing:  cstring;
 }
 
-decl main : ( param0: bool )
+decl main : ( this_one: ilong, that_one: fquad ) -> ilong
 {
 	let a := 1 + 2 / 3 * 4;
 	let b := ( 1 + 2 ) * 3;
