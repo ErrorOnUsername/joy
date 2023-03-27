@@ -1,5 +1,8 @@
 #include "typechecker.hh"
 
-void typecheck_module( Module& module )
+#include "profiling.hh"
+
+void typecheck_module( Module* module )
 {
+	TIME_PROC();
 }

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <string>
 #include <iostream>
+#include <unordered_map>
 
 #include "compiler.hh"
 #include "profiling.hh"
@@ -310,6 +311,43 @@ bool is_valid_ident_char( char c )
 	       ( c == '_' );
 }
 
+static std::unordered_map<std::string, TokenKind> s_keyword_map =
+{
+	{ "true", TK_BOOL_T },
+	{ "false", TK_BOOL_F },
+	{ "decl", TK_KW_DECL },
+	{ "let", TK_KW_LET },
+	{ "if", TK_KW_IF },
+	{ "else", TK_KW_ELSE },
+	{ "for", TK_KW_FOR },
+	{ "while", TK_KW_WHILE },
+	{ "loop", TK_KW_LOOP },
+	{ "continue", TK_KW_CONTINUE },
+	{ "break", TK_KW_BREAK },
+	{ "return", TK_KW_RETURN },
+	{ "in", TK_KW_IN },
+	{ "as", TK_KW_AS },
+	{ "struct", TK_KW_STRUCT },
+	{ "enum", TK_KW_ENUM },
+	{ "union", TK_KW_UNION },
+	{ "nothing", TK_TY_NOTHING },
+	{ "char", TK_TY_CHAR },
+	{ "bool", TK_TY_BOOL },
+	{ "ubyte", TK_TY_U8 },
+	{ "ibyte", TK_TY_I8 },
+	{ "uword", TK_TY_U16 },
+	{ "iword", TK_TY_I16 },
+	{ "ulong", TK_TY_U32 },
+	{ "ilong", TK_TY_I32 },
+	{ "uquad", TK_TY_U64 },
+	{ "iquad", TK_TY_I64 },
+	{ "flong", TK_TY_F32 },
+	{ "fquad", TK_TY_F64 },
+	{ "rawptr", TK_TY_RAWPTR },
+	{ "string", TK_TY_STR },
+	{ "cstring", TK_TY_CSTR },
+};
+
 Token Lexer::tokenize_ident()
 {
 	Token tk( m_file_id, TK_IDENT, m_idx, m_line );
@@ -325,72 +363,8 @@ Token Lexer::tokenize_ident()
 		c = current();
 	}
 
-	if ( str == "true" )
-		tk.kind = TK_BOOL_T;
-	else if ( str == "false" )
-		tk.kind = TK_BOOL_F;
-	else if ( str == "decl" )
-		tk.kind = TK_KW_DECL;
-	else if ( str == "let" )
-		tk.kind = TK_KW_LET;
-	else if ( str == "if" )
-		tk.kind = TK_KW_IF;
-	else if ( str == "else" )
-		tk.kind = TK_KW_ELSE;
-	else if ( str == "for" )
-		tk.kind = TK_KW_FOR;
-	else if ( str == "while" )
-		tk.kind = TK_KW_WHILE;
-	else if ( str == "loop" )
-		tk.kind = TK_KW_LOOP;
-	else if ( str == "continue" )
-		tk.kind = TK_KW_CONTINUE;
-	else if ( str == "break" )
-		tk.kind = TK_KW_BREAK;
-	else if ( str == "return" )
-		tk.kind = TK_KW_RETURN;
-	else if ( str == "in" )
-		tk.kind = TK_KW_IN;
-	else if ( str == "as" )
-		tk.kind = TK_KW_AS;
-	else if ( str == "struct" )
-		tk.kind = TK_KW_STRUCT;
-	else if ( str == "enum" )
-		tk.kind = TK_KW_ENUM;
-	else if ( str == "union" )
-		tk.kind = TK_KW_UNION;
-	else if ( str == "nothing" )
-		tk.kind = TK_TY_NOTHING;
-	else if ( str == "char" )
-		tk.kind = TK_TY_CHAR;
-	else if ( str == "bool" )
-		tk.kind = TK_TY_BOOL;
-	else if ( str == "u8" )
-		tk.kind = TK_TY_U8;
-	else if ( str == "i8" )
-		tk.kind = TK_TY_I8;
-	else if ( str == "u16" )
-		tk.kind = TK_TY_U16;
-	else if ( str == "i16" )
-		tk.kind = TK_TY_I16;
-	else if ( str == "u32" )
-		tk.kind = TK_TY_U32;
-	else if ( str == "i32" )
-		tk.kind = TK_TY_I32;
-	else if ( str == "u64" )
-		tk.kind = TK_TY_U64;
-	else if ( str == "i64" )
-		tk.kind = TK_TY_I64;
-	else if ( str == "f32" )
-		tk.kind = TK_TY_F32;
-	else if ( str == "f64" )
-		tk.kind = TK_TY_F64;
-	else if ( str == "rawptr" )
-		tk.kind = TK_TY_RAWPTR;
-	else if ( str == "string" )
-		tk.kind = TK_TY_STR;
-	else if ( str == "cstring" )
-		tk.kind = TK_TY_CSTR;
+	if ( s_keyword_map.find( str ) != s_keyword_map.cend() )
+		tk.kind = s_keyword_map.at( str );
 	else
 		tk.str = std::move( str );
 
