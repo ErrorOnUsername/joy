@@ -2,6 +2,16 @@
 > A programming language that I'm making for fun in my freetime
 
 
+## TODO:
+[X] Lexing
+[X] Parsing
+	- Most parsing works there's just some silly bugs I need to iron out.
+[ ] Bytecode generation (metaprogramming and just a custom IR)
+[ ] LLVM (for platform support)
+[ ] Metaprogramming
+[ ] Custom backends
+[ ] Cross-compilation
+
 ## An example
 ![An example snippet of code that calculates the fibbonacci sequence](meta/sqrt.png)
 
