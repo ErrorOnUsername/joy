@@ -498,33 +498,28 @@ Token Lexer::tokenize_string_literal()
 				Compiler::panic( tk.span, "Add support for number literal escape chars" );
 			}
 
-			char nc = peek();
+			m_idx++;
+			char nc = current();
 
 			switch ( nc )
 			{
 				case 'r':
 					str.push_back( '\r' );
-					m_idx += 2;
 					break;
 				case 'n':
 					str.push_back( '\n' );
-					m_idx += 2;
 					break;
 				case 't':
 					str.push_back( '\t' );
-					m_idx += 2;
 					break;
 				case 'v':
 					str.push_back( '\v' );
-					m_idx += 2;
 					break;
 				case '"':
 					str.push_back( '"' );
-					m_idx += 2;
 					break;
 				default:
-					str.push_back( '\\' );
-					m_idx++;
+					str.push_back( nc );
 			}
 		}
 		else if ( c == '\n' )

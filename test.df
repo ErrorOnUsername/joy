@@ -1,5 +1,6 @@
 #load "other_file.df";
 
+// Structs
 decl MyType : struct
 {
 	my_int:    ilong;
@@ -7,35 +8,40 @@ decl MyType : struct
 	my_thing:  cstring;
 }
 
-decl main : ( this_one: ilong, that_one: fquad ) -> ilong
+// Procedures
+decl main : ()
 {
+	// Expression testing
 	let a := 1 + 2 / 3 * 4;
 	let b := ( 1 + 2 ) * 3;
 	let c := a;
 	let d := 1;
 
-	if a > b
-	{
+	// If statements
+	if a > b {
 		a = b;
 	}
 
-	while a > b
-	{
+	// While statements
+	while a > b {
 		++a;
 		break;
 	}
 
-	loop
-	{
+	// Test calling procs from other modules
+	let x      := 16.0;
+	let sqrt_x := sqrt( x );
+	printf( "sqrt( %.3f ) => %.3f\n", x, sqrt_x );
+
+	// Loop statements
+	loop {
 		a--;
 	}
 
-	return a;
-
-	for i in [0..10)
-	{
+	// For statements (range expressions as well)
+	for i in [0..10) {
 		let haha := 0;
-		let a := haha;
+		let a    := haha;
 		continue;
 	}
 }
