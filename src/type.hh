@@ -26,12 +26,11 @@ enum TypeKind
 	TY_UNKNOWN,
 };
 
-using TypeID = int64_t;
-
 struct Expr;
 
 struct Type
 {
+	Span        span;
 	TypeKind    kind = TY_UNKNOWN;
 	std::string name;
 
@@ -41,11 +40,5 @@ struct Type
 		int64_t size;
 	};
 
-	union
-	{
-		size_t str_len;
-		size_t struct_id;
-		size_t enum_id;
-		TypeID underlying;
-	};
+	size_t str_len;
 };

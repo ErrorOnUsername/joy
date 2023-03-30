@@ -25,7 +25,7 @@ enum ExprKind {
 struct Expr {
 	Span     span;
 	ExprKind kind;
-	TypeID   result_ty;
+	Type     result_ty;
 };
 
 struct ConstBoolExpr : public Expr {
@@ -129,7 +129,7 @@ enum UnaryOpKind {
 struct UnaryOpExpr : public Expr {
 	UnaryOpKind op_kind;
 	Expr*       operand;
-	TypeID      to_type; // for U_OP_CAST
+	Type        to_type; // for U_OP_CAST
 };
 
 enum StmntKind {
@@ -161,7 +161,7 @@ struct ConstDeclStmnt : public Stmnt {
 
 struct StructMember {
 	std::string name;
-	TypeID      type;
+	Type        type;
 };
 
 struct StructDeclStmnt : public Stmnt {
@@ -181,7 +181,7 @@ struct EnumDeclStmnt : public Stmnt {
 struct ProcParameter {
 	std::string name;
 	VarID       var_id;
-	TypeID      type;
+	Type        type;
 	Expr*       default_value;
 };
 
@@ -198,7 +198,7 @@ enum ProcLinkage {
 struct ProcDeclStmnt : public Stmnt {
 	std::string                name;
 	std::vector<ProcParameter> params;
-	TypeID                     return_type;
+	Type                       return_type;
 	Block                      body;
 	ProcLinkage                linkage;
 	std::string                linking_lib_name;
@@ -207,7 +207,7 @@ struct ProcDeclStmnt : public Stmnt {
 struct VarDeclStmnt : public Stmnt {
 	ScopeID     scope_id;
 	std::string name;
-	TypeID      type;
+	Type        type;
 	Expr*       default_value;
 };
 
@@ -262,9 +262,8 @@ struct Module {
 		, stmnt_arena()
 		, expr_arena()
 		, imports()
-		, type_id_map()
+		, type_registry()
 		, scopes()
-		, types()
 		, vars()
 		, structs()
 		, procs()
@@ -275,11 +274,11 @@ struct Module {
 	Arena stmnt_arena;
 	Arena expr_arena;
 
-	std::unordered_set<Module*>             imports;
-	std::unordered_map<std::string, size_t> type_id_map;
-	std::vector<Scope>                      scopes;
-	std::vector<Type>                       types;
-	std::vector<VarDeclStmnt>               vars;
-	std::vector<StructDeclStmnt>            structs;
-	std::vector<ProcDeclStmnt>              procs;
+	std::unordered_set<Module*>                     imports;
+	std::unordered_map<std::string, TypeKind>       type_registry;
+	std::unordered_map<std::string, ProcDeclStmnt*> proc_registry;
+	std::vector<Scope>                              scopes;
+	std::vector<VarDeclStmnt>                       vars;
+	std::vector<StructDeclStmnt>                    structs;
+	std::vector<ProcDeclStmnt>                      procs;
 };

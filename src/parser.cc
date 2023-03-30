@@ -242,6 +242,9 @@ void Parser::parse_decl_stmnt()
 	{
 		case TK_KW_STRUCT:
 		{
+			if ( m_working_module->type_registry.find( name.str ) != m_working_module->type_registry.cend() )
+				Compiler::panic( name.span, "Type '%s' is already defined in this module!", name.str.c_str() );
+
 			auto members = parse_struct_members();
 
 			StructDeclStmnt decl{ };
@@ -250,6 +253,7 @@ void Parser::parse_decl_stmnt()
 			decl.name    = name.str;
 			decl.members = std::move( members );
 
+			m_working_module->type_registry[decl.name] = TY_STRUCT;
 			m_working_module->structs.emplace_back( std::move( decl ) );
 			break;
 		}
@@ -262,23 +266,19 @@ void Parser::parse_decl_stmnt()
 
 			eat_current_specific( TK_R_PAREN );
 
-			TypeID return_type_id = -1;
+			Type return_type;
 
 			Token maybe_arrow = current();
 			if ( maybe_arrow.kind == TK_THIN_ARROW )
 			{
 				eat_current_specific( TK_THIN_ARROW );
 
-				Type raw_type = parse_raw_type();
-				return_type_id = register_type( raw_type );
+				return_type = parse_raw_type();
 			}
 			else
 			{
-				Type nothing_type;
-				nothing_type.kind = TY_NOTHING;
-				nothing_type.size = 0;
-
-				return_type_id = register_type( nothing_type );
+				return_type.kind = TY_NOTHING;
+				return_type.size = 0;
 			}
 
 			auto   body       = parse_stmnt_block();
@@ -299,7 +299,7 @@ void Parser::parse_decl_stmnt()
 			decl.kind             = STMNT_PROC_DECL;
 			decl.name             = name.str;
 			decl.params           = std::move(params);
-			decl.return_type      = return_type_id;
+			decl.return_type      = return_type;
 			decl.body             = std::move(body);
 			decl.linkage          = PROC_LINKAGE_INTERNAL;
 			decl.linking_lib_name = "";
@@ -334,14 +334,11 @@ void Parser::parse_let_stmnt()
 	Token colon_or_autotype = next();
 	if ( colon_or_autotype.kind == TK_COLON )
 	{
-		Type   raw_type = parse_raw_type();
-		TypeID type     = register_type( raw_type );
-
-		var.type = type;
+		var.type = parse_raw_type();
 	}
 	else if ( colon_or_autotype.kind == TK_COLON_ASSIGN )
 	{
-		var.type = -1;
+		var.type.kind = TY_UNKNOWN;
 	}
 	else
 	{
@@ -452,7 +449,7 @@ Stmnt* Parser::parse_for_stmnt()
 	VarDeclStmnt iter { };
 	iter.scope_id      = body.scope_id;
 	iter.name          = iter_name.str;
-	iter.type          = -1;
+	iter.type          = Type { };
 	iter.default_value = ((RangeExpr*)range)->lhs;
 
 	root_scope.vars_id_map[iter.name] = m_working_module->vars.size();
@@ -873,40 +870,22 @@ Type Parser::parse_raw_type()
 	{
 		case TK_STAR:
 		{
-			m_idx++;
+			TODO();
 
-			Type ptr {};
-			ptr.kind = TY_PTR;
-			ptr.size = -1;
-
-			Type underlying = parse_raw_type();
-			ptr.underlying  = register_type( underlying );
-
-			return ptr;
+			return Type { };
 		}
 		case TK_L_SQUARE:
 		{
-			m_idx++;
+			TODO();
 
-			Type arr {};
-			arr.kind = TY_ARRAY;
-
-			Type underlying = parse_raw_type();
-			arr.underlying  = register_type( underlying );
-
-			eat_next_specific( TK_SEMICOLON );
-
-			arr.size_expr = parse_expr( false, true );
-
-			eat_next_specific( TK_R_SQUARE );
-
-			return arr;
+			return Type { };
 		}
 		case TK_IDENT:
 		{
 			m_idx++;
 
 			Type ty {};
+			ty.span = tk.span;
 			ty.kind = TY_UNKNOWN;
 			ty.name = tk.str;
 			ty.size = -1;
@@ -918,6 +897,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty {};
+			ty.span = tk.span;
 			ty.kind = TY_NOTHING;
 			ty.name = "$internal$_nothing";
 			ty.size = 0;
@@ -929,6 +909,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_BOOL;
 			ty.name = "$internal$_bool";
 			ty.size = 1;
@@ -940,6 +921,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_CHAR;
 			ty.name = "$internal$_char";
 			ty.size = 1;
@@ -951,6 +933,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_U8;
 			ty.name = "$internal$_u8";
 			ty.size = 1;
@@ -962,6 +945,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_I8;
 			ty.name = "$internal$_i8";
 			ty.size = 1;
@@ -973,6 +957,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_U16;
 			ty.name = "$internal$_u16";
 			ty.size = 2;
@@ -984,6 +969,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_I16;
 			ty.name = "$internal$_i16";
 			ty.size = 2;
@@ -995,6 +981,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_U32;
 			ty.name = "$internal$_u32";
 			ty.size = 4;
@@ -1006,6 +993,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_I32;
 			ty.name = "$internal$_i32";
 			ty.size = 4;
@@ -1017,6 +1005,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_U64;
 			ty.name = "$internal$_u64";
 			ty.size = 8;
@@ -1028,6 +1017,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_I64;
 			ty.name = "$internal$_i64";
 			ty.size = 8;
@@ -1039,6 +1029,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_F32;
 			ty.name = "$internal$_f32";
 			ty.size = 4;
@@ -1050,6 +1041,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_F64;
 			ty.name = "$internal$_f64";
 			ty.size = 8;
@@ -1061,6 +1053,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_RAWPTR;
 			ty.name = "$internal$_rawptr";
 			ty.size = -1;
@@ -1072,6 +1065,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_STR;
 			ty.name = "$internal$_str";
 			ty.size = -1;
@@ -1083,6 +1077,7 @@ Type Parser::parse_raw_type()
 			m_idx++;
 
 			Type ty{};
+			ty.span = tk.span;
 			ty.kind = TY_CSTR;
 			ty.name = "$internal$_cstr";
 			ty.size = -1;
@@ -1096,17 +1091,6 @@ Type Parser::parse_raw_type()
 	return Type { };
 }
 
-TypeID Parser::register_type( Type& type )
-{
-	TIME_PROC();
-
-	if ( m_working_module->type_id_map.find( type.name ) != m_working_module->type_id_map.end() )
-		return m_working_module->type_id_map[type.name];
-
-	m_working_module->types.push_back( type );
-	m_working_module->type_id_map[type.name] = m_working_module->types.size() - 1;
-	return m_working_module->types.size() - 1;
-}
 
 std::vector<StructMember> Parser::parse_struct_members()
 {
@@ -1132,14 +1116,13 @@ std::vector<StructMember> Parser::parse_struct_members()
 
 		eat_next_specific( TK_COLON );
 
-		Type   raw_type = parse_raw_type();
-		TypeID type     = register_type( raw_type );
+		Type raw_type = parse_raw_type();
 
 		eat_current_specific( TK_SEMICOLON );
 
 		members.push_back( StructMember {
 			name.str,
-			type,
+			raw_type,
 		} );
 
 		eat_whitespace();
@@ -1173,12 +1156,11 @@ std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 
 		eat_next_specific( TK_COLON );
 
-		Type   raw_type = parse_raw_type();
-		TypeID type     = register_type( raw_type );
+		Type raw_type = parse_raw_type();
 
 		ProcParameter param{ };
 		param.name = name.str;
-		param.type = type;
+		param.type = raw_type;
 		// TODO: Parse default parameter values once we figure out a good way to express
 		//       the acceptance of the default value. (Perhaps passing '_' to indicate
 		//       that you want to use the default, rather that forcing you to make it the

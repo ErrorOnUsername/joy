@@ -27,7 +27,6 @@ public:
 	Expr* parse_expr( bool can_assign, bool allow_newlines );
 	Expr* parse_operand();
 	Type parse_raw_type();
-	TypeID register_type( Type& type );
 
 	std::vector<StructMember> parse_struct_members();
 	std::vector<ProcParameter> parse_proc_decl_param_list();

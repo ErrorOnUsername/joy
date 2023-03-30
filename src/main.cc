@@ -10,6 +10,7 @@
 #include "parser.hh"
 #include "profiling.hh"
 #include "program.hh"
+#include "typechecker.hh"
 
 
 using namespace std::chrono_literals;
@@ -51,6 +52,8 @@ int main()
 	}
 
 	auto parse_end = Time::now();
+
+	typecheck_module( root );
 
 	std::chrono::duration<float> sec_duration = parse_end - parse_start;
 	float secs = sec_duration.count();
