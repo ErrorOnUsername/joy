@@ -84,11 +84,7 @@ Stmnt* Parser::parse_statement()
 	Token tk = current();
 	switch ( tk.kind )
 	{
-		case TK_KW_LET:
-		{
-			parse_let_stmnt();
-			break;
-		}
+		case TK_KW_LET:      return parse_let_stmnt();
 		case TK_KW_IF:       return parse_if_stmnt();
 		case TK_KW_FOR:      return parse_for_stmnt();
 		case TK_KW_WHILE:    return parse_while_stmnt();
@@ -101,10 +97,6 @@ Stmnt* Parser::parse_statement()
 
 	eat_whitespace();
 
-	// Some stmnts don't need to be added to the ast (like VarDecls) since
-	// they're stored somewhere else and will be reference in other ways by
-	// traversing the lexical scopes and returning the index they're actually
-	// stored at.
 	return nullptr;
 }
 
@@ -262,7 +254,7 @@ void Parser::parse_decl_stmnt()
 			TODO();
 		case TK_L_PAREN:
 		{
-			auto params = parse_proc_decl_param_list();
+			std::vector<ProcParameter> params = parse_proc_decl_param_list();
 
 			eat_current_specific( TK_R_PAREN );
 
@@ -281,28 +273,55 @@ void Parser::parse_decl_stmnt()
 				return_type.size = 0;
 			}
 
-			auto   body       = parse_stmnt_block();
-			size_t root_scope = body.scope_id;
 
+			ScopeID root_scope;
+			{
+				Scope root_proc_scope { };
+				root_proc_scope.parent = m_current_scope;
+
+				root_scope = m_working_module->scopes.size();
+				m_working_module->scopes.emplace_back( std::move( root_proc_scope ) );
+
+				m_current_scope = root_scope;
+			}
+
+			Scope& current_scope = m_working_module->scopes[root_scope];
 			for ( auto const& p : params )
 			{
-				Scope& current_scope = m_working_module->scopes[root_scope];
 				if ( current_scope.vars_id_map.contains( p.name ) )
 				{
-					VarDeclStmnt var = m_working_module->vars[current_scope.vars_id_map[p.name]];
-					Compiler::panic( var.span, "Error! Found variable declaration in scope with the same name as parameter: %s\n", p.name.c_str() );
+					Compiler::panic( p.span, "Parameters with duplicate names: '%s'", p.name.c_str() );
 				}
+
+				VarDeclStmnt proc_var;
+				proc_var.span          = p.span;
+				proc_var.kind          = STMNT_PROC_PARAM;
+				proc_var.scope_id      = root_scope;
+				proc_var.name          = p.name;
+				proc_var.type          = p.type;
+				proc_var.default_value = nullptr;
+
+				m_working_module->vars.push_back( std::move( proc_var ) );
+				current_scope.vars_id_map[p.name] = m_working_module->vars.size();
 			}
+
+
+			Block body = parse_stmnt_block( root_scope );
 
 			ProcDeclStmnt decl{ };
 			decl.span             = fnl_span;
 			decl.kind             = STMNT_PROC_DECL;
 			decl.name             = name.str;
-			decl.params           = std::move(params);
+			decl.params           = std::move( params );
 			decl.return_type      = return_type;
-			decl.body             = std::move(body);
+			decl.body             = std::move( body );
 			decl.linkage          = PROC_LINKAGE_INTERNAL;
 			decl.linking_lib_name = "";
+
+			for ( auto* stmnt : decl.body.stmnts )
+			{
+				if ( stmnt->kind == STMNT_PROC_PARAM ) Compiler::panic( stmnt->span, "ok cmon how" );
+			}
 
 			m_working_module->procs.emplace_back( std::move( decl ) );
 			break;
@@ -312,7 +331,7 @@ void Parser::parse_decl_stmnt()
 	};
 }
 
-void Parser::parse_let_stmnt()
+Stmnt* Parser::parse_let_stmnt()
 {
 	TIME_PROC();
 
@@ -338,7 +357,7 @@ void Parser::parse_let_stmnt()
 	}
 	else if ( colon_or_autotype.kind == TK_COLON_ASSIGN )
 	{
-		var.type.kind = TY_UNKNOWN;
+		var.type.kind = TY_AUTO;
 	}
 	else
 	{
@@ -372,6 +391,8 @@ void Parser::parse_let_stmnt()
 
 	curr_scope.vars_id_map[var.name] = m_working_module->vars.size();
 	m_working_module->vars.push_back( var );
+
+	return &m_working_module->vars[m_working_module->vars.size() - 1];
 }
 
 Stmnt* Parser::parse_if_stmnt()
@@ -753,6 +774,10 @@ Expr* Parser::parse_operand()
 				call_expr->params = params;
 
 				prefix = call_expr;
+			}
+			else if ( peek().kind == TK_DOUBLE_COLON )
+			{
+				TODO();
 			}
 			else
 			{
@@ -1159,13 +1184,13 @@ std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 		Type raw_type = parse_raw_type();
 
 		ProcParameter param{ };
+		param.span = name.span;
 		param.name = name.str;
 		param.type = raw_type;
 		// TODO: Parse default parameter values once we figure out a good way to express
 		//       the acceptance of the default value. (Perhaps passing '_' to indicate
 		//       that you want to use the default, rather that forcing you to make it the
 		//       last parameter in the funciton.)
-		param.default_value = nullptr;
 
 		params.push_back( param );
 
@@ -1188,7 +1213,7 @@ std::vector<ProcParameter> Parser::parse_proc_decl_param_list()
 	return params;
 }
 
-Block Parser::parse_stmnt_block()
+Block Parser::parse_stmnt_block( ScopeID inherited_scope )
 {
 	TIME_PROC();
 
@@ -1196,15 +1221,20 @@ Block Parser::parse_stmnt_block()
 
 	eat_whitespace();
 
+	ScopeID scope_id = inherited_scope;
+
 	eat_current_specific( TK_L_CURLY );
 
-	Scope new_scope { };
-	new_scope.parent = m_current_scope;
+	if ( inherited_scope == -1 )
+	{
+		Scope new_scope { };
+		new_scope.parent = m_current_scope;
 
-	m_current_scope      = m_working_module->scopes.size();
-	ScopeID new_scope_id = m_current_scope;
+		m_current_scope = m_working_module->scopes.size();
+		scope_id        = m_current_scope;
 
-	m_working_module->scopes.emplace_back( std::move( new_scope ) );
+		m_working_module->scopes.emplace_back( std::move( new_scope ) );
+	}
 
 	eat_whitespace();
 
@@ -1212,16 +1242,21 @@ Block Parser::parse_stmnt_block()
 	while ( tk.kind != TK_R_CURLY )
 	{
 		Stmnt* stmnt = parse_statement();
-		if ( stmnt ) // VarDecls are stored elsewhere, so we dont need to worry about adding them
-			stmnts.push_back( stmnt );
+		stmnts.push_back( stmnt );
+
 		tk = current();
+	}
+
+	for ( auto* stmnt : stmnts )
+	{
+		if ( stmnt->kind == STMNT_PROC_PARAM ) Compiler::panic( stmnt->span, "WHY ARE YOU DOING THIS TO ME" );
 	}
 
 	eat_current_specific( TK_R_CURLY );
 
-	m_current_scope = m_working_module->scopes[new_scope_id].parent;
+	m_current_scope = m_working_module->scopes[scope_id].parent;
 
-	return Block{ new_scope_id, std::move( stmnts ) };
+	return Block{ scope_id, std::move( stmnts ) };
 }
 
 bool Parser::is_ident_defined( std::string const& name ) const

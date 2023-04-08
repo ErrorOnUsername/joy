@@ -23,7 +23,12 @@ enum TypeKind
 	TY_ARRAY,
 	TY_STRUCT,
 	TY_ENUM,
+	TY_UNION,
 	TY_UNKNOWN,
+	TY_AUTO,
+	TY_AUTO_INT,
+	TY_AUTO_FLOAT,
+	TY_AUTO_STRING,
 };
 
 struct Expr;

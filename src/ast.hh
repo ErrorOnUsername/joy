@@ -137,6 +137,7 @@ enum StmntKind {
 	STMNT_STRUCT_DECL,
 	STMNT_ENUM_DECL,
 	STMNT_PROC_DECL,
+	STMNT_PROC_PARAM,
 	STMNT_VAR_DECL,
 	STMNT_IF,
 	STMNT_FOR,
@@ -179,10 +180,9 @@ struct EnumDeclStmnt : public Stmnt {
 };
 
 struct ProcParameter {
+	Span        span;
 	std::string name;
-	VarID       var_id;
 	Type        type;
-	Expr*       default_value;
 };
 
 struct Block {

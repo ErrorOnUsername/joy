@@ -260,8 +260,6 @@ BinOpKind tk_as_operator( TokenKind kind )
 			return B_OP_DIV;
 		case TK_SLASH_ASSIGN:
 			return B_OP_DIV_ASSIGN;
-		case TK_DOT:
-			return B_OP_MEMBER_ACCESS;
 		case TK_DOT_DOT:
 			return B_OP_RANGE;
 	}

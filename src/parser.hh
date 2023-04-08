@@ -14,7 +14,7 @@ public:
 
 	Stmnt* parse_statement();
 	void parse_decl_stmnt();
-	void parse_let_stmnt();
+	Stmnt* parse_let_stmnt();
 	Stmnt* parse_if_stmnt();
 	Stmnt* parse_for_stmnt();
 	Stmnt* parse_while_stmnt();
@@ -30,7 +30,7 @@ public:
 
 	std::vector<StructMember> parse_struct_members();
 	std::vector<ProcParameter> parse_proc_decl_param_list();
-	Block parse_stmnt_block();
+	Block parse_stmnt_block( ScopeID inherited_scope = -1 );
 
 	bool is_ident_defined( std::string const& name ) const;
 	VarID get_ident_var_id( std::string const& name ) const;
