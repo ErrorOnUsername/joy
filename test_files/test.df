@@ -1,6 +1,5 @@
 #load "other_file.df";
 
-// Structs
 decl MyType : struct
 {
 	my_int:    ilong;
@@ -9,37 +8,36 @@ decl MyType : struct
 	my_other:  ExternalStruct;
 }
 
-// Procedures
 decl main : ()
 {
-	// Expression testing
+	let bin_num   := 0b01000001;
+	let oct_num   := 0o527;
+	let hex_num   := 0xdeadc0de;
+	let int_num   := 92834;
+	let float_num := 173.97845;
+
 	let a := 1 + 2 / 3 * 4;
 	let b := ( 1 + 2 ) * 3;
 	let c := a;
 	let d := 1;
 
-	// If statements
 	if a > b {
 		a = b;
 	}
 
-	// While statements
 	while a > b {
 		++a;
 		break;
 	}
 
-	// Test calling procs from other modules
 	let x      := 16.0;
 	let sqrt_x := sqrt( x );
 	printf( "sqrt( %.3f ) => %.3f\n", x, sqrt_x );
 
-	// Loop statements
 	loop {
 		a--;
 	}
 
-	// For statements (range expressions as well)
 	for i in [0..10) {
 		let haha := 0;
 		let a    := haha;

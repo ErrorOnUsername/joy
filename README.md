@@ -4,8 +4,7 @@
 
 ## TODO:
 - [X] Lexing
-- [X] Parsing
-	- Most parsing works there's just some silly bugs I need to iron out.
+- [ ] Parsing
 - [ ] Bytecode generation (metaprogramming and just a custom IR)
 - [ ] LLVM (for platform support)
 - [ ] Metaprogramming
@@ -27,7 +26,7 @@ and procedures.
 #### Constants
 Constants are quite simple:
 ```
-decl MY_CONSTANT: quad = 32;
+decl MY_CONSTANT: uquad = 32;
 ```
 
 The formula is simply

@@ -12,25 +12,15 @@ add_subdirectory( third_party/optick )
 include_directories( third_party/optick/src )
 
 set( SOURCES
-	src/main.cc
-	src/ast.cc
-	src/compiler.cc
-	src/job_system.cc
-	src/lexer.cc
-	src/main.cc
-	src/parser.cc
-	src/program.cc
-	src/token.cc
-	src/typechecker.cc
+	code/main.cc
+	code/file_manager.cc
+	code/lexer.cc
+	code/log.cc
+	code/token.cc
 )
 
 add_executable( ${CMAKE_PROJECT_NAME} ${SOURCES} )
 target_link_libraries( ${CMAKE_PROJECT_NAME} OptickCore )
-
-if( MSVC )
-	set( OPTICK_DLL_OUTPUT ${CMAKE_BINARY_DIR}/third_party/optick/OptickCored.dll )
-	file( COPY ${OPTICK_DLL_OUTPUT} DESTINATION ${CMAKE_BINARY_DIR} )
-endif()
 
 add_custom_target( run
 	COMMAND ./build/swarm
