@@ -1,4 +1,5 @@
 #include "lexer.hh"
+#include "ast.hh"
 
 int main()
 {

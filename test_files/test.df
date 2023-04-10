@@ -10,6 +10,17 @@ decl MyType : struct
 
 decl main : ()
 {
+	/*
+
+	//Nested block comments!
+	/*
+		... ... ...
+		... ... ...
+		... ... ...
+	*/
+
+	*/
+
 	let bin_num   := 0b01000001;
 	let oct_num   := 0o527;
 	let hex_num   := 0xdeadc0de;
