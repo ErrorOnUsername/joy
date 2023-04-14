@@ -1,0 +1,144 @@
+// Square brackets
+[
+]
+
+// Curly brackets
+{
+}
+
+// Parens
+(
+)
+
+// Bang
+!
+!=
+
+// Dollar
+$
+
+// Percent
+%
+%=
+
+// Caret
+^
+^^
+^=
+
+// Ampersand
+&
+&&
+&=
+
+// Star
+*
+*=
+
+// Minus
+-
+--
+-=
+->
+
+// Plus
++
+++
++=
+
+// Equal
+=
+==
+=>
+
+// Pipe
+|
+||
+|=
+
+// Semicolon
+;
+
+// Colon
+:
+::
+:=
+
+// Comma
+,
+
+// Dot
+.
+..
+
+// Angle brackets
+<
+<<
+<=
+>
+>>
+>=
+
+// Slash
+/
+/=
+
+// Ident
+SomeIdent
+
+// Numbers
+982374
+0xdeadbeef
+0o174
+0b01000101
+
+// Strings
+"hola"
+"here's some escapes \n\r\t\b"
+
+// Character literals
+'a'
+'b'
+'\n'
+'\t'
+'\a'
+
+// Directives
+#load
+
+// Keywords
+true
+false
+decl
+let
+if
+else
+for
+while
+loop
+continue
+break
+return
+in
+as
+struct
+enum
+union
+
+// Primitives
+nothing
+bool
+char
+ubyte
+ibyte
+uword
+iword
+ulong
+ilong
+uquad
+iquad
+flong
+fquad
+rawptr
+string
+cstring

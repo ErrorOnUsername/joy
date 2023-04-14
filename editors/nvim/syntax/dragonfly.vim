@@ -16,8 +16,8 @@ syn keyword df_conditionals    if else match
 syn keyword df_loops           while for loop
 syn keyword df_ctrl_flow       return break continue
 syn keyword df_boolean         true false
-syn keyword df_keyword         decl let as
-syn keyword df_type            nothing bool byte ibyte word iword long ilong quad iquad usize isize flong fquad string cstring rawptr
+syn keyword df_keyword         decl let as in
+syn keyword df_type            nothing bool char ubyte ibyte uword iword ulong ilong uquad iquad usize isize flong fquad string cstring rawptr
 syn keyword df_complex_type    struct enum union
 syn keyword df_todo            contained NOTE TODO FIXME BUG
 

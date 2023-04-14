@@ -1,6 +1,7 @@
 #pragma once
 
 #include "token.hh"
+#include "operators.hh"
 
 using ExprKind = uint16_t;
 namespace ExpressionKind
@@ -49,27 +50,6 @@ struct CharacterLiteralExpr : public Expr {
 // Binary Operation
 //
 
-using BinOpKind = uint16_t;
-namespace BinaryOpKind
-{
-	enum {
-		Invalid,
-		Add,
-		Subtract,
-		Multiply,
-		Divide,
-		Modulo,
-		LogicalAnd,
-		BitwiseAnd,
-		LogicalOr,
-		BitwiseOr,
-		LogicalXor,
-		BitwiseXor,
-		MemberAccess,
-		Range,
-	};
-}
-
 struct BinaryOperationExpr : public Expr {
 	BinOpKind kind = BinaryOpKind::Invalid;
 
@@ -80,19 +60,6 @@ struct BinaryOperationExpr : public Expr {
 //
 // Unary Operation
 //
-
-using UnOpKind = uint16_t;
-namespace UnaryOpKind
-{
-	enum {
-		Invalid,
-		LogicalNot,
-		BitwiseNot,
-		Negate,
-		Dereference,
-		AddressOf,
-	};
-}
 
 struct UnaryOperationExpr : public Expr {
 	UnOpKind kind = UnaryOpKind::Invalid;

@@ -2,6 +2,7 @@
 #include <unordered_map>
 
 #include "assert.hh"
+#include "profiling.hh"
 
 
 static void Lexer_SkipWhitespace( FileLexInfo& file_lex_info )
@@ -234,6 +235,8 @@ static Token Lexer_ReadIdentifier( FileLexInfo& file_lex_info );
 
 Token Lexer_GetNextToken( FileLexInfo& file_lex_info )
 {
+	TIME_PROC();
+
 	Lexer_SkipWhitespace( file_lex_info );
 
 	char const* read_head = file_lex_info.raw_file_data + file_lex_info.cursor_position;
@@ -588,17 +591,17 @@ static Token Lexer_ReadStringLiteral( FileLexInfo& file_lex_info )
 
 static Token Lexer_ReadCharLiteral( FileLexInfo& file_lex_info )
 {
-	size_t char_lit_tok_start = file_lex_info.cursor_position;
+	size_t char_lit_tok_start = file_lex_info.cursor_position++;
 
 	char const* read_head = file_lex_info.raw_file_data + file_lex_info.cursor_position;
 
-	char literal = '0';
+	char literal = '\0';
 
 	if ( *read_head == '\\' )
 	{
 		switch ( *( read_head + 1 ) )
 		{
-			case 'a': literal = '\n'; break;
+			case 'a': literal = '\a'; break;
 			case 'b': literal = '\b'; break;
 			case 'e': literal = '\x1b'; break;
 			case 'f': literal = '\f'; break;
@@ -620,7 +623,7 @@ static Token Lexer_ReadCharLiteral( FileLexInfo& file_lex_info )
 	read_head++;
 	file_lex_info.cursor_position++;
 
-	DF_ASSERT( *read_head == '\'', "Unterminated character literal" );
+	DF_ASSERT( *read_head == '\'', "Unterminated character literal. expected ''', got: '%c'", *read_head );
 
 	// Set the cursor to just after the last '''
 	file_lex_info.cursor_position++;

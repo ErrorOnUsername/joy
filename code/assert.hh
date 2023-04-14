@@ -11,8 +11,8 @@
 	if ( !( condition ) )                               \
 	{                                                   \
 		log_error( "Assert failed: '%s'", #condition ); \
-		log_info( "[%s : %d]:", __FILE__, __LINE__ );   \
-		log_info( __VA_ARGS__ );                        \
+		log_info( "%s, line %d:", __FILE__, __LINE__ ); \
+		log_info( "\n\t" __VA_ARGS__ );                 \
 		if ( IsDebuggerPresent() )                      \
 		{                                               \
 			__debugbreak();                             \
@@ -29,8 +29,8 @@
 	if ( !( condition ) )                               \
 	{                                                   \
 		log_error( "Assert failed: '%s'", #condition ); \
-		log_info( "[%s : %d]:", __FILE__, __LINE__ );   \
-		log_info( __VA_ARGS__ );                        \
+		log_info( "%s, line %d:", __FILE__, __LINE__ ); \
+		log_info( "\tmsg: " __VA_ARGS__ );              \
 		exit( 1 );                                      \
 	}
 
