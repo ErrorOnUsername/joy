@@ -112,4 +112,20 @@ void log_span_fatal( Span span, char const* msg, ... )
 	}
 
 	va_end( va_args );
+
+#ifdef _WIN32
+	#include <windows.h>
+	#include <debugapi.h>
+
+	if ( IsDebuggerPresent() )
+	{
+		__debugbreak();
+	}
+	else
+	{
+#else
+	{
+		exit( 1 );
+#endif
+	}
 }

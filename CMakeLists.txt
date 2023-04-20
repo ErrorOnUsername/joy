@@ -16,6 +16,7 @@ set( SOURCES
 	code/file_manager.cc
 	code/lexer.cc
 	code/log.cc
+	code/parser.cc
 	code/token.cc
 )
 
