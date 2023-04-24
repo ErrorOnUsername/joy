@@ -3,8 +3,26 @@
 #include "log.hh"
 
 
-bool Parser::process_module( std::string const& path )
+Parser::Parser()
+	: lex_info()
+	, seen_tokens()
+	, node_arena( 16 * 1024 )
 {
+}
+
+
+Module Parser::process_module( std::string const& path )
+{
+	Module module;
+	{
+		// Initialize the module with the global scope
+		Scope root_scope { };
+		module.scopes.append( root_scope );
+
+		current_scope = &module.scopes[0];
+	}
+
+
 	lex_info = FileManager_GetOrCreateFileInfo( path.c_str() );
 	// seed with first token
 	seen_tokens.push_back( Lexer_GetNextToken( lex_info ) );
@@ -20,15 +38,32 @@ bool Parser::process_module( std::string const& path )
 			case TK::DirectiveLoad:
 				log_span_fatal( tk.span, "Implement module loading!" );
 				break;
+			case TK::KeywordLet:
+				parse_let_stmnt();
+				break;
 			case TK::KeywordDecl:
-				log_span_fatal( tk.span, "Implement decl parsing!" );
+				parse_decl_stmnt();
 				break;
 			default:
-				log_span_fatal( tk.span, "Expected 'decl' or a directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
+				log_span_fatal( tk.span, "Expected 'decl', 'let', or a directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
 		}
 	}
 
-	return false;
+	return module;
+}
+
+
+void Parser::parse_decl_stmnt()
+{
+	Token& tk = curr_tk();
+	log_span_fatal( tk.span, "Implement decl parsing" );
+}
+
+
+void Parser::parse_let_stmnt()
+{
+	Token& tk = curr_tk();
+	log_span_fatal( tk.span, "Implement let parsing" );
 }
 
 

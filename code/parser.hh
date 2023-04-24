@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 
+#include "arena.hh"
+#include "ast.hh"
 #include "file_manager.hh"
 #include "lexer.hh"
 #include "program.hh"
@@ -12,8 +14,15 @@ struct Parser {
 	size_t             tk_idx = 0;
 	FileLexInfo        lex_info;
 	std::vector<Token> seen_tokens;
+	Arena              node_arena;
+	Scope*             current_scope;
 
-	bool process_module( std::string const& path );
+	Parser();
+
+	Module process_module( std::string const& path );
+
+	void parse_decl_stmnt();
+	void parse_let_stmnt();
 
 	void consume_newlines();
 

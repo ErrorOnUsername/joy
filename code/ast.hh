@@ -1,10 +1,11 @@
 #pragma once
 
+#include "array.hh"
 #include "token.hh"
 #include "operators.hh"
 
-using ExprKind = uint16_t;
-namespace ExpressionKind
+using NodeKind = uint16_t;
+namespace AstNodeKind
 {
 	enum {
 		Invalid,
@@ -19,30 +20,44 @@ namespace ExpressionKind
 
 struct Type { int dummy; };
 
-struct Expr {
-	ExprKind kind = ExpressionKind::Invalid;
+struct AstNode {
+	NodeKind kind = AstNodeKind::Invalid;
 	Span     span;
 	Type     type;
 };
+
+
+//
+// Lexical Scopes
+//
+using ScopeID = int64_t;
+struct Scope {
+	ScopeID parent_id;
+
+	// TODO: data lookup tables...
+
+	Array<AstNode*> statement_list;
+};
+
 
 //
 // Literal Types
 //
 
-struct IntegerLiteralExpr : public Expr {
+struct IntegerLiteralExpr : public AstNode {
 	bool     is_signed_int = false;
-	uint64_t data = 0xdeadbeefdeadbeef;
+	uint64_t data          = 0xdeadbeefdeadbeef;
 };
 
-struct FloatingPointLiteralExpr : public Expr {
+struct FloatingPointLiteralExpr : public AstNode {
 	double value = 0.0;
 };
 
-struct StringLiteralExpr : public Expr {
+struct StringLiteralExpr : public AstNode {
 	std::string value;
 };
 
-struct CharacterLiteralExpr : public Expr {
+struct CharacterLiteralExpr : public AstNode {
 	int32_t codepoint = '$';
 };
 
@@ -50,19 +65,27 @@ struct CharacterLiteralExpr : public Expr {
 // Binary Operation
 //
 
-struct BinaryOperationExpr : public Expr {
+struct BinaryOperationExpr : public AstNode {
 	BinOpKind kind = BinaryOpKind::Invalid;
 
-	Expr* lhs = nullptr;
-	Expr* rhs = nullptr;
+	AstNode* lhs = nullptr;
+	AstNode* rhs = nullptr;
 };
 
 //
 // Unary Operation
 //
 
-struct UnaryOperationExpr : public Expr {
+struct UnaryOperationExpr : public AstNode {
 	UnOpKind kind = UnaryOpKind::Invalid;
 
-	Expr* operand = nullptr;
+	AstNode* operand = nullptr;
+};
+
+
+//
+// Module
+//
+struct Module {
+	Array<Scope> scopes;
 };
