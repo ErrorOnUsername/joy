@@ -9,6 +9,8 @@ set( CMAKE_BUILD_TYPE Debug )
 set( OPTICK_INSTALL_TARGETS OFF CACHE BOOL "Disable installing since we're building directly from source" )
 add_subdirectory( third_party/optick )
 
+set( OPTICK_DLL_OUTPUT ${CMAKE_BINARY_DIR}/third_party/optick/OptickCored.dll )
+
 include_directories( third_party/optick/src )
 
 set( SOURCES
@@ -22,6 +24,10 @@ set( SOURCES
 
 add_executable( ${CMAKE_PROJECT_NAME} ${SOURCES} )
 target_link_libraries( ${CMAKE_PROJECT_NAME} OptickCore )
+
+if( EXISTS ${OPTICK_DLL_OUTPUT} )
+	file( COPY ${OPTICK_DLL_OUTPUT} DESTINATION ${CMAKE_BINARY_DIR} )
+endif()
 
 add_custom_target( run
 	COMMAND ./build/swarm
