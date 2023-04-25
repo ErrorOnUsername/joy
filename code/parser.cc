@@ -214,7 +214,7 @@ Token& Parser::next_tk()
 
 	tk_idx++;
 
-	if ( tk_idx > seen_tokens.size() )
+	if ( tk_idx >= seen_tokens.size() )
 		seen_tokens.push_back( Lexer_GetNextToken( lex_info ) );
 
 	return seen_tokens[tk_idx];

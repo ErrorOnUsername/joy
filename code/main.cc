@@ -11,5 +11,5 @@ int main()
 
 	Parser parser;
 
-	parser.process_module( "./test_files/parser_test.df" );
+	parser.process_module( "./test_files/test.df" );
 }
