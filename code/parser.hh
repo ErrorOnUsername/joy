@@ -24,6 +24,12 @@ struct Parser {
 	void parse_decl_stmnt();
 	void parse_let_stmnt();
 
+	void parse_constant_decl();
+	void parse_procedure_decl();
+	void parse_struct_decl();
+	void parse_enum_decl();
+	void parse_union_decl();
+
 	void consume_newlines();
 
 	Token& peek_tk( int offset = 1 );
