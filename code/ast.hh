@@ -18,12 +18,22 @@ namespace AstNodeKind
 	};
 }
 
+namespace AstNodeFlag
+{
+	enum {
+		None = 0,
+		Decl = ( 1 << 0 ),
+		NumberLiteral = ( 1 << 1 ),
+	};
+}
+
 struct Type { int dummy; };
 
 struct AstNode {
 	NodeKind kind = AstNodeKind::Invalid;
 	Span     span;
 	Type     type;
+	uint64_t flags = AstNodeFlag::None;
 };
 
 
@@ -80,6 +90,19 @@ struct UnaryOperationExpr : public AstNode {
 	UnOpKind kind = UnaryOpKind::Invalid;
 
 	AstNode* operand = nullptr;
+};
+
+//
+// Statements
+//
+struct VarDeclStmnt : public AstNode {
+	std::string name;
+	AstNode* default_value;
+};
+
+struct StructDeclStmnt : public AstNode {
+	std::string name;
+	Array<VarDeclStmnt*> members;
 };
 
 

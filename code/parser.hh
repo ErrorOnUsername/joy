@@ -30,6 +30,8 @@ struct Parser {
 	void parse_enum_decl();
 	void parse_union_decl();
 
+	Type parse_type();
+
 	void consume_newlines();
 
 	Token& peek_tk( int offset = 1 );
