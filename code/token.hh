@@ -157,3 +157,4 @@ struct Token {
 };
 
 char const* Token_GetKindAsString( TokenKind kind );
+Span join_span( Span const& left, Span const& right );

@@ -8,6 +8,7 @@ Parser::Parser()
 	: lex_info()
 	, seen_tokens()
 	, node_arena( 16 * 1024 )
+	, type_arena( 16 * 1024 )
 {
 }
 
@@ -254,14 +255,194 @@ void Parser::parse_union_decl()
 }
 
 
-Type Parser::parse_type()
+AstNode* Parser::parse_expr()
+{
+	Token& tk = curr_tk();
+	AstNode* expr = nullptr;
+
+	log_span_fatal( tk.span, "Implement expression parsing" );
+	return expr;
+}
+
+
+Type* Parser::parse_type()
 {
 	TIME_PROC();
+	Type* ty = type_arena.alloc<Type>();
 
 	Token tk = curr_tk();
-	log_span_fatal( tk.span, "Implement type parsing" );
+	switch ( tk.kind )
+	{
+		case TK::Star:
+		{
+			next_tk();
 
-	return Type { };
+			Type* underlying = parse_type();
+
+			ty->kind       = TypeKind::Pointer;
+			ty->span       = join_span( tk.span, underlying->span );
+			ty->underlying = underlying;
+			break;
+		}
+		case TK::LSquare:
+		{
+			next_tk();
+
+			Type* underlying = parse_type();
+
+			ty->kind       = TypeKind::Array;
+			ty->underlying = underlying;
+
+			Token& semicolon_tk = curr_tk();
+			if ( semicolon_tk.kind != TK::Semicolon )
+			{
+				log_span_fatal( semicolon_tk.span, "Expected ';' after array underlying type specifier, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
+			}
+
+			next_tk();
+
+			AstNode* size_expr = parse_expr();
+			ty->size_expr      = size_expr;
+
+			Token& close_square_bracket = curr_tk();
+			if ( close_square_bracket.kind != TK::RSquare )
+			{
+				log_span_fatal( close_square_bracket.span, "Expected ']' after array size expression, but got '%s'", Token_GetKindAsString( close_square_bracket.kind ) );
+			}
+
+			next_tk();
+
+			ty->span = join_span( tk.span, close_square_bracket.span );
+			break;
+		}
+		case TK::Ident:
+		{
+			ty->kind = TypeKind::NamedUnknown;
+			Span final_span;
+
+			Token& maybe_ns_char = next_tk();
+			if ( maybe_ns_char.kind == TK::DoubleColon )
+			{
+				Token& type_name_tk = next_tk();
+				if ( type_name_tk.kind != TK::Ident )
+				{
+					log_span_fatal( type_name_tk.span, "Expected type name after namespace alias, but got '%s'", Token_GetKindAsString( type_name_tk.kind ) );
+				}
+
+				ty->import_alias = tk.str;
+				ty->name         = type_name_tk.str;
+				final_span       = join_span( tk.span, type_name_tk.span );
+			}
+			else
+			{
+				final_span = tk.span;
+				ty->name   = tk.str;
+			}
+
+			ty->span = final_span;
+			break;
+		}
+		case TK::PrimitiveNothing:
+			ty->kind = TypeKind::PrimitiveNothing;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveBool:
+			ty->kind = TypeKind::PrimitiveBool;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveChar:
+			ty->kind = TypeKind::PrimitiveChar;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveU8:
+			ty->kind = TypeKind::PrimitiveU8;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveI8:
+			ty->kind = TypeKind::PrimitiveI8;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveU16:
+			ty->kind = TypeKind::PrimitiveU16;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveI16:
+			ty->kind = TypeKind::PrimitiveI16;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveU32:
+			ty->kind = TypeKind::PrimitiveU32;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveI32:
+			ty->kind = TypeKind::PrimitiveI32;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveU64:
+			ty->kind = TypeKind::PrimitiveU64;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveI64:
+			ty->kind = TypeKind::PrimitiveI64;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveF32:
+			ty->kind = TypeKind::PrimitiveF32;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveF64:
+			ty->kind = TypeKind::PrimitiveF64;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveRawPtr:
+			ty->kind = TypeKind::PrimitiveRawPtr;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveString:
+			ty->kind = TypeKind::PrimitiveString;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveCString:
+			ty->kind = TypeKind::PrimitiveCString;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		default:
+			log_span_fatal( tk.span, "Expected '*', '[', or an identifier at start of type name, but got '%s'", Token_GetKindAsString( tk.kind ) );
+	}
+
+	return ty;
 }
 
 

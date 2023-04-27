@@ -1,4 +1,5 @@
 #include "token.hh"
+#include <cassert>
 
 char const* Token_GetKindAsString( TokenKind kind )
 {
@@ -96,4 +97,13 @@ char const* Token_GetKindAsString( TokenKind kind )
 	}
 
 	return "UNKNOWN TOKEN";
+}
+
+
+Span join_span( Span const& left, Span const& right )
+{
+	assert( left.file_id == right.file_id );
+	assert( left.line == right.line );
+
+	return Span { left.file_id, left.start, right.end, left.line };
 }

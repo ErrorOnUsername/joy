@@ -15,6 +15,7 @@ struct Parser {
 	FileLexInfo        lex_info;
 	std::vector<Token> seen_tokens;
 	Arena              node_arena;
+	Arena              type_arena;
 	Scope*             current_scope;
 
 	Parser();
@@ -30,7 +31,9 @@ struct Parser {
 	void parse_enum_decl();
 	void parse_union_decl();
 
-	Type parse_type();
+	AstNode* parse_expr();
+
+	Type* parse_type();
 
 	void consume_newlines();
 

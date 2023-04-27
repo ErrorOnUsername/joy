@@ -27,13 +27,54 @@ namespace AstNodeFlag
 	};
 }
 
-struct Type { int dummy; };
+struct Type;
 
 struct AstNode {
 	NodeKind kind = AstNodeKind::Invalid;
 	Span     span;
-	Type     type;
+	Type*    type;
 	uint64_t flags = AstNodeFlag::None;
+};
+
+
+//
+// Types
+//
+
+using TyKind = uint16_t;
+namespace TypeKind
+{
+	enum {
+		Invalid,
+		Pointer,
+		Array,
+		NamedUnknown,
+		PrimitiveNothing,
+		PrimitiveBool,
+		PrimitiveChar,
+		PrimitiveU8,
+		PrimitiveI8,
+		PrimitiveU16,
+		PrimitiveI16,
+		PrimitiveU32,
+		PrimitiveI32,
+		PrimitiveU64,
+		PrimitiveI64,
+		PrimitiveF32,
+		PrimitiveF64,
+		PrimitiveRawPtr,
+		PrimitiveString,
+		PrimitiveCString,
+	};
+}
+
+struct Type {
+	TyKind      kind;
+	Span        span;
+	std::string name;
+	std::string import_alias;
+	Type*       underlying; // for pointers and arrays
+	AstNode*    size_expr; // for arrays
 };
 
 
