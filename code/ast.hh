@@ -15,6 +15,8 @@ namespace AstNodeKind
 		CharacterLiteral,
 		BinaryOperation,
 		UnaryOperation,
+		StructDecl,
+		StructMemberDecl,
 	};
 }
 

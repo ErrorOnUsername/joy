@@ -1,4 +1,5 @@
 #include "parser.hh"
+#include <cassert>
 
 #include "log.hh"
 #include "profiling.hh"
@@ -87,6 +88,8 @@ void Parser::parse_decl_stmnt()
 	TIME_PROC();
 
 	Token& name_tk = next_tk();
+	size_t name_tk_idx = tk_idx;
+
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected identifier after 'decl', but got '%s'", Token_GetKindAsString( name_tk.kind ) );
@@ -100,6 +103,9 @@ void Parser::parse_decl_stmnt()
 
 	Token& determinant_tk = next_tk();
 	DeclStmntKind decl_stmnt_kind = decl_stmnt_kind_from_token_kind( determinant_tk.kind );
+
+	tk_idx = name_tk_idx;
+
 	switch ( decl_stmnt_kind )
 	{
 		case DeclStmntKind::Constant:  parse_constant_decl();  break;
@@ -144,12 +150,41 @@ void Parser::parse_struct_decl()
 {
 	TIME_PROC();
 
+	StructDeclStmnt* decl = node_arena.alloc<StructDeclStmnt>();
+	decl->kind   = AstNodeKind::StructDecl;
+	decl->flags |= AstNodeFlag::Decl;
+
+	//
+	// decl MyStruct : struct {
+	//      ^~~~ we should be looking here
+	//
+
+	Token& name_tk = curr_tk();
+	if ( name_tk.kind != TK::Ident )
+	{
+		log_span_fatal( name_tk.span, "Expected identifier name after 'decl' in struct declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
+	}
+
+	decl->name = name_tk.str;
+	decl->span = name_tk.span; // Set the struct span to just the name for nice printing
+
+	//
+	// decl MyStruct : struct {
+	//               ^~~~ new we should be here
+	//
+
+	Token& colon_tk = next_tk();
+	if ( colon_tk.kind != TK::Colon )
+	{
+		log_span_fatal( colon_tk.span, "Expected ':' after struct name in struct declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
+	}
+
 	//
 	// decl MyStruct : struct {
 	//                 ^~~~ this should be what we're looking at
 	//
 
-	Token& struct_tk = curr_tk();
+	Token& struct_tk = next_tk();
 	if ( struct_tk.kind != TK::KeywordStruct )
 	{
 		log_span_fatal( struct_tk.span, "Expected 'struct' keyword in struct declaration, but got '%s'", Token_GetKindAsString( struct_tk.kind ) );
@@ -187,6 +222,7 @@ void Parser::parse_struct_decl()
 		//     ^~~~ Read the name
 		//
 		VarDeclStmnt* member = node_arena.alloc<VarDeclStmnt>();
+		member->kind = AstNodeKind::StructMemberDecl;
 
 		if ( tk->kind != TK::Ident )
 		{
@@ -231,8 +267,25 @@ void Parser::parse_struct_decl()
 			log_span_fatal( tk->span, "Expected terminating ';' in struct member declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
 		}
 
+		decl->members.append( member );
+
 		next_tk();
 		consume_newlines();
+
+		tk = &curr_tk();
+	}
+
+	if ( tk->kind != TK::RCurly )
+	{
+		// This should not even be possible, but we'll check just in case
+		log_span_fatal( tk->span, "Expected '}' to terminate struct literal, but got '%s'", Token_GetKindAsString( tk->kind ) );
+	}
+
+	next_tk();
+
+	if ( decl->members.count == 0 )
+	{
+		log_warn( "struct '%s' doesn't have any data members", decl->name.c_str() );
 	}
 }
 
@@ -275,9 +328,24 @@ Type* Parser::parse_type()
 	{
 		case TK::Star:
 		{
+			//
+			// let some_var: *int;
+			//               ^~~~ we're looking here
+			//
+
 			next_tk();
 
+			//
+			// let some_var: *int;
+			//                ^~~~ now we're looking here
+			//
+
 			Type* underlying = parse_type();
+
+			//
+			// let some_var: *int;
+			//                   ^~~~ parse_type() should leave us here
+			//
 
 			ty->kind       = TypeKind::Pointer;
 			ty->span       = join_span( tk.span, underlying->span );
@@ -286,12 +354,27 @@ Type* Parser::parse_type()
 		}
 		case TK::LSquare:
 		{
+			//
+			// let some_arr: [int; 0];
+			//               ^~~~ we start here
+			//
+
 			next_tk();
+
+			//
+			// let some_arr: [int; 0];
+			//                ^~~~ now we're here
+			//
 
 			Type* underlying = parse_type();
 
 			ty->kind       = TypeKind::Array;
 			ty->underlying = underlying;
+
+			//
+			// let some_arr: [int; 0];
+			//                   ^~~~ pare_type() should leave us here
+			//
 
 			Token& semicolon_tk = curr_tk();
 			if ( semicolon_tk.kind != TK::Semicolon )
@@ -301,8 +384,18 @@ Type* Parser::parse_type()
 
 			next_tk();
 
+			//
+			// let some_arr: [int; 0];
+			//                     ^~~~ now we should be looking at the size expression
+			//
+
 			AstNode* size_expr = parse_expr();
 			ty->size_expr      = size_expr;
+
+			//
+			// let some_arr: [int; 0];
+			//                      ^~~~ parse_expr() should leave us right here
+			//
 
 			Token& close_square_bracket = curr_tk();
 			if ( close_square_bracket.kind != TK::RSquare )
@@ -312,6 +405,11 @@ Type* Parser::parse_type()
 
 			next_tk();
 
+			//
+			// let some_arr: [int; 0];
+			//                       ^~~~ now we just eat the terminating ']'
+			//
+
 			ty->span = join_span( tk.span, close_square_bracket.span );
 			break;
 		}
@@ -320,18 +418,44 @@ Type* Parser::parse_type()
 			ty->kind = TypeKind::NamedUnknown;
 			Span final_span;
 
+			//
+			// We could be looking at one of two things:
+			//  1:  let some_thing: MyType;
+			//                      ^~~~ just a normal type name
+			//
+			//  2:  let some_thing: OtherModuleAlias::OtherType;
+			//                      ^~~~ or a type that's guarded by an import alias name
+			//
+
 			Token& maybe_ns_char = next_tk();
 			if ( maybe_ns_char.kind == TK::DoubleColon )
 			{
+				//
+				// let some_thing: OtherModuleAlias::OtherType;
+				//                                 ^~~~ we're looking at this right now
+				//
+
 				Token& type_name_tk = next_tk();
 				if ( type_name_tk.kind != TK::Ident )
 				{
 					log_span_fatal( type_name_tk.span, "Expected type name after namespace alias, but got '%s'", Token_GetKindAsString( type_name_tk.kind ) );
 				}
 
+				//
+				// let some_thing: OtherModuleAlias::OtherType;
+				//                                   ^~~~ now we're here
+				//
+
 				ty->import_alias = tk.str;
 				ty->name         = type_name_tk.str;
 				final_span       = join_span( tk.span, type_name_tk.span );
+
+				next_tk();
+
+				//
+				// let some_thing: OtherModuleAlias::OtherType;
+				//                                            ^~~~ We have to make sure to leave the cursor after the last token
+				//
 			}
 			else
 			{

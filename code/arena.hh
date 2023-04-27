@@ -26,6 +26,7 @@ struct Arena {
 		T* new_alloc = (T*)write_head;
 		write_head += sizeof( T );
 
+		new (new_alloc) T;
 		return new_alloc;
 	}
 
