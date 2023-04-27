@@ -74,7 +74,7 @@ void log_span_fatal( Span span, char const* msg, ... )
 	FileData file_data = FileManager_GetFileData( span.file_id );
 	const char* raw_file_data = file_data.raw_data;
 
-	int64_t line_start = span.start;
+	int64_t line_start = span.start - 1;
 
 	while ( line_start >= 0 && raw_file_data[line_start] != '\n' ) line_start--;
 	line_start++;
