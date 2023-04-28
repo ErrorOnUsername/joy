@@ -8,6 +8,20 @@ decl MyType : struct
 	my_other:  ExternalStruct;
 }
 
+decl MyEnum : enum
+{
+	Var1: 10;
+	Var2: 11;
+	Var3: 2;
+}
+
+decl MyUnion : union
+{
+	VariantA( value: iword );
+	VariantB( name: string );
+}
+
+
 decl main : ()
 {
 	/*
