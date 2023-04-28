@@ -396,6 +396,8 @@ void Parser::parse_enum_decl()
 
 			next_tk();
 
+			// TODO: Verify that the expression parsing code works as expected here
+
 			AstNode* val_expr = parse_expr();
 			if ( val_expr->kind != AstNodeKind::IntegerLiteral )
 			{

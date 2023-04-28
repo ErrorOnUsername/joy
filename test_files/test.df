@@ -10,9 +10,9 @@ decl MyType : struct
 
 decl MyEnum : enum
 {
-	Var1: 10;
-	Var2: 11;
-	Var3: 2;
+	Var1;
+	Var2;
+	Var3;
 }
 
 decl MyUnion : union
