@@ -59,7 +59,8 @@ struct Array {
 			resize( capacity == 0 ? 1 : capacity * 2 );
 		}
 
-		data[count] = item;
+		new ( data + count ) ElemType( item );
+
 		count++;
 	}
 
