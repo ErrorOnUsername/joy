@@ -453,7 +453,64 @@ void Parser::parse_union_decl()
 {
 	TIME_PROC();
 
-	Token& tk = curr_tk();
+	// TODO: Add comments similar to other parsing procedures
+
+	Token& name_tk = curr_tk();
+	if ( name_tk.kind != TK::Ident )
+	{
+		log_span_fatal( name_tk.span, "Expected name identifer in union declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
+	}
+
+	Token& colon_tk = next_tk();
+	if ( colon_tk.kind != TK::Colon )
+	{
+		log_span_fatal( colon_tk.span, "Expected ':' after name in union declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
+	}
+
+	Token& union_tk = next_tk();
+	if ( union_tk.kind != TK::KeywordUnion )
+	{
+		log_span_fatal( union_tk.span, "Expected 'union' after ':' in union declaration, but got '%s'", Token_GetKindAsString( union_tk.kind ) );
+	}
+
+	next_tk();
+	consume_newlines();
+
+	Token& l_curly_tk = curr_tk();
+	if ( l_curly_tk.kind != TK::LCurly )
+	{
+		log_span_fatal( l_curly_tk.span, "Expected '{' after 'union' in union declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+	}
+
+	next_tk();
+	consume_newlines();
+
+	assert( false );
+
+	Token* tk = &curr_tk();
+	while ( tk->kind != TK::RCurly )
+	{
+		if ( tk->kind != TK::Ident )
+		{
+			log_span_fatal( tk->span, "Expected identifier for union variant name, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		}
+
+		tk = &next_tk();
+		if ( tk->kind == TK::LParen )
+		{
+		}
+
+		if ( tk->kind != TK::Semicolon )
+		{
+			log_span_fatal( tk->span, "Expected terminating ';' in union variant declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		}
+
+		next_tk();
+		consume_newlines();
+
+		tk = &curr_tk();
+	}
+
 	log_span_fatal( tk.span, "Implement union parsing" );
 }
 
