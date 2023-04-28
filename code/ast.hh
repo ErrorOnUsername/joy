@@ -17,6 +17,7 @@ namespace AstNodeKind
 		UnaryOperation,
 		StructDecl,
 		StructMemberDecl,
+		EnumDecl,
 	};
 }
 
@@ -140,12 +141,23 @@ struct UnaryOperationExpr : public AstNode {
 //
 struct VarDeclStmnt : public AstNode {
 	std::string name;
-	AstNode* default_value;
+	AstNode*    default_value;
 };
 
 struct StructDeclStmnt : public AstNode {
-	std::string name;
+	std::string          name;
 	Array<VarDeclStmnt*> members;
+};
+
+struct EnumVariant {
+	Span                span;
+	std::string         name;
+	IntegerLiteralExpr* val;
+};
+
+struct EnumDeclStmnt : public AstNode {
+	std::string        name;
+	Array<EnumVariant> variants;
 };
 
 

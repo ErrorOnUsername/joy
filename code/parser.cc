@@ -104,6 +104,7 @@ void Parser::parse_decl_stmnt()
 	Token& determinant_tk = next_tk();
 	DeclStmntKind decl_stmnt_kind = decl_stmnt_kind_from_token_kind( determinant_tk.kind );
 
+	// Reset the index to the same so that the parsing code has access to all the proper context
 	tk_idx = name_tk_idx;
 
 	switch ( decl_stmnt_kind )
@@ -151,8 +152,8 @@ void Parser::parse_struct_decl()
 	TIME_PROC();
 
 	StructDeclStmnt* decl = node_arena.alloc<StructDeclStmnt>();
-	decl->kind   = AstNodeKind::StructDecl;
-	decl->flags |= AstNodeFlag::Decl;
+	decl->kind  = AstNodeKind::StructDecl;
+	decl->flags = AstNodeFlag::Decl;
 
 	//
 	// decl MyStruct : struct {
@@ -214,8 +215,6 @@ void Parser::parse_struct_decl()
 	Token* tk = &curr_tk();
 	while ( tk->kind != TK::RCurly )
 	{
-		tk = &curr_tk();
-
 		//
 		// decl MyStruct : struct {
 		//     my_member: ulong;
@@ -294,8 +293,157 @@ void Parser::parse_enum_decl()
 {
 	TIME_PROC();
 
-	Token& tk = curr_tk();
-	log_span_fatal( tk.span, "Implement enum parsing" );
+	EnumDeclStmnt* decl = node_arena.alloc<EnumDeclStmnt>();
+	decl->kind  = AstNodeKind::EnumDecl;
+	decl->flags = AstNodeFlag::Decl;
+
+	//
+	// decl MyEnum : enum {
+	//      ^~~~ we should be looking here
+	//
+
+	Token& name_tk = curr_tk();
+	if ( name_tk.kind != TK::Ident )
+	{
+		log_span_fatal( name_tk.span, "Expected identifier name after 'decl' in enum declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
+	}
+
+	decl->name = name_tk.str;
+	decl->span = name_tk.span; // Set the struct span to just the name for nice printing
+
+	//
+	// decl MyEnum : enum {
+	//             ^~~~ new we should be here
+	//
+
+	Token& colon_tk = next_tk();
+	if ( colon_tk.kind != TK::Colon )
+	{
+		log_span_fatal( colon_tk.span, "Expected ':' after enum name in enum declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
+	}
+
+	//
+	// decl MyEnum : enum {
+	//               ^~~~ this should be what we're looking at
+	//
+
+	Token& enum_tk = next_tk();
+	if ( enum_tk.kind != TK::KeywordEnum )
+	{
+		log_span_fatal( enum_tk.span, "Expected 'enum' keyword in enum declaration, but got '%s'", Token_GetKindAsString( enum_tk.kind ) );
+	}
+
+	//
+	// decl MyEnum : enum {
+	//                    ^~~~ we're looking here right now, but it could also be on another line
+	//
+
+	next_tk();
+	consume_newlines();
+
+	Token& l_curly_tk = curr_tk();
+	if ( l_curly_tk.kind != TK::LCurly )
+	{
+		log_span_fatal( l_curly_tk.span, "Expected a '{' after the 'enum' keyword in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+	}
+
+	//
+	// Could be one of the following:
+	//
+	// 1. decl MyEnum : enum {
+	//        Variant;
+	//
+	// 2. decl MyEnum : enum {
+	//        Variant = 1;
+	//
+
+	next_tk();
+	consume_newlines();
+
+	uint64_t pos = 0;
+
+	Token* tk = &curr_tk();
+	while ( tk->kind != TK::RCurly )
+	{
+		EnumVariant variant;
+
+		//
+		// 1. decl MyEnum : enum {
+		//        Variant;
+		//        ^~~~ we're looking here
+		//
+		// 2. decl MyEnum : enum {
+		//        Variant = 1;
+		//        ^~~~ or here
+		//
+
+		if ( tk->kind != TK::Ident )
+		{
+			log_span_fatal( tk->span, "Expected variant name in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+		}
+
+		variant.span = tk->span;
+		variant.name = tk->str;
+
+		tk = &next_tk();
+		if ( tk->kind == TK::Assign )
+		{
+			//
+			// 2. decl MyEnum : enum {
+			//        Variant = 1;
+			//                ^~~~ we should now be in this position
+			//
+
+			next_tk();
+
+			AstNode* val_expr = parse_expr();
+			if ( val_expr->kind != AstNodeKind::IntegerLiteral )
+			{
+				log_span_fatal( val_expr->span, "Enum variant values must be integer literals" );
+			}
+
+			variant.val = (IntegerLiteralExpr*)val_expr;
+			pos         = variant.val->data;
+
+			tk = &curr_tk();
+		}
+		else
+		{
+			IntegerLiteralExpr* val_expr = node_arena.alloc<IntegerLiteralExpr>();
+			val_expr->kind  = AstNodeKind::IntegerLiteral;
+			val_expr->span  = variant.span;
+			val_expr->flags = AstNodeFlag::NumberLiteral;
+			val_expr->data  = pos;
+
+			variant.val = val_expr;
+		}
+
+		if ( tk->kind != TK::Semicolon )
+		{
+			log_span_fatal( tk->span, "Expected ';' to terminate enum variant, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		}
+
+		next_tk();
+		consume_newlines();
+
+		tk = &curr_tk();
+
+		decl->variants.append( variant );
+		pos++;
+	}
+
+	if ( tk->kind != TK::RCurly )
+	{
+		// This should not be possible to trigger, but lets leave it just in case ig :)
+		log_span_fatal( tk->span, "Expected enum declaration to be terminated with a '}', but got '%s'", Token_GetKindAsString( tk->kind ) );
+	}
+
+	next_tk();
+
+	if ( decl->variants.count == 0 )
+	{
+		log_warn( "Enum '%s' has no variants", decl->name.c_str() );
+	}
 }
 
 
