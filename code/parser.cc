@@ -32,16 +32,17 @@ Module Parser::process_module( std::string const& path )
 	// seed with first token
 	seen_tokens.push_back( Lexer_GetNextToken( lex_info ) );
 
-	for ( ;; )
+	consume_newlines();
+
+	TIME_SCOPE( "parsing top-level statements" );
+
+	Token* tk = &curr_tk();
+	while ( tk->kind != TK::EndOfFile )
 	{
-		consume_newlines();
-
-		Token& tk = curr_tk();
-
-		switch ( tk.kind )
+		switch ( tk->kind )
 		{
 			case TK::DirectiveLoad:
-				log_span_fatal( tk.span, "Implement module loading!" );
+				log_span_fatal( tk->span, "Implement module loading!" );
 				break;
 			case TK::KeywordLet:
 				parse_let_stmnt();
@@ -50,8 +51,11 @@ Module Parser::process_module( std::string const& path )
 				parse_decl_stmnt();
 				break;
 			default:
-				log_span_fatal( tk.span, "Expected 'decl', 'let', or a directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
+				log_span_fatal( tk->span, "Expected 'decl', 'let', or a directive, but got '%s'", Token_GetKindAsString( tk->kind ) );
 		}
+
+		consume_newlines();
+		tk = &curr_tk();
 	}
 
 	return module;
@@ -142,8 +146,111 @@ void Parser::parse_procedure_decl()
 {
 	TIME_PROC();
 
-	Token& tk = curr_tk();
-	log_span_fatal( tk.span, "Implement procedure parsing" );
+	ProcDeclStmnt* decl = node_arena.alloc<ProcDeclStmnt>();
+	decl->kind  = AstNodeKind::ProcDecl;
+	decl->flags = AstNodeFlag::Decl;
+
+	Token& name_tk = curr_tk();
+	if ( name_tk.kind != TK::Ident )
+	{
+		log_span_fatal( name_tk.span, "Expected name identifier in procedure declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
+	}
+
+	decl->span = name_tk.span;
+	decl->name = name_tk.str;
+
+	Token& colon_tk = next_tk();
+	if ( colon_tk.kind != TK::Colon )
+	{
+		log_span_fatal( colon_tk.span, "Expected ':' after name in procedure declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
+	}
+
+	Token& l_paren_tk = next_tk();
+	if ( l_paren_tk.kind != TK::LParen )
+	{
+		log_span_fatal( l_paren_tk.span, "Expected '(' at beginning of procedure parameter list, but got '%s'", Token_GetKindAsString( l_paren_tk.kind ) );
+	}
+
+	next_tk();
+	consume_newlines();
+
+	Token* tk = &curr_tk();
+	while ( tk->kind != TK::RParen )
+	{
+		if ( decl->params.count > 0 )
+		{
+			if ( tk->kind != TK::Comma )
+			{
+				log_span_fatal( tk->span, "Expected ',' between procedure parameters, but got '%s'", Token_GetKindAsString( tk->kind ) );
+			}
+
+			next_tk();
+			consume_newlines();
+
+			tk = &curr_tk();
+		}
+
+		VarDeclStmnt* param = parse_var_decl( "procedure parameter declaration" );
+		decl->params.append( param );
+
+		consume_newlines();
+		tk = &curr_tk();
+	}
+
+	if ( tk->kind != TK::RParen )
+	{
+		log_span_fatal( tk->span, "Expected terminating ')' in procedure parameter list, but got '%s'", Token_GetKindAsString( tk->kind ) );
+	}
+
+	next_tk();
+	consume_newlines();
+
+	tk = &curr_tk();
+
+	// FIXME: handle foreign funciton importing
+
+	if ( tk->kind != TK::LCurly )
+	{
+		log_span_fatal( tk->span, "Expected '{' after parameter list in procedure decaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+	}
+
+	next_tk();
+	consume_newlines();
+
+	tk = &curr_tk();
+	while ( tk->kind != TK::RCurly )
+	{
+		switch ( tk->kind )
+		{
+			case TK::KeywordDecl: parse_decl_stmnt(); break;
+			case TK::KeywordLet:  parse_let_stmnt(); break;
+			default:
+			{
+				AstNode* expr = parse_expr();
+
+				tk = &curr_tk();
+				if ( tk->kind != TK::Semicolon )
+				{
+					log_span_fatal( tk->span, "Expected terminating ';' after expression, but got '%s'", Token_GetKindAsString( tk->kind ) );
+				}
+
+				current_scope->statement_list.append( expr );
+
+				next_tk();
+				break;
+			}
+		}
+
+		consume_newlines();
+		tk = &curr_tk();
+	}
+
+	if ( tk->kind != TK::RCurly )
+	{
+		log_span_fatal( tk->span, "Expected terminating '}' in procedure declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+	}
+
+	next_tk();
 }
 
 
@@ -215,50 +322,7 @@ void Parser::parse_struct_decl()
 	Token* tk = &curr_tk();
 	while ( tk->kind != TK::RCurly )
 	{
-		//
-		// decl MyStruct : struct {
-		//     my_member: ulong;
-		//     ^~~~ Read the name
-		//
-		VarDeclStmnt* member = node_arena.alloc<VarDeclStmnt>();
-		member->kind = AstNodeKind::StructMemberDecl;
-
-		if ( tk->kind != TK::Ident )
-		{
-			log_span_fatal( tk->span, "Expected identifier in struct member declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
-		}
-
-		// We set the span to the span of the name for logging convenience
-		member->span = tk->span;
-		member->name = tk->str;
-
-
-		//
-		// decl MyStruct : struct {
-		//     my_member: ulong;
-		//              ^~~~ Eat this colon
-		//
-		tk = &next_tk();
-		if ( tk->kind != TK::Colon )
-		{
-			log_span_fatal( tk->span, "Expected ':' after struct member name, but got '%s'", Token_GetKindAsString( tk->kind ) );
-		}
-
-
-		//
-		// decl MyStruct : struct {
-		//     my_member: ulong;
-		//                ^~~~ Parse out this type
-		//
-		next_tk();
-		member->type = parse_type();
-
-
-		//
-		// decl MyStruct : struct {
-		//     my_member: ulong;
-		//                     ^~~~ Eat this semicolon
-		//
+		VarDeclStmnt* member = parse_var_decl( "struct member declaration" );
 
 		tk = &curr_tk();
 		if ( tk->kind != TK::Semicolon )
@@ -609,6 +673,53 @@ void Parser::parse_union_decl()
 	}
 
 	next_tk();
+}
+
+
+VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
+{
+	VarDeclStmnt* decl = node_arena.alloc<VarDeclStmnt>();
+	decl->kind  = AstNodeKind::VarDecl;
+	decl->flags = AstNodeFlag::Decl;
+
+	Token& name_tk = curr_tk();
+	if ( name_tk.kind != TK::Ident )
+	{
+		log_span_fatal( name_tk.span, "Expected name identifier in %s got '%s'", usage_in_str, Token_GetKindAsString( name_tk.kind ) );
+	}
+
+	decl->span = name_tk.span;
+	decl->name = name_tk.str;
+
+	Token& colon_tk = next_tk();
+	if ( colon_tk.kind == TK::Colon )
+	{
+		next_tk();
+
+		Type* type = parse_type();
+
+		Token& eq_tk = curr_tk();
+		if ( eq_tk.kind == TK::Assign )
+		{
+			next_tk();
+
+			AstNode* val_expr = parse_expr();
+			decl->default_value = val_expr;
+		}
+	}
+	else if ( colon_tk.kind == TK::ColonAssign )
+	{
+		next_tk();
+
+		AstNode* val_expr = parse_expr();
+		decl->default_value = val_expr;
+	}
+	else
+	{
+		log_span_fatal( colon_tk.span, "Expected ':' or ':=' after name identifer in %s, but got '%s'", usage_in_str, Token_GetKindAsString( colon_tk.kind ) );
+	}
+
+	return decl;
 }
 
 

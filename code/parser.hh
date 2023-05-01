@@ -31,6 +31,7 @@ struct Parser {
 	void parse_enum_decl();
 	void parse_union_decl();
 
+	VarDeclStmnt* parse_var_decl( char const* usage_in_str );
 	AstNode* parse_expr();
 
 	Type* parse_type();

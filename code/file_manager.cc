@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "assert.hh"
+#include "profiling.hh"
 
 static constexpr size_t MAX_MODULE_COUNT = 256;
 
@@ -29,6 +30,8 @@ void FileManager_Cleanup()
 
 FileLexInfo FileManager_GetOrCreateFileInfo( char const* filepath )
 {
+	TIME_PROC();
+
 	std::scoped_lock<std::mutex> lock( s_file_manager_mutex );
 
 	auto find_iter = s_file_id_map.find( filepath );

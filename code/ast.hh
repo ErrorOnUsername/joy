@@ -15,11 +15,12 @@ namespace AstNodeKind
 		CharacterLiteral,
 		BinaryOperation,
 		UnaryOperation,
+		VarDecl,
 		StructDecl,
-		StructMemberDecl,
 		EnumDecl,
 		UnionDecl,
 		UnionVariantMember,
+		ProcDecl,
 	};
 }
 
@@ -171,6 +172,12 @@ struct UnionVariant {
 struct UnionDeclStmnt : public AstNode {
 	std::string         name;
 	Array<UnionVariant> variants;
+};
+
+struct ProcDeclStmnt : public AstNode {
+	std::string          name;
+	Array<VarDeclStmnt*> params;
+	Scope*               body_scope;
 };
 
 
