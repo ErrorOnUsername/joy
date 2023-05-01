@@ -18,6 +18,8 @@ namespace AstNodeKind
 		StructDecl,
 		StructMemberDecl,
 		EnumDecl,
+		UnionDecl,
+		UnionVariantMember,
 	};
 }
 
@@ -158,6 +160,17 @@ struct EnumVariant {
 struct EnumDeclStmnt : public AstNode {
 	std::string        name;
 	Array<EnumVariant> variants;
+};
+
+struct UnionVariant {
+	Span                 span;
+	std::string          name;
+	Array<VarDeclStmnt*> members;
+};
+
+struct UnionDeclStmnt : public AstNode {
+	std::string         name;
+	Array<UnionVariant> variants;
 };
 
 

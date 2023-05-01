@@ -1,4 +1,5 @@
-#load "other_file.df";
+// doesn't work yet :)
+//#load "other_file.df";
 
 decl MyType : struct
 {
@@ -17,7 +18,7 @@ decl MyEnum : enum
 
 decl MyUnion : union
 {
-	VariantA( value: iword );
+	VariantA( name: string, value: iword );
 	VariantB( name: string );
 }
 

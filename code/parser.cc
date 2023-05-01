@@ -453,20 +453,37 @@ void Parser::parse_union_decl()
 {
 	TIME_PROC();
 
-	// TODO: Add comments similar to other parsing procedures
+	UnionDeclStmnt* decl = node_arena.alloc<UnionDeclStmnt>();
+	decl->kind  = AstNodeKind::UnionDecl;
+	decl->flags = AstNodeFlag::Decl;
 
+	//
+	// decl MyUnion : union {
+	//      ^~~~ we're here
+	//
 	Token& name_tk = curr_tk();
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected name identifer in union declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
 	}
 
+	decl->span = name_tk.span;
+	decl->name = name_tk.str;
+
+	//
+	// decl MyUnion : union {
+	//              ^~~~ we should now be here
+	//
 	Token& colon_tk = next_tk();
 	if ( colon_tk.kind != TK::Colon )
 	{
 		log_span_fatal( colon_tk.span, "Expected ':' after name in union declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
 	}
 
+	//
+	// decl MyUnion : union {
+	//                ^~~~ now we're here
+	//
 	Token& union_tk = next_tk();
 	if ( union_tk.kind != TK::KeywordUnion )
 	{
@@ -476,6 +493,10 @@ void Parser::parse_union_decl()
 	next_tk();
 	consume_newlines();
 
+	//
+	// decl MyUnion : union {
+	//                      ^~~~ should be here (could be on a new line)
+	//
 	Token& l_curly_tk = curr_tk();
 	if ( l_curly_tk.kind != TK::LCurly )
 	{
@@ -485,25 +506,96 @@ void Parser::parse_union_decl()
 	next_tk();
 	consume_newlines();
 
-	assert( false );
-
 	Token* tk = &curr_tk();
 	while ( tk->kind != TK::RCurly )
 	{
+		//
+		// decl MyUnion : union {
+		//     Variant;
+		//     ^~~~ could be here
+		//
+		// decl MyUnion : union {
+		//     Variant( member_a: ilong, member_b: flong );
+		//     ^~~~ Could also be this
+		//
 		if ( tk->kind != TK::Ident )
 		{
 			log_span_fatal( tk->span, "Expected identifier for union variant name, but got '%s'", Token_GetKindAsString( tk->kind ) );
 		}
 
+		UnionVariant variant;
+		variant.span = tk->span;
+		variant.name = tk->str;
+
 		tk = &next_tk();
 		if ( tk->kind == TK::LParen )
 		{
+			//
+			// decl MyUnion : union {
+			//     Variant( member_a: ilong, member_b: flong );
+			//            ^~~~ Should definitely be here (could be empty, in which case we throw a warning)
+			//
+			tk = &next_tk();
+			while ( tk->kind != TK::RParen )
+			{
+				if ( variant.members.count > 0 )
+				{
+					if ( tk->kind != TK::Comma )
+					{
+						log_span_fatal( tk->span, "Expected ',' between variant member declarations, but got '%s'", Token_GetKindAsString( tk->kind ) );
+					}
+
+					tk = &next_tk();
+				}
+
+				VarDeclStmnt* member = node_arena.alloc<VarDeclStmnt>();
+				member->kind  = AstNodeKind::UnionVariantMember;
+				member->flags = AstNodeFlag::Decl;
+
+				if ( tk->kind != TK::Ident )
+				{
+					log_span_fatal( tk->span, "Expected identifer name in varient member list, got '%s'", Token_GetKindAsString( tk->kind ) );
+				}
+
+				member->span = tk->span;
+				member->name = tk->str;
+
+				tk = &next_tk();
+				if ( tk->kind != TK::Colon )
+				{
+					log_span_fatal( tk->span, "Expected ':' after variant name identifer, but got '%s'", Token_GetKindAsString( tk->kind ) );
+				}
+
+				next_tk();
+
+				Type* variant_member_type = parse_type();
+				member->type = variant_member_type;
+
+				variant.members.append( member );
+
+				tk = &curr_tk();
+			}
+
+			if ( tk->kind != TK::RParen )
+			{
+				log_span_fatal( tk->span, "Expected ')' to terminate variant member list, but got '%s'", Token_GetKindAsString( tk->kind ) );
+			}
+
+			next_tk();
 		}
 
+		//
+		// decl MyUnion : union {
+		//     Variant( member_a: ilong, member_b: flong );
+		//                                                ^~~~ Now we're at the end
+		//
+		tk = &curr_tk();
 		if ( tk->kind != TK::Semicolon )
 		{
 			log_span_fatal( tk->span, "Expected terminating ';' in union variant declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
 		}
+
+		decl->variants.append( variant );
 
 		next_tk();
 		consume_newlines();
@@ -511,7 +603,12 @@ void Parser::parse_union_decl()
 		tk = &curr_tk();
 	}
 
-	log_span_fatal( tk.span, "Implement union parsing" );
+	if ( tk->kind != TK::RCurly )
+	{
+		log_span_fatal( tk->span, "Expected union declaration to be terminated with '}', but got '%'", Token_GetKindAsString( tk->kind ) );
+	}
+
+	next_tk();
 }
 
 
