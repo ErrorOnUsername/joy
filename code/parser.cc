@@ -99,14 +99,19 @@ void Parser::parse_decl_stmnt()
 		log_span_fatal( name_tk.span, "Expected identifier after 'decl', but got '%s'", Token_GetKindAsString( name_tk.kind ) );
 	}
 
-	Token& colon_tk = next_tk();
-	if ( colon_tk.kind != TK::Colon )
-	{
-		log_span_fatal( colon_tk.span, "Expected identifier after constant declaration's name, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
-	}
+	DeclStmntKind decl_stmnt_kind = DeclStmntKind::Constant;
 
-	Token& determinant_tk = next_tk();
-	DeclStmntKind decl_stmnt_kind = decl_stmnt_kind_from_token_kind( determinant_tk.kind );
+	Token& colon_tk = next_tk();
+	if ( colon_tk.kind != TK::ColonAssign )
+	{
+		if ( colon_tk.kind != TK::Colon )
+		{
+			log_span_fatal( colon_tk.span, "Expected after identifer 'decl' statement's name, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
+		}
+
+		Token& determinant_tk = next_tk();
+		decl_stmnt_kind = decl_stmnt_kind_from_token_kind( determinant_tk.kind );
+	}
 
 	// Reset the index to the same so that the parsing code has access to all the proper context
 	tk_idx = name_tk_idx;
@@ -119,7 +124,7 @@ void Parser::parse_decl_stmnt()
 		case DeclStmntKind::Enum:      parse_enum_decl();      break;
 		case DeclStmntKind::Union:     parse_union_decl();     break;
 		case DeclStmntKind::Invalid:
-			log_span_fatal( determinant_tk.span, "Unexpected character in 'decl' stmnt" );
+			log_span_fatal( name_tk.span, "How did this happen???" );
 	}
 }
 
@@ -128,8 +133,25 @@ void Parser::parse_let_stmnt()
 {
 	TIME_PROC();
 
-	Token& tk = curr_tk();
-	log_span_fatal( tk.span, "Implement let parsing" );
+	Token& let_tk = curr_tk();
+	if ( let_tk.kind != TK::KeywordLet )
+	{
+		log_span_fatal( let_tk.span, "Expected 'let' at beginning of let statement, but got '%s'", Token_GetKindAsString( let_tk.kind ) );
+	}
+
+	next_tk();
+
+	AstNode* decl = (AstNode*)parse_var_decl( "variable declaration" );
+
+	Token& semicolon_tk = curr_tk();
+	if ( semicolon_tk.kind != TK::Semicolon )
+	{
+		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after variable declaration, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
+	}
+
+	current_scope->statements.append( decl );
+
+	next_tk();
 }
 
 
@@ -137,8 +159,26 @@ void Parser::parse_constant_decl()
 {
 	TIME_PROC();
 
-	Token& tk = curr_tk();
-	log_span_fatal( tk.span, "Implement constant parsing" );
+	VarDeclStmnt* decl = parse_var_decl( "constant declaration" );
+	if ( !decl->default_value )
+	{
+		log_span_fatal( decl->span, "Constants must be initialized to a value" );
+	}
+
+	if ( !( decl->flags & AstNodeFlag::Constant ) )
+	{
+		log_span_fatal( decl->default_value->span, "Constant's cannot be initialized to a potentially non-constant value" );
+	}
+
+	Token& semicolon_tk = curr_tk();
+	if ( semicolon_tk.kind != TK::Semicolon )
+	{
+		log_span_fatal( semicolon_tk.span, "Expected terminating ';' in constant declaration, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
+	}
+
+	current_scope->constants.append( decl );
+
+	next_tk();
 }
 
 
@@ -202,7 +242,33 @@ void Parser::parse_procedure_decl()
 		log_span_fatal( tk->span, "Expected terminating ')' in procedure parameter list, but got '%s'", Token_GetKindAsString( tk->kind ) );
 	}
 
-	next_tk();
+	tk = &next_tk();
+
+	if ( tk->kind == TK::ThinArrow )
+	{
+		tk = &next_tk();
+
+		while ( tk->kind != TK::LCurly )
+		{
+			if ( decl->return_types.count > 0 )
+			{
+				if ( tk->kind != TK::Comma )
+				{
+					log_span_fatal( tk->span, "Expected ',' to seperate procedure return types, but got '%s'", Token_GetKindAsString( tk->kind ) );
+				}
+
+				next_tk();
+			}
+
+			Type* type = parse_type();
+
+			decl->return_types.append( type );
+
+			consume_newlines();
+			tk = &curr_tk();
+		}
+	}
+
 	consume_newlines();
 
 	tk = &curr_tk();
@@ -234,7 +300,7 @@ void Parser::parse_procedure_decl()
 					log_span_fatal( tk->span, "Expected terminating ';' after expression, but got '%s'", Token_GetKindAsString( tk->kind ) );
 				}
 
-				current_scope->statement_list.append( expr );
+				current_scope->statements.append( expr );
 
 				next_tk();
 				break;

@@ -28,8 +28,14 @@ namespace AstNodeFlag
 {
 	enum {
 		None = 0,
-		Decl = ( 1 << 0 ),
-		NumberLiteral = ( 1 << 1 ),
+
+		Decl                 = ( 1 << 0 ),
+		IntegerLiteral       = ( 1 << 1 ),
+		FloatingPointLiteral = ( 1 << 2 ),
+		StringLiteral        = ( 1 << 3 ),
+
+		NumberLiteral = IntegerLiteral | FloatingPointLiteral,
+		Constant      = NumberLiteral | StringLiteral,
 	};
 }
 
@@ -84,16 +90,21 @@ struct Type {
 };
 
 
+struct VarDeclStmnt;
+struct ProcDeclStmnt;
+
 //
 // Lexical Scopes
 //
-using ScopeID = int64_t;
 struct Scope {
-	ScopeID parent_id;
+	Scope* parent = nullptr;
 
 	// TODO: data lookup tables...
 
-	Array<AstNode*> statement_list;
+	Array<AstNode*>           types;
+	Array<ProcDeclStmnt*>     procedures;
+	Array<VarDeclStmnt*>      constants;
+	Array<AstNode*>           statements;
 };
 
 
@@ -144,7 +155,7 @@ struct UnaryOperationExpr : public AstNode {
 //
 struct VarDeclStmnt : public AstNode {
 	std::string name;
-	AstNode*    default_value;
+	AstNode*    default_value = nullptr;
 };
 
 struct StructDeclStmnt : public AstNode {
@@ -177,7 +188,8 @@ struct UnionDeclStmnt : public AstNode {
 struct ProcDeclStmnt : public AstNode {
 	std::string          name;
 	Array<VarDeclStmnt*> params;
-	Scope*               body_scope;
+	Array<Type*>         return_types; // TODO: Named return types?
+	Scope*               body_scope = nullptr;
 };
 
 
