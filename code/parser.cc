@@ -789,13 +789,39 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 }
 
 
-AstNode* Parser::parse_expr()
+AstNode* Parser::parse_expr( bool can_assign )
 {
-	Token& tk = curr_tk();
-	AstNode* expr = nullptr;
+	AstNode* lhs = parse_operand();
 
-	log_span_fatal( tk.span, "Implement expression parsing" );
-	return expr;
+	Token&    op_tk       = curr_tk();
+	BinOpKind op          = BinaryOperator_FromTK( op_tk );
+	int       op_priority = BinaryOperator_GetPriority( op );
+
+	next_tk();
+
+	if ( op != BinaryOpKind::Invalid )
+	{
+		AstNode* rhs = parse_operand();
+		if ( !rhs )
+		{
+			log_span_fatal( "Expected an expression after operator '%s'", Token_GetKindAsString( op_tk.kind ) );
+		}
+
+		BinOpKind peek_op          = BinaryOperator_FromTK( curr_tk() );
+		int       peek_op_priority = BinaryOperator_GetPriority( peek_op );
+		if ( peek_op_priority > op_priority )
+		{
+			// haha && this.a
+		}
+	}
+
+	return lhs;
+}
+
+
+AstNode* Parser::parse_operand()
+{
+	return nullptr;
 }
 
 

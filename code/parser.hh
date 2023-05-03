@@ -32,7 +32,8 @@ struct Parser {
 	void parse_union_decl();
 
 	VarDeclStmnt* parse_var_decl( char const* usage_in_str );
-	AstNode* parse_expr();
+	AstNode* parse_expr( bool can_assign = false );
+	AstNode* parse_operand();
 
 	Type* parse_type();
 

@@ -107,6 +107,26 @@ inline static int BinaryOperator_GetPriority( BinOpKind kind )
 }
 
 
+inline static bool BinaryOperator_IsAssign( BinOpKind op )
+{
+	switch ( op )
+	{
+		case BinaryOpKind::Assign:
+		case BinaryOpKind::AddAssign:
+		case BinaryOpKind::SubtractAssign:
+		case BinaryOpKind::MultiplyAssign:
+		case BinaryOpKind::DivideAssign:
+		case BinaryOpKind::ModuloAssign:
+		case BinaryOpKind::AndAssign:
+		case BinaryOpKind::OrAssign:
+		case BinaryOpKind::XorAssign:
+			return true;
+		default:
+			return false;
+	}
+}
+
+
 using UnOpKind = uint16_t;
 namespace UnaryOpKind
 {
