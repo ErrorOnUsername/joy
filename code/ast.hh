@@ -14,6 +14,7 @@ namespace AstNodeKind
 		StringLiteral,
 		CharacterLiteral,
 		BinaryOperation,
+		Range,
 		UnaryOperation,
 		VarDecl,
 		StructDecl,
@@ -134,7 +135,19 @@ struct CharacterLiteralExpr : public AstNode {
 //
 
 struct BinaryOperationExpr : public AstNode {
-	BinOpKind kind = BinaryOpKind::Invalid;
+	BinOpKind op_kind = BinaryOpKind::Invalid;
+
+	AstNode* lhs = nullptr;
+	AstNode* rhs = nullptr;
+};
+
+//
+// Range Expression
+//
+
+struct RangeExpr : public AstNode {
+	bool is_left_bound_included;
+	bool is_right_bound_included;
 
 	AstNode* lhs = nullptr;
 	AstNode* rhs = nullptr;
@@ -145,7 +158,7 @@ struct BinaryOperationExpr : public AstNode {
 //
 
 struct UnaryOperationExpr : public AstNode {
-	UnOpKind kind = UnaryOpKind::Invalid;
+	UnOpKind op_kind = UnaryOpKind::Invalid;
 
 	AstNode* operand = nullptr;
 };

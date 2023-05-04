@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 
+#include "token.hh"
 
 using BinOpKind = uint16_t;
 namespace BinaryOpKind
@@ -44,6 +45,72 @@ namespace BinaryOpKind
 		OrAssign,
 		XorAssign,
 	};
+}
+
+
+inline static BinOpKind BinaryOperator_FromTK( Token& tk )
+{
+	switch ( tk.kind )
+	{
+		case TK::Dot:
+			return BinaryOpKind::MemberAccess;
+		case TK::DotDot:
+			return BinaryOpKind::Range;
+		case TK::Star:
+			return BinaryOpKind::Multiply;
+		case TK::Slash:
+			return BinaryOpKind::Divide;
+		case TK::Percent:
+			return BinaryOpKind::Modulo;
+		case TK::Plus:
+			return BinaryOpKind::Add;
+		case TK::Minus:
+			return BinaryOpKind::Subtract;
+		case TK::LAngle:
+			return BinaryOpKind::LessThan;
+		case TK::LEQ:
+			return BinaryOpKind::LessThanOrEq;
+		case TK::RAngle:
+			return BinaryOpKind::GreaterThan;
+		case TK::GEQ:
+			return BinaryOpKind::GreaterThanOrEq;
+		case TK::EQ:
+			return BinaryOpKind::EqualTo;
+		case TK::NEQ:
+			return BinaryOpKind::NotEqualTo;
+		case TK::Ampersand:
+			return BinaryOpKind::BitwiseAnd;
+		case TK::Pipe:
+			return BinaryOpKind::BitwiseOr;
+		case TK::Caret:
+			return BinaryOpKind::BitwiseXor;
+		case TK::AND:
+			return BinaryOpKind::LogicalAnd;
+		case TK::OR:
+			return BinaryOpKind::LogicalOr;
+		case TK::XOR:
+			return BinaryOpKind::LogicalXor;
+		case TK::Assign:
+			return BinaryOpKind::Assign;
+		case TK::PlusAssign:
+			return BinaryOpKind::AddAssign;
+		case TK::MinusAssign:
+			return BinaryOpKind::SubtractAssign;
+		case TK::StarAssign:
+			return BinaryOpKind::MultiplyAssign;
+		case TK::SlashAssign:
+			return BinaryOpKind::DivideAssign;
+		case TK::PercentAssign:
+			return BinaryOpKind::ModuloAssign;
+		case TK::AmpersandAssign:
+			return BinaryOpKind::AndAssign;
+		case TK::PipeAssign:
+			return BinaryOpKind::OrAssign;
+		case TK::CaretAssign:
+			return BinaryOpKind::XorAssign;
+		default:
+			return BinaryOpKind::Invalid;
+	}
 }
 
 

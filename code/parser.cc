@@ -791,37 +791,123 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 
 AstNode* Parser::parse_expr( bool can_assign )
 {
+	BinaryOperationExpr* expr = nullptr;
+
+	Token& start_tk = curr_tk();
+
+
 	AstNode* lhs = parse_operand();
 
-	Token&    op_tk       = curr_tk();
-	BinOpKind op          = BinaryOperator_FromTK( op_tk );
-	int       op_priority = BinaryOperator_GetPriority( op );
-
-	next_tk();
-
-	if ( op != BinaryOpKind::Invalid )
+	for ( ;; )
 	{
-		AstNode* rhs = parse_operand();
-		if ( !rhs )
+		consume_newlines();
+
+		Token     op_tk       = curr_tk();
+		BinOpKind op          = BinaryOperator_FromTK( op_tk );
+		int       op_priority = BinaryOperator_GetPriority( op );
+
+		if ( op == BinaryOpKind::Invalid )
 		{
-			log_span_fatal( "Expected an expression after operator '%s'", Token_GetKindAsString( op_tk.kind ) );
+			return ( expr ) ? expr : lhs;
 		}
 
-		BinOpKind peek_op          = BinaryOperator_FromTK( curr_tk() );
-		int       peek_op_priority = BinaryOperator_GetPriority( peek_op );
-		if ( peek_op_priority > op_priority )
+		next_tk();
+
+		if ( op == BinaryOpKind::Range )
 		{
-			// haha && this.a
+			if ( expr )
+			{
+				log_span_fatal( op_tk.span, "Operating on a range is not valid" );
+			}
+
+			RangeExpr* range = node_arena.alloc<RangeExpr>();
+			range->kind = AstNodeKind::Range;
+
+			range->lhs = lhs;
+
+			range->rhs = parse_operand();
+
+			range->span = join_span( range->lhs->span, range->rhs->span );
+			range->flags = range->lhs->flags & range->lhs->flags;
+
+			return range;
+		}
+		else if ( !expr )
+		{
+			expr = node_arena.alloc<BinaryOperationExpr>();
+			expr->kind = AstNodeKind::BinaryOperation;
+		}
+
+		expr->op_kind = op;
+		expr->lhs     = lhs;
+
+		consume_newlines();
+
+		size_t start_operand_idx = tk_idx;
+		expr->rhs = parse_operand();
+
+		consume_newlines();
+
+		Token&    peek_op_tk = curr_tk();
+		BinOpKind peek_op    = BinaryOperator_FromTK( peek_op_tk );
+		if ( peek_op != BinaryOpKind::Invalid )
+		{
+			int peek_op_priority = BinaryOperator_GetPriority( peek_op );
+
+			if ( peek_op_priority > op_priority )
+			{
+				tk_idx = start_operand_idx;
+
+				AstNode* subtree = parse_expr( can_assign );
+
+				// This means that the previous rhs is now an orphaned node
+				// TODO: Maybe track how much memory we waste because of this,
+				//       or perhaps reword this logic such that this doesn't
+				//       occur?
+				expr->rhs = subtree;
+
+				expr->span  = join_span( expr->lhs->span, expr->rhs->span );
+				expr->flags = expr->lhs->flags & expr->rhs->flags;
+			}
+			else
+			{
+				expr->span  = join_span( expr->lhs->span, expr->rhs->span );
+				expr->flags = expr->lhs->flags & expr->rhs->flags;
+
+				lhs = expr;
+
+				expr       = node_arena.alloc<BinaryOperationExpr>();
+				expr->kind = AstNodeKind::BinaryOperation;
+			}
+		}
+		else
+		{
+			expr->span  = join_span( expr->lhs->span, expr->rhs->span );
+			expr->flags = expr->lhs->flags & expr->rhs->flags;
 		}
 	}
 
-	return lhs;
+	return expr;
 }
 
 
 AstNode* Parser::parse_operand()
 {
-	return nullptr;
+	AstNode* prefix = nullptr;
+
+	Token& lead_tk = curr_tk();
+	switch ( lead_tk.kind )
+	{
+	}
+
+	AstNode* fnl = prefix;
+
+	Token& tail_tk = curr_tk();
+	switch( tail_tk.kind )
+	{
+	}
+
+	return fnl;
 }
 
 
