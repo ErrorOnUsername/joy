@@ -40,6 +40,8 @@ char const* Token_GetKindAsString( TokenKind kind )
 		case TK::Pipe:             return "|";
 		case TK::OR:               return "||";
 		case TK::PipeAssign:       return "|=";
+		case TK::Tilde:            return "~";
+		case TK::TildeAssign:      return "~=";
 		case TK::Semicolon:        return ";";
 		case TK::Colon:            return ":";
 		case TK::DoubleColon:      return "::";

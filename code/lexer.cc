@@ -290,6 +290,7 @@ Token Lexer_GetNextToken( FileLexInfo& file_lex_info )
 		case '+': LEX_BASE_DOUBLE_ASSIGN_FORM_TOK( TK::Plus, '+', TK::PlusPlus, TK::PlusAssign );
 		case '=': LEX_BASE_DOUBLE_EXTRA_FORM_TOK( TK::Assign, '=', TK::EQ, '>', TK::ThiccArrow );
 		case '|': LEX_BASE_DOUBLE_ASSIGN_FORM_TOK( TK::Pipe, '|', TK::OR, TK::PipeAssign );
+		case '~': LEX_BASE_ASSIGN_FORM_TOK( TK::Tilde, TK::TildeAssign );
 		case ';': LEX_SINGLE_CHAR_TOK( TK::Semicolon );
 		case ':': LEX_BASE_DOUBLE_ASSIGN_FORM_TOK( TK::Colon, ':', TK::DoubleColon, TK::ColonAssign );
 		case ',': LEX_SINGLE_CHAR_TOK( TK::Comma );

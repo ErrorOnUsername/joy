@@ -898,6 +898,30 @@ AstNode* Parser::parse_operand()
 	Token& lead_tk = curr_tk();
 	switch ( lead_tk.kind )
 	{
+		case TK::LSquare:
+			break;
+		case TK::LParen:
+			break;
+		case TK::Star:
+			break;
+		case TK::Ampersand:
+			break;
+		case TK::Bang:
+			break;
+		case TK::Tilde:
+			break;
+		case TK::PlusPlus:
+			break;
+		case TK::MinusMinus:
+			break;
+		case TK::Number:
+			break;
+		case TK::Ident:
+			break;
+		case TK::StringLiteral:
+			break;
+		default:
+			log_span_fatal( lead_tk.span, "Unexpected token '%s' at start of operand", Token_GetKindAsString( lead_tk.kind ) );
 	}
 
 	AstNode* fnl = prefix;
@@ -905,6 +929,12 @@ AstNode* Parser::parse_operand()
 	Token& tail_tk = curr_tk();
 	switch( tail_tk.kind )
 	{
+		case TK::PlusPlus:
+			break;
+		case TK::MinusMinus:
+			break;
+		case TK::LSquare:
+			break;
 	}
 
 	return fnl;

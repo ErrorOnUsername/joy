@@ -57,6 +57,9 @@ namespace TK
 		OR,
 		PipeAssign,
 
+		Tilde,
+		TildeAssign,
+
 		Semicolon,
 
 		Colon,

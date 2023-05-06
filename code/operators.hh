@@ -41,6 +41,7 @@ namespace BinaryOpKind
 		MultiplyAssign,
 		DivideAssign,
 		ModuloAssign,
+		NotAssign,
 		AndAssign,
 		OrAssign,
 		XorAssign,
@@ -102,6 +103,8 @@ inline static BinOpKind BinaryOperator_FromTK( Token& tk )
 			return BinaryOpKind::DivideAssign;
 		case TK::PercentAssign:
 			return BinaryOpKind::ModuloAssign;
+		case TK::TildeAssign:
+			return BinaryOpKind::NotAssign;
 		case TK::AmpersandAssign:
 			return BinaryOpKind::AndAssign;
 		case TK::PipeAssign:
@@ -164,6 +167,7 @@ inline static int BinaryOperator_GetPriority( BinOpKind kind )
 		case BinaryOpKind::MultiplyAssign:
 		case BinaryOpKind::DivideAssign:
 		case BinaryOpKind::ModuloAssign:
+		case BinaryOpKind::NotAssign:
 		case BinaryOpKind::AndAssign:
 		case BinaryOpKind::OrAssign:
 		case BinaryOpKind::XorAssign:
@@ -184,6 +188,7 @@ inline static bool BinaryOperator_IsAssign( BinOpKind op )
 		case BinaryOpKind::MultiplyAssign:
 		case BinaryOpKind::DivideAssign:
 		case BinaryOpKind::ModuloAssign:
+		case BinaryOpKind::NotAssign:
 		case BinaryOpKind::AndAssign:
 		case BinaryOpKind::OrAssign:
 		case BinaryOpKind::XorAssign:
