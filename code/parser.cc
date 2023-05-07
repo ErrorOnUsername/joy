@@ -899,27 +899,177 @@ AstNode* Parser::parse_operand()
 	switch ( lead_tk.kind )
 	{
 		case TK::LSquare:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+			if ( expr->kind != AstNodeKind::Range )
+			{
+				log_span_fatal( expr->span, "Expected a range expression, but got something else" );
+			}
+
+			RangeExpr* as_range = (RangeExpr*)expr;
+			as_range->is_left_bound_included = true; // We started with a '[' so we know its inclusive at the start
+
+			Token& end_bound_tk = curr_tk();
+			if ( end_bound_tk.kind != TK::RParen && end_bound_tk.kind != TK::RSquare )
+			{
+				log_span_fatal( end_bound_tk.span, "Expected a ']' or ')' bound-inclusivity specifier after range expression, but got '%s'", Token_GetKindAsString( end_bound_tk.kind ) );
+			}
+
+			if ( end_bound_tk.kind == TK::RSquare )
+			{
+				as_range->is_right_bound_included = true;
+			}
+			else
+			{
+				as_range->is_right_bound_included = false;
+			}
+
+			prefix = (AstNode*)as_range;
 			break;
+		}
 		case TK::LParen:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+			if ( expr->kind == AstNodeKind::Range )
+			{
+				RangeExpr* as_range = (RangeExpr*)expr;
+				as_range->is_left_bound_included = false; // We started with a '(' so we know its exclusive at the start
+
+				Token& end_bound_tk = curr_tk();
+				if ( end_bound_tk.kind != TK::RParen && end_bound_tk.kind != TK::RSquare )
+				{
+					log_span_fatal( end_bound_tk.span, "Expected a ']' or ')' bound-inclusivity specifier after range expression, but got '%s'", Token_GetKindAsString( end_bound_tk.kind ) );
+				}
+
+				if ( end_bound_tk.kind == TK::RSquare )
+				{
+					as_range->is_right_bound_included = true;
+				}
+				else
+				{
+					as_range->is_right_bound_included = false;
+				}
+
+				prefix = (AstNode*)as_range;
+			}
+			else
+			{
+				Token& r_paren_tk = curr_tk();
+				if ( r_paren_tk.kind != TK::RParen )
+				{
+					log_span_fatal( r_paren_tk.span, "Expected terminating ')', but got '%s'", Token_GetKindAsString( r_paren_tk.kind ) );
+				}
+
+				next_tk();
+			}
 			break;
+		}
 		case TK::Star:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+
+			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			un_op->kind    = AstNodeKind::UnaryOperation;
+			un_op->span    = join_span( lead_tk.span, expr->span );
+			un_op->op_kind = UnaryOpKind::Dereference;
+			un_op->operand = expr;
+
+			prefix = (AstNode*)un_op;
 			break;
+		}
 		case TK::Ampersand:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+
+			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			un_op->kind    = AstNodeKind::UnaryOperation;
+			un_op->span    = join_span( lead_tk.span, expr->span );
+			un_op->op_kind = UnaryOpKind::AddressOf;
+			un_op->operand = expr;
+
+			prefix = (AstNode*)un_op;
 			break;
+		}
 		case TK::Bang:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+
+			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			un_op->kind    = AstNodeKind::UnaryOperation;
+			un_op->span    = join_span( lead_tk.span, expr->span );
+			un_op->op_kind = UnaryOpKind::LogicalNot;
+			un_op->operand = expr;
+
+			prefix = (AstNode*)un_op;
 			break;
+		}
 		case TK::Tilde:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+
+			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			un_op->kind    = AstNodeKind::UnaryOperation;
+			un_op->span    = join_span( lead_tk.span, expr->span );
+			un_op->op_kind = UnaryOpKind::BitwiseNot;
+			un_op->operand = expr;
+
+			prefix = (AstNode*)un_op;
 			break;
+		}
 		case TK::PlusPlus:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+
+			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			un_op->kind    = AstNodeKind::UnaryOperation;
+			un_op->span    = join_span( lead_tk.span, expr->span );
+			un_op->op_kind = UnaryOpKind::PrefixIncrement;
+			un_op->operand = expr;
+
+			prefix = (AstNode*)un_op;
 			break;
+		}
 		case TK::MinusMinus:
+		{
+			next_tk();
+
+			AstNode* expr = parse_expr( false );
+
+			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			un_op->kind    = AstNodeKind::UnaryOperation;
+			un_op->span    = join_span( lead_tk.span, expr->span );
+			un_op->op_kind = UnaryOpKind::PrefixDecrement;
+			un_op->operand = expr;
+
+			prefix = (AstNode*)un_op;
 			break;
+		}
 		case TK::Number:
+		{
 			break;
+		}
 		case TK::Ident:
+		{
 			break;
+		}
 		case TK::StringLiteral:
+		{
 			break;
+		}
 		default:
 			log_span_fatal( lead_tk.span, "Unexpected token '%s' at start of operand", Token_GetKindAsString( lead_tk.kind ) );
 	}

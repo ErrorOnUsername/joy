@@ -209,5 +209,9 @@ namespace UnaryOpKind
 		Negate,
 		Dereference,
 		AddressOf,
+		PrefixIncrement,
+		PrefixDecrement,
+		PostfixIncrement,
+		PostfixDecrement,
 	};
 }

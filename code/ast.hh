@@ -45,7 +45,7 @@ struct Type;
 struct AstNode {
 	NodeKind kind = AstNodeKind::Invalid;
 	Span     span;
-	Type*    type;
+	Type*    type  = nullptr;
 	uint64_t flags = AstNodeFlag::None;
 };
 
