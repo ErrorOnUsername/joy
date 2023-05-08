@@ -1060,6 +1060,19 @@ AstNode* Parser::parse_operand()
 		}
 		case TK::Number:
 		{
+			Number& number = lead_tk.number;
+			switch( number.kind )
+			{
+				case NumKind::Integer:
+				{
+					break;
+				}
+				case NumKind::FloatingPoint:
+				{
+					break;
+				}
+			}
+
 			break;
 		}
 		case TK::Ident:
