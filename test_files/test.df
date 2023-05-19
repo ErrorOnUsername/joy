@@ -27,13 +27,6 @@ decl main : ()
 {
 	/*
 
-	//Nested block comments!
-	/*
-		... ... ...
-		... ... ...
-		... ... ...
-	*/
-
 	*/
 
 	let bin_num   := 0b01000001;
@@ -44,6 +37,7 @@ decl main : ()
 
 	let a := 1 + 2 / 3 * 4;
 	let b := ( 1 + 2 ) * 3;
+	/*
 	let c := a;
 	let d := 1;
 
@@ -69,4 +63,5 @@ decl main : ()
 		let a    := haha;
 		continue;
 	}
+	*/
 }

@@ -21,7 +21,7 @@ struct Arena {
 	template<typename T>
 	T* alloc()
 	{
-		assert( write_head < ( data + capacity ) );
+		assert( ( write_head + sizeof( T ) ) < ( data + capacity ) );
 
 		T* new_alloc = (T*)write_head;
 		write_head += sizeof( T );
