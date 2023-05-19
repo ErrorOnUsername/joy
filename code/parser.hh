@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 
+#include "array.hh"
 #include "arena.hh"
 #include "ast.hh"
 #include "file_manager.hh"
@@ -13,6 +14,12 @@
 struct Parser {
 	size_t             tk_idx = 0;
 	FileLexInfo        lex_info;
+	// FIXME: Allocate these in an arena, rather than a vector
+	//        so we avoid expesive re-allocing.
+	//
+	// Also, we should return tokens by reference so that
+	// we don't make stack copies all the time (expensive
+	// since each token holds a std::string)
 	std::vector<Token> seen_tokens;
 	Arena              node_arena;
 	Arena              type_arena;
@@ -39,7 +46,7 @@ struct Parser {
 
 	void consume_newlines();
 
-	Token& peek_tk( int offset = 1 );
-	Token& curr_tk();
-	Token& next_tk();
+	Token peek_tk( int offset = 1 );
+	Token curr_tk();
+	Token next_tk();
 };

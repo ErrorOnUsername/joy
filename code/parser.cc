@@ -37,13 +37,13 @@ Module Parser::process_module( std::string const& path )
 
 	TIME_SCOPE( "parsing top-level statements" );
 
-	Token* tk = &curr_tk();
-	while ( tk->kind != TK::EndOfFile )
+	Token tk = curr_tk();
+	while ( tk.kind != TK::EndOfFile )
 	{
-		switch ( tk->kind )
+		switch ( tk.kind )
 		{
 			case TK::DirectiveLoad:
-				log_span_fatal( tk->span, "Implement module loading!" );
+				log_span_fatal( tk.span, "Implement module loading!" );
 				break;
 			case TK::KeywordLet:
 				parse_let_stmnt();
@@ -52,11 +52,11 @@ Module Parser::process_module( std::string const& path )
 				parse_decl_stmnt();
 				break;
 			default:
-				log_span_fatal( tk->span, "Expected 'decl', 'let', or a directive, but got '%s'", Token_GetKindAsString( tk->kind ) );
+				log_span_fatal( tk.span, "Expected 'decl', 'let', or a directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
 		}
 
 		consume_newlines();
-		tk = &curr_tk();
+		tk = curr_tk();
 	}
 
 	return module;
@@ -92,7 +92,7 @@ void Parser::parse_decl_stmnt()
 {
 	TIME_PROC();
 
-	Token& name_tk = next_tk();
+	Token name_tk = next_tk();
 	size_t name_tk_idx = tk_idx;
 
 	if ( name_tk.kind != TK::Ident )
@@ -102,7 +102,7 @@ void Parser::parse_decl_stmnt()
 
 	DeclStmntKind decl_stmnt_kind = DeclStmntKind::Constant;
 
-	Token& colon_tk = next_tk();
+	Token colon_tk = next_tk();
 	if ( colon_tk.kind != TK::ColonAssign )
 	{
 		if ( colon_tk.kind != TK::Colon )
@@ -110,7 +110,7 @@ void Parser::parse_decl_stmnt()
 			log_span_fatal( colon_tk.span, "Expected after identifer 'decl' statement's name, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
 		}
 
-		Token& determinant_tk = next_tk();
+		Token determinant_tk = next_tk();
 		decl_stmnt_kind = decl_stmnt_kind_from_token_kind( determinant_tk.kind );
 	}
 
@@ -134,7 +134,7 @@ void Parser::parse_let_stmnt()
 {
 	TIME_PROC();
 
-	Token& let_tk = curr_tk();
+	Token let_tk = curr_tk();
 	if ( let_tk.kind != TK::KeywordLet )
 	{
 		log_span_fatal( let_tk.span, "Expected 'let' at beginning of let statement, but got '%s'", Token_GetKindAsString( let_tk.kind ) );
@@ -144,7 +144,7 @@ void Parser::parse_let_stmnt()
 
 	AstNode* decl = (AstNode*)parse_var_decl( "variable declaration" );
 
-	Token& semicolon_tk = curr_tk();
+	Token semicolon_tk = curr_tk();
 	if ( semicolon_tk.kind != TK::Semicolon )
 	{
 		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after variable declaration, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
@@ -171,7 +171,7 @@ void Parser::parse_constant_decl()
 		log_span_fatal( decl->default_value->span, "Constant's cannot be initialized to a potentially non-constant value" );
 	}
 
-	Token& semicolon_tk = curr_tk();
+	Token semicolon_tk = curr_tk();
 	if ( semicolon_tk.kind != TK::Semicolon )
 	{
 		log_span_fatal( semicolon_tk.span, "Expected terminating ';' in constant declaration, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
@@ -191,7 +191,7 @@ void Parser::parse_procedure_decl()
 	decl->kind  = AstNodeKind::ProcDecl;
 	decl->flags = AstNodeFlag::Decl;
 
-	Token& name_tk = curr_tk();
+	Token name_tk = curr_tk();
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected name identifier in procedure declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
@@ -200,13 +200,13 @@ void Parser::parse_procedure_decl()
 	decl->span = name_tk.span;
 	decl->name = name_tk.str;
 
-	Token& colon_tk = next_tk();
+	Token colon_tk = next_tk();
 	if ( colon_tk.kind != TK::Colon )
 	{
 		log_span_fatal( colon_tk.span, "Expected ':' after name in procedure declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
 	}
 
-	Token& l_paren_tk = next_tk();
+	Token l_paren_tk = next_tk();
 	if ( l_paren_tk.kind != TK::LParen )
 	{
 		log_span_fatal( l_paren_tk.span, "Expected '(' at beginning of procedure parameter list, but got '%s'", Token_GetKindAsString( l_paren_tk.kind ) );
@@ -215,47 +215,47 @@ void Parser::parse_procedure_decl()
 	next_tk();
 	consume_newlines();
 
-	Token* tk = &curr_tk();
-	while ( tk->kind != TK::RParen )
+	Token tk = curr_tk();
+	while ( tk.kind != TK::RParen )
 	{
 		if ( decl->params.count > 0 )
 		{
-			if ( tk->kind != TK::Comma )
+			if ( tk.kind != TK::Comma )
 			{
-				log_span_fatal( tk->span, "Expected ',' between procedure parameters, but got '%s'", Token_GetKindAsString( tk->kind ) );
+				log_span_fatal( tk.span, "Expected ',' between procedure parameters, but got '%s'", Token_GetKindAsString( tk.kind ) );
 			}
 
 			next_tk();
 			consume_newlines();
 
-			tk = &curr_tk();
+			tk = curr_tk();
 		}
 
 		VarDeclStmnt* param = parse_var_decl( "procedure parameter declaration" );
 		decl->params.append( param );
 
 		consume_newlines();
-		tk = &curr_tk();
+		tk = curr_tk();
 	}
 
-	if ( tk->kind != TK::RParen )
+	if ( tk.kind != TK::RParen )
 	{
-		log_span_fatal( tk->span, "Expected terminating ')' in procedure parameter list, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		log_span_fatal( tk.span, "Expected terminating ')' in procedure parameter list, but got '%s'", Token_GetKindAsString( tk.kind ) );
 	}
 
-	tk = &next_tk();
+	tk = next_tk();
 
-	if ( tk->kind == TK::ThinArrow )
+	if ( tk.kind == TK::ThinArrow )
 	{
-		tk = &next_tk();
+		tk = next_tk();
 
-		while ( tk->kind != TK::LCurly )
+		while ( tk.kind != TK::LCurly )
 		{
 			if ( decl->return_types.count > 0 )
 			{
-				if ( tk->kind != TK::Comma )
+				if ( tk.kind != TK::Comma )
 				{
-					log_span_fatal( tk->span, "Expected ',' to seperate procedure return types, but got '%s'", Token_GetKindAsString( tk->kind ) );
+					log_span_fatal( tk.span, "Expected ',' to seperate procedure return types, but got '%s'", Token_GetKindAsString( tk.kind ) );
 				}
 
 				next_tk();
@@ -266,28 +266,28 @@ void Parser::parse_procedure_decl()
 			decl->return_types.append( type );
 
 			consume_newlines();
-			tk = &curr_tk();
+			tk = curr_tk();
 		}
 	}
 
 	consume_newlines();
 
-	tk = &curr_tk();
+	tk = curr_tk();
 
 	// FIXME: handle foreign funciton importing
 
-	if ( tk->kind != TK::LCurly )
+	if ( tk.kind != TK::LCurly )
 	{
-		log_span_fatal( tk->span, "Expected '{' after parameter list in procedure decaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		log_span_fatal( tk.span, "Expected '{' after parameter list in procedure decaration, but got '%s'", Token_GetKindAsString( tk.kind ) );
 	}
 
 	next_tk();
 	consume_newlines();
 
-	tk = &curr_tk();
-	while ( tk->kind != TK::RCurly )
+	tk = curr_tk();
+	while ( tk.kind != TK::RCurly )
 	{
-		switch ( tk->kind )
+		switch ( tk.kind )
 		{
 			case TK::KeywordDecl: parse_decl_stmnt(); break;
 			case TK::KeywordLet:  parse_let_stmnt(); break;
@@ -295,10 +295,10 @@ void Parser::parse_procedure_decl()
 			{
 				AstNode* expr = parse_expr();
 
-				tk = &curr_tk();
-				if ( tk->kind != TK::Semicolon )
+				tk = curr_tk();
+				if ( tk.kind != TK::Semicolon )
 				{
-					log_span_fatal( tk->span, "Expected terminating ';' after expression, but got '%s'", Token_GetKindAsString( tk->kind ) );
+					log_span_fatal( tk.span, "Expected terminating ';' after expression, but got '%s'", Token_GetKindAsString( tk.kind ) );
 				}
 
 				current_scope->statements.append( expr );
@@ -309,12 +309,12 @@ void Parser::parse_procedure_decl()
 		}
 
 		consume_newlines();
-		tk = &curr_tk();
+		tk = curr_tk();
 	}
 
-	if ( tk->kind != TK::RCurly )
+	if ( tk.kind != TK::RCurly )
 	{
-		log_span_fatal( tk->span, "Expected terminating '}' in procedure declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		log_span_fatal( tk.span, "Expected terminating '}' in procedure declaration, but got '%s'", Token_GetKindAsString( tk.kind ) );
 	}
 
 	next_tk();
@@ -334,7 +334,7 @@ void Parser::parse_struct_decl()
 	//      ^~~~ we should be looking here
 	//
 
-	Token& name_tk = curr_tk();
+	Token name_tk = curr_tk();
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected identifier name after 'decl' in struct declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
@@ -348,7 +348,7 @@ void Parser::parse_struct_decl()
 	//               ^~~~ new we should be here
 	//
 
-	Token& colon_tk = next_tk();
+	Token colon_tk = next_tk();
 	if ( colon_tk.kind != TK::Colon )
 	{
 		log_span_fatal( colon_tk.span, "Expected ':' after struct name in struct declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
@@ -359,7 +359,7 @@ void Parser::parse_struct_decl()
 	//                 ^~~~ this should be what we're looking at
 	//
 
-	Token& struct_tk = next_tk();
+	Token struct_tk = next_tk();
 	if ( struct_tk.kind != TK::KeywordStruct )
 	{
 		log_span_fatal( struct_tk.span, "Expected 'struct' keyword in struct declaration, but got '%s'", Token_GetKindAsString( struct_tk.kind ) );
@@ -376,7 +376,7 @@ void Parser::parse_struct_decl()
 	// {
 	// ^~~~ It doesn't have to be on the same line either
 	//
-	Token& l_curly_tk = curr_tk();
+	Token l_curly_tk = curr_tk();
 	if ( l_curly_tk.kind != TK::LCurly )
 	{
 		log_span_fatal( l_curly_tk.span, "Expected '{' after 'struct' identifer in struct declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
@@ -386,15 +386,15 @@ void Parser::parse_struct_decl()
 	consume_newlines();
 
 	// Now we need to start reading the members
-	Token* tk = &curr_tk();
-	while ( tk->kind != TK::RCurly )
+	Token tk = curr_tk();
+	while ( tk.kind != TK::RCurly )
 	{
 		VarDeclStmnt* member = parse_var_decl( "struct member declaration" );
 
-		tk = &curr_tk();
-		if ( tk->kind != TK::Semicolon )
+		tk = curr_tk();
+		if ( tk.kind != TK::Semicolon )
 		{
-			log_span_fatal( tk->span, "Expected terminating ';' in struct member declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+			log_span_fatal( tk.span, "Expected terminating ';' in struct member declaration, but got '%s'", Token_GetKindAsString( tk.kind ) );
 		}
 
 		decl->members.append( member );
@@ -402,13 +402,13 @@ void Parser::parse_struct_decl()
 		next_tk();
 		consume_newlines();
 
-		tk = &curr_tk();
+		tk = curr_tk();
 	}
 
-	if ( tk->kind != TK::RCurly )
+	if ( tk.kind != TK::RCurly )
 	{
 		// This should not even be possible, but we'll check just in case
-		log_span_fatal( tk->span, "Expected '}' to terminate struct literal, but got '%s'", Token_GetKindAsString( tk->kind ) );
+		log_span_fatal( tk.span, "Expected '}' to terminate struct literal, but got '%s'", Token_GetKindAsString( tk.kind ) );
 	}
 
 	next_tk();
@@ -433,7 +433,7 @@ void Parser::parse_enum_decl()
 	//      ^~~~ we should be looking here
 	//
 
-	Token& name_tk = curr_tk();
+	Token name_tk = curr_tk();
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected identifier name after 'decl' in enum declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
@@ -447,7 +447,7 @@ void Parser::parse_enum_decl()
 	//             ^~~~ new we should be here
 	//
 
-	Token& colon_tk = next_tk();
+	Token colon_tk = next_tk();
 	if ( colon_tk.kind != TK::Colon )
 	{
 		log_span_fatal( colon_tk.span, "Expected ':' after enum name in enum declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
@@ -458,7 +458,7 @@ void Parser::parse_enum_decl()
 	//               ^~~~ this should be what we're looking at
 	//
 
-	Token& enum_tk = next_tk();
+	Token enum_tk = next_tk();
 	if ( enum_tk.kind != TK::KeywordEnum )
 	{
 		log_span_fatal( enum_tk.span, "Expected 'enum' keyword in enum declaration, but got '%s'", Token_GetKindAsString( enum_tk.kind ) );
@@ -472,7 +472,7 @@ void Parser::parse_enum_decl()
 	next_tk();
 	consume_newlines();
 
-	Token& l_curly_tk = curr_tk();
+	Token l_curly_tk = curr_tk();
 	if ( l_curly_tk.kind != TK::LCurly )
 	{
 		log_span_fatal( l_curly_tk.span, "Expected a '{' after the 'enum' keyword in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
@@ -493,8 +493,8 @@ void Parser::parse_enum_decl()
 
 	uint64_t pos = 0;
 
-	Token* tk = &curr_tk();
-	while ( tk->kind != TK::RCurly )
+	Token tk = curr_tk();
+	while ( tk.kind != TK::RCurly )
 	{
 		EnumVariant variant;
 
@@ -508,16 +508,16 @@ void Parser::parse_enum_decl()
 		//        ^~~~ or here
 		//
 
-		if ( tk->kind != TK::Ident )
+		if ( tk.kind != TK::Ident )
 		{
-			log_span_fatal( tk->span, "Expected variant name in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+			log_span_fatal( tk.span, "Expected variant name in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
 		}
 
-		variant.span = tk->span;
-		variant.name = tk->str;
+		variant.span = tk.span;
+		variant.name = tk.str;
 
-		tk = &next_tk();
-		if ( tk->kind == TK::Assign )
+		tk = next_tk();
+		if ( tk.kind == TK::Assign )
 		{
 			//
 			// 2. decl MyEnum : enum {
@@ -538,7 +538,7 @@ void Parser::parse_enum_decl()
 			variant.val = (IntegerLiteralExpr*)val_expr;
 			pos         = variant.val->data;
 
-			tk = &curr_tk();
+			tk = curr_tk();
 		}
 		else
 		{
@@ -551,24 +551,24 @@ void Parser::parse_enum_decl()
 			variant.val = val_expr;
 		}
 
-		if ( tk->kind != TK::Semicolon )
+		if ( tk.kind != TK::Semicolon )
 		{
-			log_span_fatal( tk->span, "Expected ';' to terminate enum variant, but got '%s'", Token_GetKindAsString( tk->kind ) );
+			log_span_fatal( tk.span, "Expected ';' to terminate enum variant, but got '%s'", Token_GetKindAsString( tk.kind ) );
 		}
 
 		next_tk();
 		consume_newlines();
 
-		tk = &curr_tk();
+		tk = curr_tk();
 
 		decl->variants.append( variant );
 		pos++;
 	}
 
-	if ( tk->kind != TK::RCurly )
+	if ( tk.kind != TK::RCurly )
 	{
 		// This should not be possible to trigger, but lets leave it just in case ig :)
-		log_span_fatal( tk->span, "Expected enum declaration to be terminated with a '}', but got '%s'", Token_GetKindAsString( tk->kind ) );
+		log_span_fatal( tk.span, "Expected enum declaration to be terminated with a '}', but got '%s'", Token_GetKindAsString( tk.kind ) );
 	}
 
 	next_tk();
@@ -592,7 +592,7 @@ void Parser::parse_union_decl()
 	// decl MyUnion : union {
 	//      ^~~~ we're here
 	//
-	Token& name_tk = curr_tk();
+	Token name_tk = curr_tk();
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected name identifer in union declaration, but got '%s'", Token_GetKindAsString( name_tk.kind ) );
@@ -605,7 +605,7 @@ void Parser::parse_union_decl()
 	// decl MyUnion : union {
 	//              ^~~~ we should now be here
 	//
-	Token& colon_tk = next_tk();
+	Token colon_tk = next_tk();
 	if ( colon_tk.kind != TK::Colon )
 	{
 		log_span_fatal( colon_tk.span, "Expected ':' after name in union declaration, but got '%s'", Token_GetKindAsString( colon_tk.kind ) );
@@ -615,7 +615,7 @@ void Parser::parse_union_decl()
 	// decl MyUnion : union {
 	//                ^~~~ now we're here
 	//
-	Token& union_tk = next_tk();
+	Token union_tk = next_tk();
 	if ( union_tk.kind != TK::KeywordUnion )
 	{
 		log_span_fatal( union_tk.span, "Expected 'union' after ':' in union declaration, but got '%s'", Token_GetKindAsString( union_tk.kind ) );
@@ -628,7 +628,7 @@ void Parser::parse_union_decl()
 	// decl MyUnion : union {
 	//                      ^~~~ should be here (could be on a new line)
 	//
-	Token& l_curly_tk = curr_tk();
+	Token l_curly_tk = curr_tk();
 	if ( l_curly_tk.kind != TK::LCurly )
 	{
 		log_span_fatal( l_curly_tk.span, "Expected '{' after 'union' in union declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
@@ -637,8 +637,8 @@ void Parser::parse_union_decl()
 	next_tk();
 	consume_newlines();
 
-	Token* tk = &curr_tk();
-	while ( tk->kind != TK::RCurly )
+	Token tk = curr_tk();
+	while ( tk.kind != TK::RCurly )
 	{
 		//
 		// decl MyUnion : union {
@@ -649,52 +649,52 @@ void Parser::parse_union_decl()
 		//     Variant( member_a: ilong, member_b: flong );
 		//     ^~~~ Could also be this
 		//
-		if ( tk->kind != TK::Ident )
+		if ( tk.kind != TK::Ident )
 		{
-			log_span_fatal( tk->span, "Expected identifier for union variant name, but got '%s'", Token_GetKindAsString( tk->kind ) );
+			log_span_fatal( tk.span, "Expected identifier for union variant name, but got '%s'", Token_GetKindAsString( tk.kind ) );
 		}
 
 		UnionVariant variant;
-		variant.span = tk->span;
-		variant.name = tk->str;
+		variant.span = tk.span;
+		variant.name = tk.str;
 
-		tk = &next_tk();
-		if ( tk->kind == TK::LParen )
+		tk = next_tk();
+		if ( tk.kind == TK::LParen )
 		{
 			//
 			// decl MyUnion : union {
 			//     Variant( member_a: ilong, member_b: flong );
 			//            ^~~~ Should definitely be here (could be empty, in which case we throw a warning)
 			//
-			tk = &next_tk();
-			while ( tk->kind != TK::RParen )
+			tk = next_tk();
+			while ( tk.kind != TK::RParen )
 			{
 				if ( variant.members.count > 0 )
 				{
-					if ( tk->kind != TK::Comma )
+					if ( tk.kind != TK::Comma )
 					{
-						log_span_fatal( tk->span, "Expected ',' between variant member declarations, but got '%s'", Token_GetKindAsString( tk->kind ) );
+						log_span_fatal( tk.span, "Expected ',' between variant member declarations, but got '%s'", Token_GetKindAsString( tk.kind ) );
 					}
 
-					tk = &next_tk();
+					tk = next_tk();
 				}
 
 				VarDeclStmnt* member = node_arena.alloc<VarDeclStmnt>();
 				member->kind  = AstNodeKind::UnionVariantMember;
 				member->flags = AstNodeFlag::Decl;
 
-				if ( tk->kind != TK::Ident )
+				if ( tk.kind != TK::Ident )
 				{
-					log_span_fatal( tk->span, "Expected identifer name in varient member list, got '%s'", Token_GetKindAsString( tk->kind ) );
+					log_span_fatal( tk.span, "Expected identifer name in varient member list, got '%s'", Token_GetKindAsString( tk.kind ) );
 				}
 
-				member->span = tk->span;
-				member->name = tk->str;
+				member->span = tk.span;
+				member->name = tk.str;
 
-				tk = &next_tk();
-				if ( tk->kind != TK::Colon )
+				tk = next_tk();
+				if ( tk.kind != TK::Colon )
 				{
-					log_span_fatal( tk->span, "Expected ':' after variant name identifer, but got '%s'", Token_GetKindAsString( tk->kind ) );
+					log_span_fatal( tk.span, "Expected ':' after variant name identifer, but got '%s'", Token_GetKindAsString( tk.kind ) );
 				}
 
 				next_tk();
@@ -704,12 +704,12 @@ void Parser::parse_union_decl()
 
 				variant.members.append( member );
 
-				tk = &curr_tk();
+				tk = curr_tk();
 			}
 
-			if ( tk->kind != TK::RParen )
+			if ( tk.kind != TK::RParen )
 			{
-				log_span_fatal( tk->span, "Expected ')' to terminate variant member list, but got '%s'", Token_GetKindAsString( tk->kind ) );
+				log_span_fatal( tk.span, "Expected ')' to terminate variant member list, but got '%s'", Token_GetKindAsString( tk.kind ) );
 			}
 
 			next_tk();
@@ -720,10 +720,10 @@ void Parser::parse_union_decl()
 		//     Variant( member_a: ilong, member_b: flong );
 		//                                                ^~~~ Now we're at the end
 		//
-		tk = &curr_tk();
-		if ( tk->kind != TK::Semicolon )
+		tk = curr_tk();
+		if ( tk.kind != TK::Semicolon )
 		{
-			log_span_fatal( tk->span, "Expected terminating ';' in union variant declaration, but got '%s'", Token_GetKindAsString( tk->kind ) );
+			log_span_fatal( tk.span, "Expected terminating ';' in union variant declaration, but got '%s'", Token_GetKindAsString( tk.kind ) );
 		}
 
 		decl->variants.append( variant );
@@ -731,12 +731,12 @@ void Parser::parse_union_decl()
 		next_tk();
 		consume_newlines();
 
-		tk = &curr_tk();
+		tk = curr_tk();
 	}
 
-	if ( tk->kind != TK::RCurly )
+	if ( tk.kind != TK::RCurly )
 	{
-		log_span_fatal( tk->span, "Expected union declaration to be terminated with '}', but got '%'", Token_GetKindAsString( tk->kind ) );
+		log_span_fatal( tk.span, "Expected union declaration to be terminated with '}', but got '%'", Token_GetKindAsString( tk.kind ) );
 	}
 
 	next_tk();
@@ -749,7 +749,7 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 	decl->kind  = AstNodeKind::VarDecl;
 	decl->flags = AstNodeFlag::Decl;
 
-	Token& name_tk = curr_tk();
+	Token name_tk = curr_tk();
 	if ( name_tk.kind != TK::Ident )
 	{
 		log_span_fatal( name_tk.span, "Expected name identifier in %s got '%s'", usage_in_str, Token_GetKindAsString( name_tk.kind ) );
@@ -758,14 +758,14 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 	decl->span = name_tk.span;
 	decl->name = name_tk.str;
 
-	Token& colon_tk = next_tk();
+	Token colon_tk = next_tk();
 	if ( colon_tk.kind == TK::Colon )
 	{
 		next_tk();
 
 		Type* type = parse_type();
 
-		Token& eq_tk = curr_tk();
+		Token eq_tk = curr_tk();
 		if ( eq_tk.kind == TK::Assign )
 		{
 			next_tk();
@@ -794,7 +794,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 {
 	BinaryOperationExpr* expr = nullptr;
 
-	Token& start_tk = curr_tk();
+	Token start_tk = curr_tk();
 
 
 	AstNode* lhs = parse_operand();
@@ -849,7 +849,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 
 		consume_newlines();
 
-		Token&    peek_op_tk = curr_tk();
+		Token    peek_op_tk = curr_tk();
 		BinOpKind peek_op    = BinaryOperator_FromTK( peek_op_tk );
 		if ( peek_op != BinaryOpKind::Invalid )
 		{
@@ -896,7 +896,7 @@ AstNode* Parser::parse_operand()
 {
 	AstNode* prefix = nullptr;
 
-	Token& lead_tk = curr_tk();
+	Token lead_tk = curr_tk();
 	switch ( lead_tk.kind )
 	{
 		case TK::LSquare:
@@ -912,7 +912,7 @@ AstNode* Parser::parse_operand()
 			RangeExpr* as_range = (RangeExpr*)expr;
 			as_range->is_left_bound_included = true; // We started with a '[' so we know its inclusive at the start
 
-			Token& end_bound_tk = curr_tk();
+			Token end_bound_tk = curr_tk();
 			if ( end_bound_tk.kind != TK::RParen && end_bound_tk.kind != TK::RSquare )
 			{
 				log_span_fatal( end_bound_tk.span, "Expected a ']' or ')' bound-inclusivity specifier after range expression, but got '%s'", Token_GetKindAsString( end_bound_tk.kind ) );
@@ -940,7 +940,7 @@ AstNode* Parser::parse_operand()
 				RangeExpr* as_range = (RangeExpr*)expr;
 				as_range->is_left_bound_included = false; // We started with a '(' so we know its exclusive at the start
 
-				Token& end_bound_tk = curr_tk();
+				Token end_bound_tk = curr_tk();
 				if ( end_bound_tk.kind != TK::RParen && end_bound_tk.kind != TK::RSquare )
 				{
 					log_span_fatal( end_bound_tk.span, "Expected a ']' or ')' bound-inclusivity specifier after range expression, but got '%s'", Token_GetKindAsString( end_bound_tk.kind ) );
@@ -959,7 +959,7 @@ AstNode* Parser::parse_operand()
 			}
 			else
 			{
-				Token& r_paren_tk = curr_tk();
+				Token r_paren_tk = curr_tk();
 				if ( r_paren_tk.kind != TK::RParen )
 				{
 					log_span_fatal( r_paren_tk.span, "Expected terminating ')', but got '%s'", Token_GetKindAsString( r_paren_tk.kind ) );
@@ -1116,7 +1116,7 @@ AstNode* Parser::parse_operand()
 
 	AstNode* fnl = prefix;
 
-	Token& tail_tk = curr_tk();
+	Token tail_tk = curr_tk();
 	switch( tail_tk.kind )
 	{
 		case TK::PlusPlus:
@@ -1189,7 +1189,7 @@ Type* Parser::parse_type()
 			//                   ^~~~ pare_type() should leave us here
 			//
 
-			Token& semicolon_tk = curr_tk();
+			Token semicolon_tk = curr_tk();
 			if ( semicolon_tk.kind != TK::Semicolon )
 			{
 				log_span_fatal( semicolon_tk.span, "Expected ';' after array underlying type specifier, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
@@ -1210,7 +1210,7 @@ Type* Parser::parse_type()
 			//                      ^~~~ parse_expr() should leave us right here
 			//
 
-			Token& close_square_bracket = curr_tk();
+			Token close_square_bracket = curr_tk();
 			if ( close_square_bracket.kind != TK::RSquare )
 			{
 				log_span_fatal( close_square_bracket.span, "Expected ']' after array size expression, but got '%s'", Token_GetKindAsString( close_square_bracket.kind ) );
@@ -1240,7 +1240,7 @@ Type* Parser::parse_type()
 			//                      ^~~~ or a type that's guarded by an import alias name
 			//
 
-			Token& maybe_ns_char = next_tk();
+			Token maybe_ns_char = next_tk();
 			if ( maybe_ns_char.kind == TK::DoubleColon )
 			{
 				//
@@ -1248,7 +1248,7 @@ Type* Parser::parse_type()
 				//                                 ^~~~ we're looking at this right now
 				//
 
-				Token& type_name_tk = next_tk();
+				Token type_name_tk = next_tk();
 				if ( type_name_tk.kind != TK::Ident )
 				{
 					log_span_fatal( type_name_tk.span, "Expected type name after namespace alias, but got '%s'", Token_GetKindAsString( type_name_tk.kind ) );
@@ -1387,16 +1387,16 @@ void Parser::consume_newlines()
 {
 	TIME_PROC();
 
-	Token* curr = &curr_tk();
+	Token curr = curr_tk();
 
-	while ( curr->kind == TK::EndOfLine )
+	while ( curr.kind == TK::EndOfLine )
 	{
-		curr = &next_tk();
+		curr = next_tk();
 	}
 }
 
 
-Token& Parser::peek_tk( int offset )
+Token Parser::peek_tk( int offset )
 {
 	TIME_PROC();
 
@@ -1417,7 +1417,7 @@ Token& Parser::peek_tk( int offset )
 }
 
 
-Token& Parser::curr_tk()
+Token Parser::curr_tk()
 {
 	TIME_PROC();
 
@@ -1425,7 +1425,7 @@ Token& Parser::curr_tk()
 }
 
 
-Token& Parser::next_tk()
+Token Parser::next_tk()
 {
 	TIME_PROC();
 
