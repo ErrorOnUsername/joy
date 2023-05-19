@@ -1,6 +1,7 @@
 #include "parser.hh"
 #include <cassert>
 
+#include "ast.hh"
 #include "log.hh"
 #include "profiling.hh"
 
@@ -1060,15 +1061,31 @@ AstNode* Parser::parse_operand()
 		}
 		case TK::Number:
 		{
+			next_tk();
+
 			Number& number = lead_tk.number;
 			switch( number.kind )
 			{
 				case NumKind::Integer:
 				{
+					IntegerLiteralExpr* expr = node_arena.alloc<IntegerLiteralExpr>();
+					expr->kind  = AstNodeKind::IntegerLiteral;
+					expr->flags = AstNodeFlag::IntegerLiteral;
+					expr->span  = lead_tk.span;
+					expr->data  = number.inum;
+
+					prefix = expr;
 					break;
 				}
 				case NumKind::FloatingPoint:
 				{
+					FloatingPointLiteralExpr* expr = node_arena.alloc<FloatingPointLiteralExpr>();
+					expr->kind  = AstNodeKind::FloatingPointLiteral;
+					expr->flags = AstNodeFlag::FloatingPointLiteral;
+					expr->span  = lead_tk.span;
+					expr->value = number.fnum;
+
+					prefix = expr;
 					break;
 				}
 			}
@@ -1077,10 +1094,19 @@ AstNode* Parser::parse_operand()
 		}
 		case TK::Ident:
 		{
-			break;
+			log_span_fatal( lead_tk.span, "Implement ident parsing" );
 		}
 		case TK::StringLiteral:
 		{
+			next_tk();
+
+			StringLiteralExpr* expr = node_arena.alloc<StringLiteralExpr>();
+			expr->kind  = AstNodeKind::StringLiteral;
+			expr->flags = AstNodeFlag::StringLiteral;
+			expr->span  = lead_tk.span;
+			expr->value = lead_tk.str;
+
+			prefix = expr;
 			break;
 		}
 		default:
