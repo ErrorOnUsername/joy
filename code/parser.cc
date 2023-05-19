@@ -829,7 +829,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 			range->rhs = parse_operand();
 
 			range->span = join_span( range->lhs->span, range->rhs->span );
-			range->flags = range->lhs->flags & range->lhs->flags;
+			range->flags = range->lhs->flags & range->rhs->flags;
 
 			return range;
 		}
@@ -965,6 +965,7 @@ AstNode* Parser::parse_operand()
 					log_span_fatal( r_paren_tk.span, "Expected terminating ')', but got '%s'", Token_GetKindAsString( r_paren_tk.kind ) );
 				}
 
+				prefix = expr;
 				next_tk();
 			}
 			break;

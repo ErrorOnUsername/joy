@@ -46,7 +46,7 @@ FileLexInfo FileManager_GetOrCreateFileInfo( char const* filepath )
 	}
 
 	FILE* file = fopen( filepath, "rb" );
-	DF_ASSERT( file, "Could not open file '%f'\n", filepath );
+	DF_ASSERT( file, "Could not open file '%s'\n", filepath );
 
 	fseek( file, 0, SEEK_END );
 	size_t file_size = ftell( file );
