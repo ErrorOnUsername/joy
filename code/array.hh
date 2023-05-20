@@ -12,6 +12,7 @@ struct Array {
 	size_t    capacity;
 	size_t    count;
 
+
 	Array( size_t initial_capacity = 0 )
 		: data( nullptr )
 		, capacity( initial_capacity )
@@ -19,9 +20,10 @@ struct Array {
 	{
 		if ( initial_capacity == 0 ) return;
 
-		void* raw_data = malloc( initial_capacity * sizeof( ElemType ) );
+		data = (ElemType*)malloc( initial_capacity * sizeof( ElemType ) );
 		memset( data, 0, initial_capacity * sizeof( ElemType ) );
 	}
+
 
 	void resize( size_t new_capacity )
 	{
@@ -73,6 +75,24 @@ struct Array {
 		capacity = 0;
 		count    = 0;
 	}
+
+
+	void swap( Array<ElemType> other )
+	{
+		if ( data )
+		{
+			free( data );
+		}
+
+		data     = other.data;
+		capacity = other.capacity;
+		count    = other.count;
+
+		other.data     = nullptr;
+		other.capacity = 0;
+		other.count    = 0;
+	}
+
 
 	ElemType& operator[] ( size_t index )
 	{

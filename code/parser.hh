@@ -32,6 +32,14 @@ struct Parser {
 	void parse_decl_stmnt();
 	void parse_let_stmnt();
 
+	void parse_if_stmnt();
+	void parse_for_stmnt();
+	void parse_while_stmnt();
+	void parse_loop_stmnt();
+	void parse_continue_stmnt();
+	void parse_break_stmnt();
+	void parse_return_stmnt();
+
 	void parse_constant_decl();
 	void parse_procedure_decl();
 	void parse_struct_decl();
@@ -39,8 +47,8 @@ struct Parser {
 	void parse_union_decl();
 
 	VarDeclStmnt* parse_var_decl( char const* usage_in_str );
-	AstNode* parse_expr( bool can_assign = false );
-	AstNode* parse_operand();
+	AstNode* parse_expr( bool can_construct = false, bool can_assign = false );
+	AstNode* parse_operand( bool can_construct );
 
 	Type* parse_type();
 

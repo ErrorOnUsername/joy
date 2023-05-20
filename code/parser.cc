@@ -156,6 +156,70 @@ void Parser::parse_let_stmnt()
 }
 
 
+void Parser::parse_if_stmnt()
+{
+	Token if_tk = curr_tk();
+	next_tk();
+
+	AstNode* condition_expr = parse_expr();
+
+	IfStmnt* stmnt = node_arena.alloc<IfStmnt>();
+	stmnt->kind           = AstNodeKind::IfStmnt;
+	stmnt->span           = join_span( if_tk.span, condition_expr->span );
+	stmnt->condition_expr = condition_expr;
+
+	log_span_fatal( stmnt->span, "if span" );
+}
+
+
+void Parser::parse_for_stmnt()
+{
+	Token tk = curr_tk();
+
+	log_span_fatal( tk.span, "impl" );
+}
+
+
+void Parser::parse_while_stmnt()
+{
+	Token tk = curr_tk();
+
+	log_span_fatal( tk.span, "impl" );
+}
+
+
+void Parser::parse_loop_stmnt()
+{
+	Token tk = curr_tk();
+
+	log_span_fatal( tk.span, "impl" );
+}
+
+
+void Parser::parse_continue_stmnt()
+{
+	Token tk = curr_tk();
+
+	log_span_fatal( tk.span, "impl" );
+}
+
+
+void Parser::parse_break_stmnt()
+{
+	Token tk = curr_tk();
+
+	log_span_fatal( tk.span, "impl" );
+}
+
+
+void Parser::parse_return_stmnt()
+{
+	Token tk = curr_tk();
+
+	log_span_fatal( tk.span, "impl" );
+}
+
+
 void Parser::parse_constant_decl()
 {
 	TIME_PROC();
@@ -289,11 +353,18 @@ void Parser::parse_procedure_decl()
 	{
 		switch ( tk.kind )
 		{
-			case TK::KeywordDecl: parse_decl_stmnt(); break;
-			case TK::KeywordLet:  parse_let_stmnt(); break;
+			case TK::KeywordDecl:     parse_decl_stmnt(); break;
+			case TK::KeywordLet:      parse_let_stmnt(); break;
+			case TK::KeywordIf:       parse_if_stmnt(); break;
+			case TK::KeywordFor:      parse_for_stmnt(); break;
+			case TK::KeywordWhile:    parse_while_stmnt(); break;
+			case TK::KeywordLoop:     parse_loop_stmnt(); break;
+			case TK::KeywordContinue: parse_continue_stmnt(); break;
+			case TK::KeywordBreak:    parse_break_stmnt(); break;
+			case TK::KeywordReturn:   parse_return_stmnt(); break;
 			default:
 			{
-				AstNode* expr = parse_expr();
+				AstNode* expr = parse_expr( true, true );
 
 				tk = curr_tk();
 				if ( tk.kind != TK::Semicolon )
@@ -770,7 +841,7 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 		{
 			next_tk();
 
-			AstNode* val_expr = parse_expr();
+			AstNode* val_expr = parse_expr( true );
 			decl->default_value = val_expr;
 		}
 	}
@@ -778,7 +849,7 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 	{
 		next_tk();
 
-		AstNode* val_expr = parse_expr();
+		AstNode* val_expr = parse_expr( true );
 		decl->default_value = val_expr;
 	}
 	else
@@ -790,14 +861,14 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 }
 
 
-AstNode* Parser::parse_expr( bool can_assign )
+AstNode* Parser::parse_expr( bool can_construct, bool can_assign )
 {
 	BinaryOperationExpr* expr = nullptr;
 
 	Token start_tk = curr_tk();
 
 
-	AstNode* lhs = parse_operand();
+	AstNode* lhs = parse_operand( can_construct );
 
 	for ( ;; )
 	{
@@ -826,7 +897,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 
 			range->lhs = lhs;
 
-			range->rhs = parse_operand();
+			range->rhs = parse_operand( can_construct );
 
 			range->span = join_span( range->lhs->span, range->rhs->span );
 			range->flags = range->lhs->flags & range->rhs->flags;
@@ -845,7 +916,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 		consume_newlines();
 
 		size_t start_operand_idx = tk_idx;
-		expr->rhs = parse_operand();
+		expr->rhs = parse_operand( can_construct );
 
 		consume_newlines();
 
@@ -859,7 +930,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 			{
 				tk_idx = start_operand_idx;
 
-				AstNode* subtree = parse_expr( can_assign );
+				AstNode* subtree = parse_expr( can_construct, can_assign );
 
 				// This means that the previous rhs is now an orphaned node
 				// TODO: Maybe track how much memory we waste because of this,
@@ -892,7 +963,7 @@ AstNode* Parser::parse_expr( bool can_assign )
 }
 
 
-AstNode* Parser::parse_operand()
+AstNode* Parser::parse_operand( bool can_construct )
 {
 	AstNode* prefix = nullptr;
 
@@ -903,7 +974,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 			if ( expr->kind != AstNodeKind::Range )
 			{
 				log_span_fatal( expr->span, "Expected a range expression, but got something else" );
@@ -934,7 +1005,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 			if ( expr->kind == AstNodeKind::Range )
 			{
 				RangeExpr* as_range = (RangeExpr*)expr;
@@ -974,7 +1045,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 
 			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
@@ -989,7 +1060,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 
 			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
@@ -1004,7 +1075,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 
 			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
@@ -1019,7 +1090,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 
 			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
@@ -1034,7 +1105,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 
 			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
@@ -1049,7 +1120,7 @@ AstNode* Parser::parse_operand()
 		{
 			next_tk();
 
-			AstNode* expr = parse_expr( false );
+			AstNode* expr = parse_expr();
 
 			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
@@ -1095,7 +1166,57 @@ AstNode* Parser::parse_operand()
 		}
 		case TK::Ident:
 		{
-			log_span_fatal( lead_tk.span, "Implement ident parsing" );
+			Array<std::string> name;
+
+			Token tk = curr_tk();
+			Span start_span = tk.span;
+
+			for ( ;; )
+			{
+				name.append( tk.str );
+
+				tk = next_tk();
+				if ( tk.kind != TK::DoubleColon )
+				{
+					break;
+				}
+
+				tk = next_tk();
+				if ( tk.kind != TK::Ident )
+				{
+					break;
+				}
+			}
+
+			switch ( tk.kind )
+			{
+				case TK::LCurly:
+				{
+					// im sorry. this is very dumb but im just too tired to deal with this
+					if ( !can_construct ) goto USE_AS_IDENT_LABEL;
+
+					int a = 0;
+
+					log_span_fatal( tk.span, "Implement structure literals" );
+					break;
+				}
+				case TK::LParen:
+				{
+					log_span_fatal( tk.span, "Implement procedure calls" );
+					break;
+				}
+				default:
+				{
+				USE_AS_IDENT_LABEL:
+					VarRefExpr* expr = node_arena.alloc<VarRefExpr>();
+					expr->kind = AstNodeKind::VarRef;
+					expr->span = join_span( start_span, peek_tk( -1 ).span );
+					expr->name_path.swap( name );
+
+					prefix = expr;
+				}
+			}
+			break;
 		}
 		case TK::StringLiteral:
 		{
@@ -1126,6 +1247,8 @@ AstNode* Parser::parse_operand()
 		case TK::LSquare:
 			break;
 	}
+
+	assert( fnl );
 
 	return fnl;
 }

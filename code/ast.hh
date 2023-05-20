@@ -22,6 +22,8 @@ namespace AstNodeKind
 		UnionDecl,
 		UnionVariantMember,
 		ProcDecl,
+		IfStmnt,
+		VarRef,
 	};
 }
 
@@ -131,6 +133,14 @@ struct CharacterLiteralExpr : public AstNode {
 };
 
 //
+// Ref Expressions
+//
+
+struct VarRefExpr : public AstNode {
+	Array<std::string> name_path;
+};
+
+//
 // Binary Operation
 //
 
@@ -203,6 +213,10 @@ struct ProcDeclStmnt : public AstNode {
 	Array<VarDeclStmnt*> params;
 	Array<Type*>         return_types; // TODO: Named return types?
 	Scope*               body_scope = nullptr;
+};
+
+struct IfStmnt : public AstNode {
+	AstNode* condition_expr = nullptr;
 };
 
 
