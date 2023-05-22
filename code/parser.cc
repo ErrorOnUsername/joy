@@ -255,9 +255,21 @@ void Parser::parse_while_stmnt()
 
 void Parser::parse_loop_stmnt()
 {
-	Token tk = curr_tk();
+	Token loop_tk = curr_tk();
+	if ( loop_tk.kind != TK::KeywordLoop )
+	{
+		log_span_fatal( loop_tk.span, "Expected 'loop' at the start of an infinite loop statement, but got '%s'", Token_GetKindAsString( loop_tk.kind ) );
+	}
 
-	log_span_fatal( tk.span, "impl" );
+	next_tk();
+
+	InfiniteLoopStmnt* stmnt = node_arena.alloc<InfiniteLoopStmnt>();
+	stmnt->kind = AstNodeKind::InfiniteLoop;
+	stmnt->span = loop_tk.span;
+	stmnt->body = parse_lexical_scope();
+
+	AstNode* as_node = (AstNode*)stmnt;
+	current_scope->statements.append( as_node );
 }
 
 

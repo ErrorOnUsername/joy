@@ -51,10 +51,6 @@ decl main : ()
 		break;
 	}
 
-	let x      := 16.0;
-	let sqrt_x := sqrt( x );
-	printf( "sqrt( %.3f ) => %.3f\n", x, sqrt_x );
-
 	loop {
 		a--;
 	}
@@ -64,4 +60,8 @@ decl main : ()
 		let a    := haha;
 		continue;
 	}
+
+	let x      := 16.0;
+	let sqrt_x := sqrt( x );
+	printf( "sqrt( %.3f ) => %.3f\n", x, sqrt_x );
 }

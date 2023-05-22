@@ -27,6 +27,7 @@ namespace AstNodeKind
 		VarRef,
 		LexicalBlock,
 		WhileLoop,
+		InfiniteLoop,
 		BreakStmnt,
 	};
 }
@@ -232,6 +233,10 @@ struct IfStmnt : public AstNode {
 struct WhileLoopStmnt : public AstNode {
 	AstNode*      condition_expr = nullptr;
 	LexicalBlock* body           = nullptr;
+};
+
+struct InfiniteLoopStmnt : public AstNode {
+	LexicalBlock* body = nullptr;
 };
 
 
