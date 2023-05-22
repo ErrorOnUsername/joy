@@ -379,9 +379,34 @@ void Parser::parse_return_stmnt()
 {
 	TIME_PROC();
 
-	Token tk = curr_tk();
+	Token return_tk = curr_tk();
+	if ( return_tk.kind != TK::KeywordReturn )
+	{
+		log_span_fatal( return_tk.span, "Expected 'return' at the start of return statement, but got '%s'", Token_GetKindAsString( return_tk.kind ) );
+	}
 
-	log_span_fatal( tk.span, "impl" );
+	AstNode* expr = nullptr;
+	Token semicolon_tk = next_tk();
+	if ( semicolon_tk.kind != TK::Semicolon )
+	{
+		expr = parse_expr( true );
+
+		semicolon_tk = curr_tk();
+		if ( semicolon_tk.kind != TK::Semicolon )
+		{
+			log_span_fatal( semicolon_tk.span, "Expected terminating ';' after return statement, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
+		}
+	}
+
+	next_tk();
+
+	ReturnStmnt* stmnt = node_arena.alloc<ReturnStmnt>();
+	stmnt->kind = AstNodeKind::ReturnStmnt;
+	stmnt->span = ( expr ) ? join_span( return_tk.span, expr->span ) : return_tk.span;
+	stmnt->expr = expr;
+
+	AstNode* as_node = (AstNode*)stmnt;
+	current_scope->statements.append( as_node );
 }
 
 

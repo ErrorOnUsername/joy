@@ -31,6 +31,7 @@ namespace AstNodeKind
 		InfiniteLoop,
 		ContinueStmnt,
 		BreakStmnt,
+		ReturnStmnt,
 	};
 }
 
@@ -250,6 +251,10 @@ struct WhileLoopStmnt : public AstNode {
 
 struct InfiniteLoopStmnt : public AstNode {
 	LexicalBlock* body = nullptr;
+};
+
+struct ReturnStmnt : public AstNode {
+	AstNode* expr = nullptr;
 };
 
 
