@@ -1365,11 +1365,31 @@ AstNode* Parser::parse_operand( bool can_construct )
 	switch( tail_tk.kind )
 	{
 		case TK::PlusPlus:
-			log_span_fatal( tail_tk.span, "Implement postfix increment" );
+		{
+			next_tk();
+
+			UnaryOperationExpr* expr = node_arena.alloc<UnaryOperationExpr>();
+			expr->kind    = AstNodeKind::UnaryOperation;
+			expr->span    = join_span( prefix->span, tail_tk.span );
+			expr->flags   = prefix->flags;
+			expr->op_kind = UnaryOpKind::PostfixIncrement;
+
+			fnl = (AstNode*)expr;
 			break;
+		}
 		case TK::MinusMinus:
-			log_span_fatal( tail_tk.span, "Implement postfix decrement" );
+		{
+			next_tk();
+
+			UnaryOperationExpr* expr = node_arena.alloc<UnaryOperationExpr>();
+			expr->kind    = AstNodeKind::UnaryOperation;
+			expr->span    = join_span( prefix->span, tail_tk.span );
+			expr->flags   = prefix->flags;
+			expr->op_kind = UnaryOpKind::PostfixDecrement;
+
+			fnl = (AstNode*)expr;
 			break;
+		}
 		case TK::LSquare:
 			log_span_fatal( tail_tk.span, "Implement array indexing" );
 			break;
