@@ -159,6 +159,8 @@ void Parser::parse_let_stmnt()
 
 void Parser::parse_if_stmnt()
 {
+	TIME_PROC();
+
 	Token if_tk = curr_tk();
 	next_tk();
 
@@ -223,6 +225,8 @@ void Parser::parse_if_stmnt()
 
 void Parser::parse_for_stmnt()
 {
+	TIME_PROC();
+
 	Token for_tk = curr_tk();
 	if ( for_tk.kind != TK::KeywordFor )
 	{
@@ -274,6 +278,8 @@ void Parser::parse_for_stmnt()
 
 void Parser::parse_while_stmnt()
 {
+	TIME_PROC();
+
 	Token while_tk = curr_tk();
 	if ( while_tk.kind != TK::KeywordWhile )
 	{
@@ -298,6 +304,8 @@ void Parser::parse_while_stmnt()
 
 void Parser::parse_loop_stmnt()
 {
+	TIME_PROC();
+
 	Token loop_tk = curr_tk();
 	if ( loop_tk.kind != TK::KeywordLoop )
 	{
@@ -318,6 +326,8 @@ void Parser::parse_loop_stmnt()
 
 void Parser::parse_continue_stmnt()
 {
+	TIME_PROC();
+
 	Token continue_tk = curr_tk();
 	if ( continue_tk.kind != TK::KeywordContinue )
 	{
@@ -342,6 +352,8 @@ void Parser::parse_continue_stmnt()
 
 void Parser::parse_break_stmnt()
 {
+	TIME_PROC();
+
 	Token break_tk = curr_tk();
 	if ( break_tk.kind != TK::KeywordBreak )
 	{
@@ -365,6 +377,8 @@ void Parser::parse_break_stmnt()
 
 void Parser::parse_return_stmnt()
 {
+	TIME_PROC();
+
 	Token tk = curr_tk();
 
 	log_span_fatal( tk.span, "impl" );
@@ -920,6 +934,8 @@ void Parser::parse_union_decl()
 
 LexicalBlock* Parser::parse_lexical_scope()
 {
+	TIME_PROC();
+
 	Token l_curly_tk = curr_tk();
 	if ( l_curly_tk.kind != TK::LCurly )
 	{
@@ -999,6 +1015,8 @@ LexicalBlock* Parser::parse_lexical_scope()
 
 VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 {
+	TIME_PROC();
+
 	VarDeclStmnt* decl = node_arena.alloc<VarDeclStmnt>();
 	decl->kind  = AstNodeKind::VarDecl;
 	decl->flags = AstNodeFlag::Decl;
@@ -1046,6 +1064,8 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 
 AstNode* Parser::parse_expr( bool can_construct, bool can_assign )
 {
+	TIME_PROC();
+
 	BinaryOperationExpr* expr = nullptr;
 
 	Token start_tk = curr_tk();
@@ -1148,6 +1168,8 @@ AstNode* Parser::parse_expr( bool can_construct, bool can_assign )
 
 AstNode* Parser::parse_operand( bool can_construct )
 {
+	TIME_PROC();
+
 	AstNode* prefix = nullptr;
 
 	Token lead_tk = curr_tk();
