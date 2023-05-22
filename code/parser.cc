@@ -1274,10 +1274,13 @@ AstNode* Parser::parse_operand( bool can_construct )
 	switch( tail_tk.kind )
 	{
 		case TK::PlusPlus:
+			log_span_fatal( tail_tk.span, "Implement postfix increment" );
 			break;
 		case TK::MinusMinus:
+			log_span_fatal( tail_tk.span, "Implement postfix decrement" );
 			break;
 		case TK::LSquare:
+			log_span_fatal( tail_tk.span, "Implement array indexing" );
 			break;
 	}
 
