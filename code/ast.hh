@@ -26,6 +26,7 @@ namespace AstNodeKind
 		IfStmnt,
 		VarRef,
 		LexicalBlock,
+		ForLoop,
 		WhileLoop,
 		InfiniteLoop,
 		BreakStmnt,
@@ -228,6 +229,17 @@ struct IfStmnt : public AstNode {
 	AstNode* condition_expr = nullptr;
 	AstNode* then_block     = nullptr;
 	IfStmnt* else_stmnt     = nullptr;
+};
+
+struct IterName {
+	std::string name;
+	Type*       type = nullptr;
+};
+
+struct ForLoopStmnt : public AstNode {
+	IterName      iter;
+	RangeExpr*    range = nullptr;
+	LexicalBlock* body  = nullptr;
 };
 
 struct WhileLoopStmnt : public AstNode {

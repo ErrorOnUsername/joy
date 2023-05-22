@@ -223,9 +223,52 @@ void Parser::parse_if_stmnt()
 
 void Parser::parse_for_stmnt()
 {
-	Token tk = curr_tk();
+	Token for_tk = curr_tk();
+	if ( for_tk.kind != TK::KeywordFor )
+	{
+		log_span_fatal( for_tk.span, "Expected 'for' at the start of a for loop statement, but got '%s'", Token_GetKindAsString( for_tk.kind ) );
+	}
 
-	log_span_fatal( tk.span, "impl" );
+	Token iter_name_tk = next_tk();
+	if ( iter_name_tk.kind != TK::Ident )
+	{
+		log_span_fatal( iter_name_tk.span, "Expected iterator name identifier but got, '%s'", Token_GetKindAsString( iter_name_tk.kind ) );
+	}
+
+	IterName iter;
+	iter.name = iter_name_tk.str;
+
+	Token maybe_colon_tk = next_tk();
+	if ( maybe_colon_tk.kind == TK::Colon )
+	{
+		next_tk();
+
+		iter.type = parse_type();
+	}
+
+	Token in_tk = curr_tk();
+	if ( in_tk.kind != TK::KeywordIn )
+	{
+		log_span_fatal( in_tk.span, "Expected 'in' after iterator name, but got '%s'", Token_GetKindAsString( in_tk.kind ) );
+	}
+
+	next_tk();
+
+	AstNode* range = parse_expr();
+	if ( range->kind != AstNodeKind::Range )
+	{
+		log_span_fatal( range->span, "Expected range expression after iterator name definition" );
+	}
+
+	ForLoopStmnt* stmnt = node_arena.alloc<ForLoopStmnt>();
+	stmnt->kind  = AstNodeKind::ForLoop;
+	stmnt->span  = join_span( for_tk.span, range->span );
+	stmnt->iter  = iter;
+	stmnt->range = (RangeExpr*)range;
+	stmnt->body  = parse_lexical_scope();
+
+	AstNode* as_node = (AstNode*)stmnt;
+	current_scope->statements.append( as_node );
 }
 
 
@@ -1122,6 +1165,8 @@ AstNode* Parser::parse_operand( bool can_construct )
 				as_range->is_right_bound_included = false;
 			}
 
+			next_tk();
+
 			prefix = (AstNode*)as_range;
 			break;
 		}
@@ -1149,6 +1194,8 @@ AstNode* Parser::parse_operand( bool can_construct )
 				{
 					as_range->is_right_bound_included = false;
 				}
+
+				next_tk();
 
 				prefix = (AstNode*)as_range;
 			}
