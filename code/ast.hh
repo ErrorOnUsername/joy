@@ -27,6 +27,7 @@ namespace AstNodeKind
 		VarRef,
 		LexicalBlock,
 		WhileLoop,
+		BreakStmnt,
 	};
 }
 

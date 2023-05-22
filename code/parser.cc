@@ -271,9 +271,24 @@ void Parser::parse_continue_stmnt()
 
 void Parser::parse_break_stmnt()
 {
-	Token tk = curr_tk();
+	Token break_tk = curr_tk();
+	if ( break_tk.kind != TK::KeywordBreak )
+	{
+		log_span_fatal( break_tk.span, "Expected 'break' at beginning of break statement, but got: '%s'", Token_GetKindAsString( break_tk.kind ) );
+	}
 
-	log_span_fatal( tk.span, "impl" );
+	Token semicolon_tk = next_tk();
+	if ( semicolon_tk.kind != TK::Semicolon )
+	{
+		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after break statement, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
+	}
+
+	AstNode* stmnt = node_arena.alloc<AstNode>();
+	stmnt->kind = AstNodeKind::BreakStmnt;
+
+	current_scope->statements.append( stmnt );
+
+	next_tk();
 }
 
 
