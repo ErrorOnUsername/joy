@@ -26,6 +26,7 @@ namespace AstNodeKind
 		IfStmnt,
 		VarRef,
 		LexicalBlock,
+		WhileLoop,
 	};
 }
 
@@ -225,6 +226,11 @@ struct IfStmnt : public AstNode {
 	AstNode* condition_expr = nullptr;
 	AstNode* then_block     = nullptr;
 	IfStmnt* else_stmnt     = nullptr;
+};
+
+struct WhileLoopStmnt : public AstNode {
+	AstNode*      condition_expr = nullptr;
+	LexicalBlock* body           = nullptr;
 };
 
 

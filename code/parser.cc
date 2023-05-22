@@ -231,9 +231,25 @@ void Parser::parse_for_stmnt()
 
 void Parser::parse_while_stmnt()
 {
-	Token tk = curr_tk();
+	Token while_tk = curr_tk();
+	if ( while_tk.kind != TK::KeywordWhile )
+	{
+		log_span_fatal( while_tk.span, "Expected 'while' at beginning of while statement, but got '%s'", Token_GetKindAsString( while_tk.kind ) );
+	}
 
-	log_span_fatal( tk.span, "impl" );
+	next_tk();
+
+	AstNode* condition_expr = parse_expr();
+
+	WhileLoopStmnt* stmnt = node_arena.alloc<WhileLoopStmnt>();
+	stmnt->kind           = AstNodeKind::WhileLoop;
+	stmnt->span           = join_span( while_tk.span, condition_expr->span );
+	stmnt->condition_expr = condition_expr;
+
+	stmnt->body = parse_lexical_scope();
+
+	AstNode* as_node = (AstNode*)stmnt;
+	current_scope->statements.append( as_node );
 }
 
 
