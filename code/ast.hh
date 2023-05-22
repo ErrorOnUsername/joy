@@ -223,6 +223,8 @@ struct ProcDeclStmnt : public AstNode {
 
 struct IfStmnt : public AstNode {
 	AstNode* condition_expr = nullptr;
+	AstNode* then_block     = nullptr;
+	IfStmnt* else_stmnt     = nullptr;
 };
 
 

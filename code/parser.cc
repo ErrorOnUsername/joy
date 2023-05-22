@@ -169,7 +169,55 @@ void Parser::parse_if_stmnt()
 	stmnt->span           = join_span( if_tk.span, condition_expr->span );
 	stmnt->condition_expr = condition_expr;
 
-	log_span_fatal( stmnt->span, "if span" );
+	consume_newlines();
+
+	stmnt->then_block = parse_lexical_scope();
+
+	AstNode* as_node = (AstNode*)stmnt;
+	current_scope->statements.append( as_node );
+
+	IfStmnt* last_stmnt = stmnt;
+
+	for ( ;; )
+	{
+		Token maybe_else_tk = curr_tk();
+		if ( maybe_else_tk.kind != TK::KeywordElse )
+		{
+			break;
+		}
+
+		AstNode* else_condition_expr = nullptr;
+
+		Token maybe_if_tk = next_tk();
+		if ( maybe_if_tk.kind == TK::KeywordIf )
+		{
+			next_tk();
+
+			else_condition_expr = parse_expr();
+		}
+
+		IfStmnt* else_stmnt = node_arena.alloc<IfStmnt>();
+		if ( else_condition_expr )
+		{
+			else_stmnt->span = join_span( maybe_else_tk.span, else_condition_expr->span );
+		}
+		else
+		{
+			else_stmnt->span = maybe_else_tk.span;
+		}
+
+		consume_newlines();
+		else_stmnt->condition_expr = else_condition_expr;
+		else_stmnt->then_block     = parse_lexical_scope();
+
+		last_stmnt->else_stmnt = else_stmnt;
+		last_stmnt = else_stmnt;
+
+		if ( !else_condition_expr )
+		{
+			break;
+		}
+	}
 }
 
 
