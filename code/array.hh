@@ -8,9 +8,9 @@
 
 template<typename ElemType>
 struct Array {
-	ElemType* data;
-	size_t    capacity;
-	size_t    count;
+	ElemType* data     = nullptr;
+	size_t    capacity = 0;
+	size_t    count    = 0;
 
 
 	Array( size_t initial_capacity = 0 )

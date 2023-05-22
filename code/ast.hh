@@ -1,6 +1,7 @@
 #pragma once
 
 #include "array.hh"
+#include "arena.hh"
 #include "token.hh"
 #include "operators.hh"
 
@@ -24,6 +25,7 @@ namespace AstNodeKind
 		ProcDecl,
 		IfStmnt,
 		VarRef,
+		LexicalBlock,
 	};
 }
 
@@ -208,11 +210,15 @@ struct UnionDeclStmnt : public AstNode {
 	Array<UnionVariant> variants;
 };
 
+struct LexicalBlock : public AstNode {
+	Scope* scope = nullptr;
+};
+
 struct ProcDeclStmnt : public AstNode {
 	std::string          name;
 	Array<VarDeclStmnt*> params;
 	Array<Type*>         return_types; // TODO: Named return types?
-	Scope*               body_scope = nullptr;
+	LexicalBlock*        body = nullptr;
 };
 
 struct IfStmnt : public AstNode {
@@ -224,5 +230,12 @@ struct IfStmnt : public AstNode {
 // Module
 //
 struct Module {
-	Array<Scope> scopes;
+	Arena  scope_arena;
+	Scope* root_scope;
+
+	Module()
+		: scope_arena( 2 * 1024 )
+		, root_scope( nullptr )
+	{
+	}
 };

@@ -22,10 +22,11 @@ Module Parser::process_module( std::string const& path )
 	Module module;
 	{
 		// Initialize the module with the global scope
-		Scope root_scope { };
-		module.scopes.append( root_scope );
+		Scope* root_scope = module.scope_arena.alloc<Scope>();
+		module.root_scope = root_scope;
 
-		current_scope = &module.scopes[0];
+		current_scope = root_scope;
+		working_module = &module;
 	}
 
 
@@ -339,56 +340,9 @@ void Parser::parse_procedure_decl()
 	tk = curr_tk();
 
 	// FIXME: handle foreign funciton importing
+	decl->body = parse_lexical_scope();
 
-	if ( tk.kind != TK::LCurly )
-	{
-		log_span_fatal( tk.span, "Expected '{' after parameter list in procedure decaration, but got '%s'", Token_GetKindAsString( tk.kind ) );
-	}
-
-	next_tk();
-	consume_newlines();
-
-	tk = curr_tk();
-	while ( tk.kind != TK::RCurly )
-	{
-		switch ( tk.kind )
-		{
-			case TK::KeywordDecl:     parse_decl_stmnt(); break;
-			case TK::KeywordLet:      parse_let_stmnt(); break;
-			case TK::KeywordIf:       parse_if_stmnt(); break;
-			case TK::KeywordFor:      parse_for_stmnt(); break;
-			case TK::KeywordWhile:    parse_while_stmnt(); break;
-			case TK::KeywordLoop:     parse_loop_stmnt(); break;
-			case TK::KeywordContinue: parse_continue_stmnt(); break;
-			case TK::KeywordBreak:    parse_break_stmnt(); break;
-			case TK::KeywordReturn:   parse_return_stmnt(); break;
-			default:
-			{
-				AstNode* expr = parse_expr( true, true );
-
-				tk = curr_tk();
-				if ( tk.kind != TK::Semicolon )
-				{
-					log_span_fatal( tk.span, "Expected terminating ';' after expression, but got '%s'", Token_GetKindAsString( tk.kind ) );
-				}
-
-				current_scope->statements.append( expr );
-
-				next_tk();
-				break;
-			}
-		}
-
-		consume_newlines();
-		tk = curr_tk();
-	}
-
-	if ( tk.kind != TK::RCurly )
-	{
-		log_span_fatal( tk.span, "Expected terminating '}' in procedure declaration, but got '%s'", Token_GetKindAsString( tk.kind ) );
-	}
-
-	next_tk();
+	current_scope->procedures.append( decl );
 }
 
 
@@ -811,6 +765,85 @@ void Parser::parse_union_decl()
 	}
 
 	next_tk();
+}
+
+
+LexicalBlock* Parser::parse_lexical_scope()
+{
+	Token l_curly_tk = curr_tk();
+	if ( l_curly_tk.kind != TK::LCurly )
+	{
+		log_span_fatal( l_curly_tk.span, "Expected '{' at start of lexical block, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+	}
+
+	next_tk();
+	consume_newlines();
+
+	LexicalBlock* block = node_arena.alloc<LexicalBlock>();
+	block->kind = AstNodeKind::LexicalBlock;
+	block->span = l_curly_tk.span;
+
+	{
+		Scope* new_scope = working_module->scope_arena.alloc<Scope>();
+		new_scope->parent = current_scope;
+
+		current_scope = new_scope;
+		block->scope  = new_scope;
+	}
+
+	Token tk = curr_tk();
+	while ( tk.kind != TK::RCurly )
+	{
+		switch ( tk.kind )
+		{
+			case TK::KeywordDecl:     parse_decl_stmnt(); break;
+			case TK::KeywordLet:      parse_let_stmnt(); break;
+			case TK::KeywordIf:       parse_if_stmnt(); break;
+			case TK::KeywordFor:      parse_for_stmnt(); break;
+			case TK::KeywordWhile:    parse_while_stmnt(); break;
+			case TK::KeywordLoop:     parse_loop_stmnt(); break;
+			case TK::KeywordContinue: parse_continue_stmnt(); break;
+			case TK::KeywordBreak:    parse_break_stmnt(); break;
+			case TK::KeywordReturn:   parse_return_stmnt(); break;
+			case TK::LCurly:
+			{
+				AstNode* parsed_block = (AstNode*)parse_lexical_scope();
+
+				current_scope->statements.append( parsed_block );
+				break;
+			}
+			default:
+			{
+				AstNode* expr = parse_expr( true, true );
+
+				tk = curr_tk();
+				if ( tk.kind != TK::Semicolon )
+				{
+					log_span_fatal( tk.span, "Expected terminating ';' after expression, but got '%s'", Token_GetKindAsString( tk.kind ) );
+				}
+
+				current_scope->statements.append( expr );
+
+				next_tk();
+				break;
+			}
+		}
+
+		consume_newlines();
+		tk = curr_tk();
+	}
+
+	if ( tk.kind != TK::RCurly )
+	{
+		log_span_fatal( tk.span, "Expected terminating '}' in lexical block, but got '%s'", Token_GetKindAsString( tk.kind ) );
+	}
+
+	next_tk();
+
+	assert( current_scope->parent );
+	current_scope = current_scope->parent;
+
+	return block;
 }
 
 

@@ -23,6 +23,7 @@ struct Parser {
 	std::vector<Token> seen_tokens;
 	Arena              node_arena;
 	Arena              type_arena;
+	Module*            working_module;
 	Scope*             current_scope;
 
 	Parser();
@@ -45,6 +46,8 @@ struct Parser {
 	void parse_struct_decl();
 	void parse_enum_decl();
 	void parse_union_decl();
+
+	LexicalBlock* parse_lexical_scope();
 
 	VarDeclStmnt* parse_var_decl( char const* usage_in_str );
 	AstNode* parse_expr( bool can_construct = false, bool can_assign = false );
