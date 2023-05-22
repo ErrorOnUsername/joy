@@ -318,9 +318,25 @@ void Parser::parse_loop_stmnt()
 
 void Parser::parse_continue_stmnt()
 {
-	Token tk = curr_tk();
+	Token continue_tk = curr_tk();
+	if ( continue_tk.kind != TK::KeywordContinue )
+	{
+		log_span_fatal( continue_tk.span, "Expected 'continue' at beginning of continue statement, but got '%s'", Token_GetKindAsString( continue_tk.kind ) );
+	}
 
-	log_span_fatal( tk.span, "impl" );
+	Token semicolon_tk = next_tk();
+	if ( semicolon_tk.kind != TK::Semicolon )
+	{
+		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after continue statement, but got '%s'", Token_GetKindAsString( continue_tk.kind ) );
+	}
+
+	next_tk();
+
+	AstNode* stmnt = node_arena.alloc<AstNode>();
+	stmnt->kind = AstNodeKind::ContinueStmnt;
+	stmnt->span = continue_tk.span;
+
+	current_scope->statements.append( stmnt );
 }
 
 

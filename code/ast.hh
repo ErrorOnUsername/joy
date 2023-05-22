@@ -29,6 +29,7 @@ namespace AstNodeKind
 		ForLoop,
 		WhileLoop,
 		InfiniteLoop,
+		ContinueStmnt,
 		BreakStmnt,
 	};
 }
