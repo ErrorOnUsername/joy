@@ -1,4 +1,4 @@
-//#load "other_file.df";
+#load "other_file.df";
 
 decl MyType : struct
 {

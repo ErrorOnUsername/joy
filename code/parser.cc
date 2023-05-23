@@ -2,6 +2,7 @@
 #include <cassert>
 
 #include "ast.hh"
+#include "compiler.hh"
 #include "log.hh"
 #include "profiling.hh"
 
@@ -43,9 +44,37 @@ Module Parser::process_module( std::string const& path )
 	{
 		switch ( tk.kind )
 		{
-			case TK::DirectiveLoad:
-				log_span_fatal( tk.span, "Implement module loading!" );
+			case TK::DirectiveLoad: {
+				tk = next_tk();
+				if (tk.kind != TK::StringLiteral)
+				{
+					log_span_fatal( tk.span, "Expected string-literal after '#load' directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
+				}
+
+				size_t last_slash_pos = path.find_last_of( "/\\" );
+				std::string current_dir;
+				if ( last_slash_pos == std::string::npos )
+				{
+					current_dir = "./";
+				}
+				else
+				{
+					current_dir = path.substr( 0, last_slash_pos + 1 );
+				}
+
+				std::string load_path = current_dir + tk.str;
+
+				tk = next_tk();
+				if ( tk.kind != TK::Semicolon )
+				{
+					log_span_fatal( tk.span, "Expected terminating ';' after module name in '#load' directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
+				}
+
+				Compiler_ScheduleLoad( load_path );
+
+				next_tk();
 				break;
+			}
 			case TK::KeywordLet:
 				parse_let_stmnt();
 				break;
