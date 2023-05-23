@@ -44,7 +44,8 @@ Module Parser::process_module( std::string const& path )
 	{
 		switch ( tk.kind )
 		{
-			case TK::DirectiveLoad: {
+			case TK::DirectiveLoad:
+			{
 				tk = next_tk();
 				if (tk.kind != TK::StringLiteral)
 				{
