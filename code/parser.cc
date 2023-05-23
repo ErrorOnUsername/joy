@@ -1436,7 +1436,48 @@ AstNode* Parser::parse_operand( bool can_construct )
 				}
 				case TK::LParen:
 				{
-					log_span_fatal( tk.span, "Implement procedure calls" );
+					Array<AstNode*> params;
+					Span end_name_span = peek_tk( -1 ).span;
+
+					next_tk();
+					consume_newlines();
+
+					tk = curr_tk();
+					while ( tk.kind != TK::RParen )
+					{
+						if ( params.count > 0 )
+						{
+							if ( tk.kind != TK::Comma )
+							{
+								log_span_fatal( tk.span, "Expected ',' between procedure parameters, but got '%s'", Token_GetKindAsString( tk.kind ) );
+							}
+
+							next_tk();
+							consume_newlines();
+
+							tk = curr_tk();
+						}
+
+						AstNode* param = parse_expr( true );
+						params.append( param );
+
+						tk = curr_tk();
+					}
+
+					if ( tk.kind != TK::RParen )
+					{
+						log_span_fatal( tk.span, "Expected terminating ')' after procedure parameter list, but got '%s'", Token_GetKindAsString( tk.kind ) );
+					}
+
+					next_tk();
+
+					ProcCallExpr* expr = node_arena.alloc<ProcCallExpr>();
+					expr->kind = AstNodeKind::ProcCall;
+					expr->span = join_span( start_span, end_name_span );
+					expr->name_path.swap( name );
+					expr->params.swap( params );
+
+					prefix = expr;
 					break;
 				}
 				default:

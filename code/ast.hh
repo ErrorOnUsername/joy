@@ -25,6 +25,7 @@ namespace AstNodeKind
 		ProcDecl,
 		IfStmnt,
 		VarRef,
+		ProcCall,
 		LexicalBlock,
 		ForLoop,
 		WhileLoop,
@@ -146,6 +147,11 @@ struct CharacterLiteralExpr : public AstNode {
 
 struct VarRefExpr : public AstNode {
 	Array<std::string> name_path;
+};
+
+struct ProcCallExpr : public AstNode {
+	Array<std::string> name_path;
+	Array<AstNode*> params;
 };
 
 //
