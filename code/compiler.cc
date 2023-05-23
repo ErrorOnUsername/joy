@@ -2,6 +2,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <queue>
+#include <thread>
 #ifdef _WIN32
 #include <windows.h>
 #include <processthreadsapi.h>
@@ -32,10 +33,11 @@ static void Compiler_TerminationHandler()
 		s_terminated_threads++;
 	}
 
+	int exit = 1;
 #ifdef _WIN32
-	ExitThread( 1 );
+	ExitThread( exit );
 #else
-	pthread_exit();
+	pthread_exit( &exit );
 #endif
 }
 
