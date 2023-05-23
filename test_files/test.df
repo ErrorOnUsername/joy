@@ -1,4 +1,3 @@
-// doesn't work yet :)
 //#load "other_file.df";
 
 decl MyType : struct
@@ -58,7 +57,7 @@ decl main : ()
 	for i in [0..10) {
 		let haha := 0;
 		let a    := haha;
-		continue;
+		continue
 	}
 
 	let x      := 16.0;

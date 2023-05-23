@@ -14,6 +14,7 @@ set( OPTICK_DLL_OUTPUT ${CMAKE_BINARY_DIR}/third_party/optick/OptickCored.dll )
 include_directories( third_party/optick/src )
 
 set( SOURCES
+	code/compiler.cc
 	code/main.cc
 	code/file_manager.cc
 	code/lexer.cc

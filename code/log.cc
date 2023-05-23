@@ -120,6 +120,7 @@ void log_span_fatal( Span span, char const* msg, ... )
 
 	fflush( stdout );
 
+/*
 #ifdef _WIN32
 	if ( IsDebuggerPresent() )
 	{
@@ -127,7 +128,8 @@ void log_span_fatal( Span span, char const* msg, ... )
 	}
 	else
 #endif
+*/
 	{
-		exit( 1 );
+		std::terminate();
 	}
 }
