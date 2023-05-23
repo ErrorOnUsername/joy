@@ -20,8 +20,8 @@ static std::condition_variable s_job_status_update;
 static std::queue<std::string> s_load_jobs;
 
 static bool s_should_terminate = false;
-static bool s_is_working       = false;
 
+static int s_working_threads    = 0;
 static int s_terminated_threads = 0;
 
 
@@ -29,7 +29,7 @@ static void Compiler_TerminationHandler()
 {
 	{
 		std::unique_lock<std::mutex> lock ( s_job_queue_mutex );
-		s_is_working = false;
+		s_working_threads--;
 		s_terminated_threads++;
 	}
 
@@ -73,7 +73,7 @@ static void JobSystem_WorkerProc( int worker_id )
 			path = s_load_jobs.front();
 			s_load_jobs.pop();
 
-			s_is_working = true;
+			s_working_threads++;
 		}
 
 		{
@@ -87,7 +87,7 @@ static void JobSystem_WorkerProc( int worker_id )
 
 			std::unique_lock<std::mutex> lock( s_job_queue_mutex );
 
-			s_is_working = false;
+			s_working_threads--;
 		}
 	}
 }
@@ -144,5 +144,5 @@ bool Compiler_JobSystem_IsBusy()
 {
 	std::unique_lock<std::mutex> lock( s_job_queue_mutex );
 
-	return !s_load_jobs.empty() || s_is_working;
+	return !s_load_jobs.empty() || s_working_threads > 0;
 }
