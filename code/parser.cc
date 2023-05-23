@@ -337,7 +337,7 @@ void Parser::parse_continue_stmnt()
 	Token semicolon_tk = next_tk();
 	if ( semicolon_tk.kind != TK::Semicolon )
 	{
-		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after continue statement, but got '%s'", Token_GetKindAsString( continue_tk.kind ) );
+		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after continue statement, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
 	}
 
 	next_tk();
