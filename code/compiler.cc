@@ -1,8 +1,11 @@
 #include "compiler.hh"
 #include <condition_variable>
+#include <filesystem>
 #include <mutex>
 #include <queue>
+#include <sys/stat.h>
 #include <thread>
+#include <unordered_map>
 #ifdef _WIN32
 #include <windows.h>
 #include <processthreadsapi.h>
@@ -10,6 +13,7 @@
 #include <pthread.h>
 #endif
 
+#include "arena.hh"
 #include "parser.hh"
 #include "profiling.hh"
 
@@ -23,6 +27,49 @@ static bool s_should_terminate = false;
 
 static int s_working_threads    = 0;
 static int s_terminated_threads = 0;
+
+static std::mutex s_module_graph_mutex;
+static Arena s_module_arena( 16 * 1024 );
+static std::unordered_map<std::string, Module*> s_module_map;
+
+
+Module* Compiler_FindOrAddModule( std::string const& path, bool& did_create )
+{
+	did_create = false;
+
+	std::error_code abs_err;
+	std::filesystem::path abs_path = std::filesystem::absolute( path, abs_err );
+	if ( abs_err )
+	{
+		return nullptr;
+	}
+
+	std::string abs_path_str = abs_path.string();
+
+	struct stat stat_res;
+	int stat_code = stat( abs_path_str.c_str(), &stat_res );
+
+	if ( stat_code != 0 || ( stat_res.st_mode & S_IFDIR ) )
+	{
+		return nullptr;
+	}
+
+
+	std::unique_lock<std::mutex> lock( s_module_graph_mutex );
+
+	if ( s_module_map.find( abs_path_str ) != s_module_map.cend() )
+	{
+		return s_module_map[abs_path_str];
+	}
+
+	Module* mod = s_module_arena.alloc<Module>();
+	mod->full_path = abs_path_str;
+
+	s_module_map[abs_path_str] = mod;
+
+	did_create = true;
+	return mod;
+}
 
 
 static void Compiler_TerminationHandler()
@@ -78,8 +125,7 @@ static void JobSystem_WorkerProc( int worker_id )
 
 		{
 			Parser parser;
-
-			Module mod = parser.process_module( path );
+			parser.process_module( path );
 		}
 
 		{
@@ -93,9 +139,14 @@ static void JobSystem_WorkerProc( int worker_id )
 }
 
 
-void Compiler_ScheduleLoad( std::string const& path )
+Module* Compiler_ScheduleLoad( std::string const& path )
 {
 	TIME_PROC();
+
+	bool created;
+	Module* mod = Compiler_FindOrAddModule( path, created );
+	if ( !mod ) return nullptr;
+	if ( !created ) return mod;
 
 	{
 		std::unique_lock<std::mutex> lock( s_job_queue_mutex );
@@ -103,6 +154,8 @@ void Compiler_ScheduleLoad( std::string const& path )
 	}
 
 	s_job_status_update.notify_one();
+
+	return mod;
 }
 
 

@@ -16,18 +16,20 @@ Parser::Parser()
 }
 
 
-Module Parser::process_module( std::string const& path )
+void Parser::process_module( std::string const& path )
 {
 	TIME_PROC();
 
-	Module module;
+	bool did_create;
+	working_module = Compiler_FindOrAddModule( path, did_create );
+	assert( working_module && !did_create ); // FIXME: Assert and nicely fail (shouldn't really be possible to hit this anyways)
+
 	{
 		// Initialize the module with the global scope
-		Scope* root_scope = module.scope_arena.alloc<Scope>();
-		module.root_scope = root_scope;
+		Scope* root_scope = working_module->scope_arena.alloc<Scope>();
+		working_module->root_scope = root_scope;
 
 		current_scope = root_scope;
-		working_module = &module;
 	}
 
 
@@ -46,13 +48,15 @@ Module Parser::process_module( std::string const& path )
 		{
 			case TK::DirectiveLoad:
 			{
+				Span start_span = tk.span;
+
 				tk = next_tk();
 				if (tk.kind != TK::StringLiteral)
 				{
 					log_span_fatal( tk.span, "Expected string-literal after '#load' directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
 				}
 
-				size_t last_slash_pos = path.find_last_of( "/\\" );
+				size_t last_slash_pos = path.find_last_of( '/' );
 				std::string current_dir;
 				if ( last_slash_pos == std::string::npos )
 				{
@@ -71,7 +75,13 @@ Module Parser::process_module( std::string const& path )
 					log_span_fatal( tk.span, "Expected terminating ';' after module name in '#load' directive, but got '%s'", Token_GetKindAsString( tk.kind ) );
 				}
 
-				Compiler_ScheduleLoad( load_path );
+				Span full_span = join_span( start_span, tk.span );
+
+				Module* mod = Compiler_ScheduleLoad( load_path );
+				if ( !mod )
+				{
+					log_span_fatal( full_span, "Module at path '%s' either doesn't exist or is a directory", load_path.c_str() );
+				}
 
 				next_tk();
 				break;
@@ -89,8 +99,6 @@ Module Parser::process_module( std::string const& path )
 		consume_newlines();
 		tk = curr_tk();
 	}
-
-	return module;
 }
 
 

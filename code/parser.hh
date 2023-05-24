@@ -28,7 +28,7 @@ struct Parser {
 
 	Parser();
 
-	Module process_module( std::string const& path );
+	void process_module( std::string const& path );
 
 	void parse_decl_stmnt();
 	void parse_let_stmnt();

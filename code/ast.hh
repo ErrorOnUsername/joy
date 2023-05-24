@@ -268,6 +268,8 @@ struct ReturnStmnt : public AstNode {
 // Module
 //
 struct Module {
+	std::string full_path;
+
 	Arena  scope_arena;
 	Scope* root_scope;
 
