@@ -1,6 +1,7 @@
 #include "compiler.hh"
 #include "log.hh"
 #include "profiling.hh"
+#include "typechecker.hh"
 
 int main()
 {
@@ -25,6 +26,11 @@ int main()
 	if ( !main_module )
 	{
 		log_error( "Couldn't load the main module at path '%s'", "./test_files/test.df" );
+	}
+
+	if ( !exited_with_error )
+	{
+		exited_with_error = !Typechecker_CheckModule( main_module );
 	}
 
 	char const* status_str = "\x1b[32;1msucceeded\x1b[0m";
