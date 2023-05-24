@@ -1582,6 +1582,9 @@ AstNode* Parser::parse_operand( bool can_construct )
 		case TK::LSquare:
 			log_span_fatal( tail_tk.span, "Implement array indexing" );
 			break;
+		case TK::KeywordAs:
+			log_span_fatal( tail_tk.span, "Implement casting" );
+			break;
 	}
 
 	assert( fnl );
