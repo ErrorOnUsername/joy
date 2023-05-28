@@ -30,6 +30,8 @@ int main()
 
 	if ( !exited_with_error )
 	{
+		TIME_SCOPE( "build task queue & perform cycle check" );
+
 		bool found_cycle = Typechecker_BuildTaskQueue( main_module );
 		if ( found_cycle )
 		{
