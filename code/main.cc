@@ -30,6 +30,17 @@ int main()
 
 	if ( !exited_with_error )
 	{
+		bool found_cycle = Typechecker_BuildTaskQueue( main_module );
+		if ( found_cycle )
+		{
+			Typechecker_LogCycle();
+		}
+
+		exited_with_error = found_cycle;
+	}
+
+	if ( !exited_with_error )
+	{
 		exited_with_error = !Typechecker_CheckModule( main_module );
 	}
 

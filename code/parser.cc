@@ -83,6 +83,8 @@ void Parser::process_module( std::string const& path )
 					log_span_fatal( full_span, "Module at path '%s' either doesn't exist or is a directory", load_path.c_str() );
 				}
 
+				working_module->imports.append( mod );
+
 				next_tk();
 				break;
 			}

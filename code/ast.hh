@@ -270,8 +270,12 @@ struct ReturnStmnt : public AstNode {
 struct Module {
 	std::string full_path;
 
+	size_t typechecker_queue_idx;
+
 	Arena  scope_arena;
 	Scope* root_scope;
+
+	Array<Module*> imports;
 
 	Module()
 		: scope_arena( 2 * 1024 )
