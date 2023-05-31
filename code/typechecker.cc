@@ -3,8 +3,9 @@
 #include <thread>
 #include <vector>
 
-#include "log.hh"
 #include "compiler.hh"
+#include "log.hh"
+#include "profiling.hh"
 
 
 std::vector<Module*> s_cycle_check_include_path;
@@ -117,6 +118,8 @@ void Typechecker_LogCycle()
 
 static void Typechecker_CheckModule( std::string const& path, Module* module )
 {
+	TIME_PROC();
+
 	std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
 }
 
