@@ -37,7 +37,7 @@ int main()
 		int worker_count = 8;
 		Compiler_JobSystem_Start( worker_count );
 
-		main_module = Compiler_ScheduleLoad( "./test_files/smoke/a.df" );
+		main_module = Compiler_ScheduleLoad( "./test_files/test.df" );
 
 		while ( Compiler_JobSystem_IsBusy() );
 		exited_with_error = Compiler_JobSystem_DidAnyWorkersFail() || !main_module;

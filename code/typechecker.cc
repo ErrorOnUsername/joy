@@ -119,13 +119,13 @@ void Typechecker_LogCycle()
 static void Typechecker_CheckModule( std::string const& path, Module* module )
 {
 	TIME_PROC();
-
-	std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
 }
 
 
 bool Typechecker_StageAllTasks()
 {
+	TIME_PROC();
+
 	size_t current_task_idx = 0;
 	size_t current_task_group = 0;
 

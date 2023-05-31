@@ -1,7 +1,0 @@
-#load "e.df";
-#load "f.df";
-#load "g.df";
-
-decl almost : ()
-{
-}
