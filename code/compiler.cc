@@ -174,6 +174,8 @@ bool Compiler_JobSystem_Terminate()
 {
 	TIME_PROC();
 
+	if ( s_workers.size() == 0 ) return 0;
+
 	{
 		std::unique_lock<std::mutex> lock( s_job_queue_mutex );
 		s_should_terminate = true;
@@ -189,6 +191,8 @@ bool Compiler_JobSystem_Terminate()
 		}
 	}
 
+	s_workers.clear();
+
 	return s_terminated_threads == 0;
 }
 
@@ -198,4 +202,10 @@ bool Compiler_JobSystem_IsBusy()
 	std::unique_lock<std::mutex> lock( s_job_queue_mutex );
 
 	return !s_load_jobs.empty() || s_working_threads > 0;
+}
+
+
+bool Compiler_JobSystem_DidAnyWorkersFail()
+{
+	return s_terminated_threads > 0;
 }
