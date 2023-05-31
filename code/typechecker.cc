@@ -1,7 +1,10 @@
 #include "typechecker.hh"
+#include <chrono>
+#include <thread>
 #include <vector>
 
 #include "log.hh"
+#include "compiler.hh"
 
 
 std::vector<Module*> s_cycle_check_include_path;
@@ -112,7 +115,45 @@ void Typechecker_LogCycle()
 }
 
 
+bool Typechecker_StageAllTasks()
+{
+	size_t current_task_idx = 0;
+	size_t current_task_group = 0;
+
+	while ( current_task_idx < s_task_queue.size() )
+	{
+		Module* mod = s_task_queue[current_task_idx];
+		while ( mod && mod->typechecker_task_group == current_task_group )
+		{
+			// TODO: Enqueue the job
+
+			current_task_idx++;
+			if ( current_task_idx >= s_task_queue.size() )
+			{
+				mod = nullptr;
+			}
+			else
+			{
+				mod = s_task_queue[current_task_idx];
+			}
+		}
+
+		while( Compiler_JobSystem_IsBusy() );
+
+		if ( Compiler_JobSystem_DidAnyWorkersFail() )
+		{
+			return false;
+		}
+
+		current_task_group++;
+	}
+
+	return true;
+}
+
+
 bool Typechecker_CheckModule( Module* module )
 {
+	std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
 	return true;
 }

@@ -66,10 +66,12 @@ int main()
 
 	if ( exited_with_error ) return exit_failed();
 
-	exited_with_error = !Typechecker_CheckModule( main_module );
-
+	exited_with_error = !Typechecker_StageAllTasks();
 	if ( exited_with_error ) return exit_failed();
 
-	if ( exited_with_error ) return exit_failed();
-	else return exit_succeeded();
+
+	if ( exited_with_error )
+		return exit_failed();
+	else
+		return exit_succeeded();
 }

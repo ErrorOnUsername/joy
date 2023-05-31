@@ -6,4 +6,5 @@
 bool Typechecker_BuildTaskQueue( Module* root_module, int& level );
 void Typechecker_LogTaskQueue();
 void Typechecker_LogCycle();
+bool Typechecker_StageAllTasks();
 bool Typechecker_CheckModule( Module* module );
