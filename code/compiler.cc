@@ -21,7 +21,7 @@
 static std::vector<std::thread> s_workers;
 static std::mutex s_job_queue_mutex;
 static std::condition_variable s_job_status_update;
-static std::queue<std::string> s_load_jobs;
+static std::queue<Job> s_jobs;
 
 static bool s_should_terminate = false;
 
@@ -100,7 +100,7 @@ static void JobSystem_WorkerProc( int worker_id )
 	{
 		TIME_THREAD( name );
 
-		std::string path;
+		Job job;
 
 		{
 			TIME_SCOPE( "waiting for work..." );
@@ -109,7 +109,7 @@ static void JobSystem_WorkerProc( int worker_id )
 
 			s_job_status_update.wait( lock, []()
 			{
-				return !s_load_jobs.empty() || s_should_terminate;
+				return !s_jobs.empty() || s_should_terminate;
 			});
 
 			if ( s_should_terminate )
@@ -117,16 +117,13 @@ static void JobSystem_WorkerProc( int worker_id )
 				return;
 			}
 
-			path = s_load_jobs.front();
-			s_load_jobs.pop();
+			job = s_jobs.front();
+			s_jobs.pop();
 
 			s_working_threads++;
 		}
 
-		{
-			Parser parser;
-			parser.process_module( path );
-		}
+		job.proc( job.str, job.mod );
 
 		{
 			TIME_SCOPE( "ending task..." );
@@ -139,6 +136,15 @@ static void JobSystem_WorkerProc( int worker_id )
 }
 
 
+// FIXME: Put this in the parser, it doesn't really belong here
+static void Compiler_PerformLoad( std::string const& path, Module* module )
+{
+	Parser parser;
+	parser.process_module( path );
+}
+
+
+// FIXME: Put this in the parser, it doesn't really belong here
 Module* Compiler_ScheduleLoad( std::string const& path )
 {
 	TIME_PROC();
@@ -148,14 +154,32 @@ Module* Compiler_ScheduleLoad( std::string const& path )
 	if ( !mod ) return nullptr;
 	if ( !created ) return mod;
 
+	Job job;
+	job.str = path;
+	job.mod = mod;
+	job.proc = Compiler_PerformLoad;
+
 	{
 		std::unique_lock<std::mutex> lock( s_job_queue_mutex );
-		s_load_jobs.push( path );
+		s_jobs.push( job );
 	}
 
 	s_job_status_update.notify_one();
 
 	return mod;
+}
+
+
+void Compiler_ScheduleJob( Job const& job )
+{
+	TIME_PROC();
+
+	{
+		std::unique_lock<std::mutex> lock( s_job_queue_mutex );
+		s_jobs.push( job );
+	}
+
+	s_job_status_update.notify_one();
 }
 
 
@@ -201,7 +225,7 @@ bool Compiler_JobSystem_IsBusy()
 {
 	std::unique_lock<std::mutex> lock( s_job_queue_mutex );
 
-	return !s_load_jobs.empty() || s_working_threads > 0;
+	return !s_jobs.empty() || s_working_threads > 0;
 }
 
 

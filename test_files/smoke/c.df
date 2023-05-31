@@ -1,0 +1,5 @@
+#load "d.df";
+
+decl another : ()
+{
+}

@@ -115,6 +115,12 @@ void Typechecker_LogCycle()
 }
 
 
+static void Typechecker_CheckModule( std::string const& path, Module* module )
+{
+	std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
+}
+
+
 bool Typechecker_StageAllTasks()
 {
 	size_t current_task_idx = 0;
@@ -125,7 +131,12 @@ bool Typechecker_StageAllTasks()
 		Module* mod = s_task_queue[current_task_idx];
 		while ( mod && mod->typechecker_task_group == current_task_group )
 		{
-			// TODO: Enqueue the job
+			Job job;
+			job.str  = mod->full_path;
+			job.mod  = mod;
+			job.proc = Typechecker_CheckModule;
+
+			Compiler_ScheduleJob( job );
 
 			current_task_idx++;
 			if ( current_task_idx >= s_task_queue.size() )
@@ -148,12 +159,5 @@ bool Typechecker_StageAllTasks()
 		current_task_group++;
 	}
 
-	return true;
-}
-
-
-bool Typechecker_CheckModule( Module* module )
-{
-	std::this_thread::sleep_for( std::chrono::milliseconds( 2 ) );
 	return true;
 }

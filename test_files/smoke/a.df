@@ -1,0 +1,6 @@
+#load "b.df";
+#load "c.df";
+
+decl proc : ()
+{
+}
