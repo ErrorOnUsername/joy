@@ -21,8 +21,6 @@ struct Parser {
 	// we don't make stack copies all the time (expensive
 	// since each token holds a std::string)
 	std::vector<Token> seen_tokens;
-	Arena              node_arena;
-	Arena              type_arena;
 	Module*            working_module;
 	Scope*             current_scope;
 

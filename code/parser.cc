@@ -10,8 +10,6 @@
 Parser::Parser()
 	: lex_info()
 	, seen_tokens()
-	, node_arena( 16 * 1024 )
-	, type_arena( 16 * 1024 )
 {
 }
 
@@ -206,7 +204,7 @@ void Parser::parse_if_stmnt()
 
 	AstNode* condition_expr = parse_expr();
 
-	IfStmnt* stmnt = node_arena.alloc<IfStmnt>();
+	IfStmnt* stmnt = working_module->node_arena.alloc<IfStmnt>();
 	stmnt->kind           = AstNodeKind::IfStmnt;
 	stmnt->span           = join_span( if_tk.span, condition_expr->span );
 	stmnt->condition_expr = condition_expr;
@@ -238,7 +236,7 @@ void Parser::parse_if_stmnt()
 			else_condition_expr = parse_expr();
 		}
 
-		IfStmnt* else_stmnt = node_arena.alloc<IfStmnt>();
+		IfStmnt* else_stmnt = working_module->node_arena.alloc<IfStmnt>();
 		if ( else_condition_expr )
 		{
 			else_stmnt->span = join_span( maybe_else_tk.span, else_condition_expr->span );
@@ -304,7 +302,7 @@ void Parser::parse_for_stmnt()
 		log_span_fatal( range->span, "Expected range expression after iterator name definition" );
 	}
 
-	ForLoopStmnt* stmnt = node_arena.alloc<ForLoopStmnt>();
+	ForLoopStmnt* stmnt = working_module->node_arena.alloc<ForLoopStmnt>();
 	stmnt->kind  = AstNodeKind::ForLoop;
 	stmnt->span  = join_span( for_tk.span, range->span );
 	stmnt->iter  = iter;
@@ -330,7 +328,7 @@ void Parser::parse_while_stmnt()
 
 	AstNode* condition_expr = parse_expr();
 
-	WhileLoopStmnt* stmnt = node_arena.alloc<WhileLoopStmnt>();
+	WhileLoopStmnt* stmnt = working_module->node_arena.alloc<WhileLoopStmnt>();
 	stmnt->kind           = AstNodeKind::WhileLoop;
 	stmnt->span           = join_span( while_tk.span, condition_expr->span );
 	stmnt->condition_expr = condition_expr;
@@ -354,7 +352,7 @@ void Parser::parse_loop_stmnt()
 
 	next_tk();
 
-	InfiniteLoopStmnt* stmnt = node_arena.alloc<InfiniteLoopStmnt>();
+	InfiniteLoopStmnt* stmnt = working_module->node_arena.alloc<InfiniteLoopStmnt>();
 	stmnt->kind = AstNodeKind::InfiniteLoop;
 	stmnt->span = loop_tk.span;
 	stmnt->body = parse_lexical_scope();
@@ -382,7 +380,7 @@ void Parser::parse_continue_stmnt()
 
 	next_tk();
 
-	AstNode* stmnt = node_arena.alloc<AstNode>();
+	AstNode* stmnt = working_module->node_arena.alloc<AstNode>();
 	stmnt->kind = AstNodeKind::ContinueStmnt;
 	stmnt->span = continue_tk.span;
 
@@ -406,7 +404,7 @@ void Parser::parse_break_stmnt()
 		log_span_fatal( semicolon_tk.span, "Expected terminating ';' after break statement, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
 	}
 
-	AstNode* stmnt = node_arena.alloc<AstNode>();
+	AstNode* stmnt = working_module->node_arena.alloc<AstNode>();
 	stmnt->kind = AstNodeKind::BreakStmnt;
 
 	current_scope->statements.append( stmnt );
@@ -440,7 +438,7 @@ void Parser::parse_return_stmnt()
 
 	next_tk();
 
-	ReturnStmnt* stmnt = node_arena.alloc<ReturnStmnt>();
+	ReturnStmnt* stmnt = working_module->node_arena.alloc<ReturnStmnt>();
 	stmnt->kind = AstNodeKind::ReturnStmnt;
 	stmnt->span = ( expr ) ? join_span( return_tk.span, expr->span ) : return_tk.span;
 	stmnt->expr = expr;
@@ -481,7 +479,7 @@ void Parser::parse_procedure_decl()
 {
 	TIME_PROC();
 
-	ProcDeclStmnt* decl = node_arena.alloc<ProcDeclStmnt>();
+	ProcDeclStmnt* decl = working_module->node_arena.alloc<ProcDeclStmnt>();
 	decl->kind  = AstNodeKind::ProcDecl;
 	decl->flags = AstNodeFlag::Decl;
 
@@ -579,7 +577,7 @@ void Parser::parse_struct_decl()
 {
 	TIME_PROC();
 
-	StructDeclStmnt* decl = node_arena.alloc<StructDeclStmnt>();
+	StructDeclStmnt* decl = working_module->node_arena.alloc<StructDeclStmnt>();
 	decl->kind  = AstNodeKind::StructDecl;
 	decl->flags = AstNodeFlag::Decl;
 
@@ -678,7 +676,7 @@ void Parser::parse_enum_decl()
 {
 	TIME_PROC();
 
-	EnumDeclStmnt* decl = node_arena.alloc<EnumDeclStmnt>();
+	EnumDeclStmnt* decl = working_module->node_arena.alloc<EnumDeclStmnt>();
 	decl->kind  = AstNodeKind::EnumDecl;
 	decl->flags = AstNodeFlag::Decl;
 
@@ -796,7 +794,7 @@ void Parser::parse_enum_decl()
 		}
 		else
 		{
-			IntegerLiteralExpr* val_expr = node_arena.alloc<IntegerLiteralExpr>();
+			IntegerLiteralExpr* val_expr = working_module->node_arena.alloc<IntegerLiteralExpr>();
 			val_expr->kind  = AstNodeKind::IntegerLiteral;
 			val_expr->span  = variant.span;
 			val_expr->flags = AstNodeFlag::NumberLiteral;
@@ -838,7 +836,7 @@ void Parser::parse_union_decl()
 {
 	TIME_PROC();
 
-	UnionDeclStmnt* decl = node_arena.alloc<UnionDeclStmnt>();
+	UnionDeclStmnt* decl = working_module->node_arena.alloc<UnionDeclStmnt>();
 	decl->kind  = AstNodeKind::UnionDecl;
 	decl->flags = AstNodeFlag::Decl;
 
@@ -933,7 +931,7 @@ void Parser::parse_union_decl()
 					tk = next_tk();
 				}
 
-				VarDeclStmnt* member = node_arena.alloc<VarDeclStmnt>();
+				VarDeclStmnt* member = working_module->node_arena.alloc<VarDeclStmnt>();
 				member->kind  = AstNodeKind::UnionVariantMember;
 				member->flags = AstNodeFlag::Decl;
 
@@ -1010,7 +1008,7 @@ LexicalBlock* Parser::parse_lexical_scope()
 	next_tk();
 	consume_newlines();
 
-	LexicalBlock* block = node_arena.alloc<LexicalBlock>();
+	LexicalBlock* block = working_module->node_arena.alloc<LexicalBlock>();
 	block->kind = AstNodeKind::LexicalBlock;
 	block->span = l_curly_tk.span;
 
@@ -1082,7 +1080,7 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 {
 	TIME_PROC();
 
-	VarDeclStmnt* decl = node_arena.alloc<VarDeclStmnt>();
+	VarDeclStmnt* decl = working_module->node_arena.alloc<VarDeclStmnt>();
 	decl->kind  = AstNodeKind::VarDecl;
 	decl->flags = AstNodeFlag::Decl;
 
@@ -1160,7 +1158,7 @@ AstNode* Parser::parse_expr( bool can_construct, bool can_assign )
 				log_span_fatal( op_tk.span, "Operating on a range is not valid" );
 			}
 
-			RangeExpr* range = node_arena.alloc<RangeExpr>();
+			RangeExpr* range = working_module->node_arena.alloc<RangeExpr>();
 			range->kind = AstNodeKind::Range;
 
 			range->lhs = lhs;
@@ -1174,7 +1172,7 @@ AstNode* Parser::parse_expr( bool can_construct, bool can_assign )
 		}
 		else if ( !expr )
 		{
-			expr = node_arena.alloc<BinaryOperationExpr>();
+			expr = working_module->node_arena.alloc<BinaryOperationExpr>();
 			expr->kind = AstNodeKind::BinaryOperation;
 		}
 
@@ -1216,7 +1214,7 @@ AstNode* Parser::parse_expr( bool can_construct, bool can_assign )
 
 				lhs = expr;
 
-				expr       = node_arena.alloc<BinaryOperationExpr>();
+				expr       = working_module->node_arena.alloc<BinaryOperationExpr>();
 				expr->kind = AstNodeKind::BinaryOperation;
 			}
 		}
@@ -1321,7 +1319,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 			AstNode* expr = parse_expr();
 
-			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* un_op = working_module->node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
 			un_op->span    = join_span( lead_tk.span, expr->span );
 			un_op->op_kind = UnaryOpKind::Dereference;
@@ -1336,7 +1334,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 			AstNode* expr = parse_expr();
 
-			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* un_op = working_module->node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
 			un_op->span    = join_span( lead_tk.span, expr->span );
 			un_op->op_kind = UnaryOpKind::AddressOf;
@@ -1351,7 +1349,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 			AstNode* expr = parse_expr();
 
-			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* un_op = working_module->node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
 			un_op->span    = join_span( lead_tk.span, expr->span );
 			un_op->op_kind = UnaryOpKind::LogicalNot;
@@ -1366,7 +1364,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 			AstNode* expr = parse_expr();
 
-			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* un_op = working_module->node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
 			un_op->span    = join_span( lead_tk.span, expr->span );
 			un_op->op_kind = UnaryOpKind::BitwiseNot;
@@ -1381,7 +1379,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 			AstNode* expr = parse_expr();
 
-			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* un_op = working_module->node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
 			un_op->span    = join_span( lead_tk.span, expr->span );
 			un_op->op_kind = UnaryOpKind::PrefixIncrement;
@@ -1396,7 +1394,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 			AstNode* expr = parse_expr();
 
-			UnaryOperationExpr* un_op = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* un_op = working_module->node_arena.alloc<UnaryOperationExpr>();
 			un_op->kind    = AstNodeKind::UnaryOperation;
 			un_op->span    = join_span( lead_tk.span, expr->span );
 			un_op->op_kind = UnaryOpKind::PrefixDecrement;
@@ -1414,7 +1412,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 			{
 				case NumKind::Integer:
 				{
-					IntegerLiteralExpr* expr = node_arena.alloc<IntegerLiteralExpr>();
+					IntegerLiteralExpr* expr = working_module->node_arena.alloc<IntegerLiteralExpr>();
 					expr->kind  = AstNodeKind::IntegerLiteral;
 					expr->flags = AstNodeFlag::IntegerLiteral;
 					expr->span  = lead_tk.span;
@@ -1425,7 +1423,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 				}
 				case NumKind::FloatingPoint:
 				{
-					FloatingPointLiteralExpr* expr = node_arena.alloc<FloatingPointLiteralExpr>();
+					FloatingPointLiteralExpr* expr = working_module->node_arena.alloc<FloatingPointLiteralExpr>();
 					expr->kind  = AstNodeKind::FloatingPointLiteral;
 					expr->flags = AstNodeFlag::FloatingPointLiteral;
 					expr->span  = lead_tk.span;
@@ -1511,7 +1509,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 
 					next_tk();
 
-					ProcCallExpr* expr = node_arena.alloc<ProcCallExpr>();
+					ProcCallExpr* expr = working_module->node_arena.alloc<ProcCallExpr>();
 					expr->kind = AstNodeKind::ProcCall;
 					expr->span = join_span( start_span, end_name_span );
 					expr->name_path.swap( name );
@@ -1523,7 +1521,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 				default:
 				{
 				USE_AS_IDENT_LABEL:
-					VarRefExpr* expr = node_arena.alloc<VarRefExpr>();
+					VarRefExpr* expr = working_module->node_arena.alloc<VarRefExpr>();
 					expr->kind = AstNodeKind::VarRef;
 					expr->span = join_span( start_span, peek_tk( -1 ).span );
 					expr->name_path.swap( name );
@@ -1537,7 +1535,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 		{
 			next_tk();
 
-			StringLiteralExpr* expr = node_arena.alloc<StringLiteralExpr>();
+			StringLiteralExpr* expr = working_module->node_arena.alloc<StringLiteralExpr>();
 			expr->kind  = AstNodeKind::StringLiteral;
 			expr->flags = AstNodeFlag::StringLiteral;
 			expr->span  = lead_tk.span;
@@ -1559,7 +1557,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 		{
 			next_tk();
 
-			UnaryOperationExpr* expr = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* expr = working_module->node_arena.alloc<UnaryOperationExpr>();
 			expr->kind    = AstNodeKind::UnaryOperation;
 			expr->span    = join_span( prefix->span, tail_tk.span );
 			expr->flags   = prefix->flags;
@@ -1572,7 +1570,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 		{
 			next_tk();
 
-			UnaryOperationExpr* expr = node_arena.alloc<UnaryOperationExpr>();
+			UnaryOperationExpr* expr = working_module->node_arena.alloc<UnaryOperationExpr>();
 			expr->kind    = AstNodeKind::UnaryOperation;
 			expr->span    = join_span( prefix->span, tail_tk.span );
 			expr->flags   = prefix->flags;
@@ -1598,7 +1596,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 Type* Parser::parse_type()
 {
 	TIME_PROC();
-	Type* ty = type_arena.alloc<Type>();
+	Type* ty = working_module->type_arena.alloc<Type>();
 
 	Token tk = curr_tk();
 	switch ( tk.kind )

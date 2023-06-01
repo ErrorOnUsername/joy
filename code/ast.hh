@@ -275,11 +275,16 @@ struct Module {
 	Arena  scope_arena;
 	Scope* root_scope;
 
+	Arena node_arena;
+	Arena type_arena;
+
 	Array<Module*> imports;
 
 	Module()
 		: scope_arena( 2 * 1024 )
 		, root_scope( nullptr )
+		, node_arena( 16 * 1024 )
+		, type_arena( 16 * 1024 )
 	{
 	}
 };
