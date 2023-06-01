@@ -116,10 +116,7 @@ void Typechecker_LogCycle()
 }
 
 
-static void Typechecker_CheckModule( std::string const& path, Module* module )
-{
-	TIME_PROC();
-}
+static void Typechecker_CheckModule( std::string const& path, Module* module );
 
 
 bool Typechecker_StageAllTasks()
@@ -163,4 +160,29 @@ bool Typechecker_StageAllTasks()
 	}
 
 	return true;
+}
+
+
+static void Typechecker_CheckModule( std::string const& path, Module* module )
+{
+	TIME_PROC();
+
+	// Make sure children have been properly typechecked
+	for ( size_t i = 0; i < module->imports.count; i++ )
+	{
+		if ( !module->imports[i]->typechecker_complete )
+		{
+			log_fatal( "Child module was not properly typechecked!" );
+		}
+	}
+
+	// Recurse through lexical scopes:
+	//   1. Typecheck type definitions
+	//   2. Typecheck constants
+	//   3. Typecheck procedures
+	//       - These do not inherit non-constant declarations from
+	//         their parent scope, only the global scope
+	//   4. Typecheck statements
+
+	module->typechecker_complete = true;
 }

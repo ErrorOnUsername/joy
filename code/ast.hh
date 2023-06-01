@@ -270,6 +270,7 @@ struct ReturnStmnt : public AstNode {
 struct Module {
 	std::string full_path;
 
+	bool   typechecker_complete = false;
 	size_t typechecker_task_group;
 
 	Arena  scope_arena;

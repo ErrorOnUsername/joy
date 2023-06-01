@@ -66,6 +66,26 @@ void log_error( char const* msg, ... )
 }
 
 
+void log_fatal( char const* msg, ... )
+{
+	va_list va_args;
+	va_start( va_args, msg );
+
+	{
+		std::scoped_lock<std::mutex> lock( s_logging_mutex );
+
+		printf( ANSI_ESC_RED "Error: " ANSI_ESC_RESET );
+		vprintf( msg, va_args );
+		printf( "\n" );
+	}
+
+	va_end( va_args );
+	fflush( stdout );
+
+	std::terminate();
+}
+
+
 void log_span_fatal( Span span, char const* msg, ... )
 {
 	va_list va_args;
@@ -120,16 +140,5 @@ void log_span_fatal( Span span, char const* msg, ... )
 
 	fflush( stdout );
 
-/*
-#ifdef _WIN32
-	if ( IsDebuggerPresent() )
-	{
-		__debugbreak();
-	}
-	else
-#endif
-*/
-	{
-		std::terminate();
-	}
+	std::terminate();
 }
