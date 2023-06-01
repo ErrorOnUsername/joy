@@ -59,3 +59,6 @@ struct Parser {
 	Token curr_tk();
 	Token next_tk();
 };
+
+
+Module* Parser_ScheduleLoad( std::string const& path );

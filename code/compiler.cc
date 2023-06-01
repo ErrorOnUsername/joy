@@ -136,40 +136,6 @@ static void JobSystem_WorkerProc( int worker_id )
 }
 
 
-// FIXME: Put this in the parser, it doesn't really belong here
-static void Compiler_PerformLoad( std::string const& path, Module* module )
-{
-	Parser parser;
-	parser.process_module( path );
-}
-
-
-// FIXME: Put this in the parser, it doesn't really belong here
-Module* Compiler_ScheduleLoad( std::string const& path )
-{
-	TIME_PROC();
-
-	bool created;
-	Module* mod = Compiler_FindOrAddModule( path, created );
-	if ( !mod ) return nullptr;
-	if ( !created ) return mod;
-
-	Job job;
-	job.str = path;
-	job.mod = mod;
-	job.proc = Compiler_PerformLoad;
-
-	{
-		std::unique_lock<std::mutex> lock( s_job_queue_mutex );
-		s_jobs.push( job );
-	}
-
-	s_job_status_update.notify_one();
-
-	return mod;
-}
-
-
 void Compiler_ScheduleJob( Job const& job )
 {
 	TIME_PROC();

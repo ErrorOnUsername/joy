@@ -1,5 +1,6 @@
 #include "compiler.hh"
 #include "log.hh"
+#include "parser.hh"
 #include "profiling.hh"
 #include "typechecker.hh"
 
@@ -37,7 +38,7 @@ int main()
 		int worker_count = 8;
 		Compiler_JobSystem_Start( worker_count );
 
-		main_module = Compiler_ScheduleLoad( "./test_files/test.df" );
+		main_module = Parser_ScheduleLoad( "./test_files/test.df" );
 
 		while ( Compiler_JobSystem_IsBusy() );
 		exited_with_error = Compiler_JobSystem_DidAnyWorkersFail() || !main_module;
@@ -70,8 +71,5 @@ int main()
 	if ( exited_with_error ) return exit_failed();
 
 
-	if ( exited_with_error )
-		return exit_failed();
-	else
-		return exit_succeeded();
+	return exit_succeeded();
 }

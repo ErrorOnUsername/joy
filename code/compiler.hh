@@ -14,7 +14,6 @@ struct Job {
 
 
 Module* Compiler_FindOrAddModule( std::string const& path, bool& did_create );
-Module* Compiler_ScheduleLoad( std::string const& path );
 void Compiler_ScheduleJob( Job const& path );
 
 void Compiler_JobSystem_Start( int worker_count );

@@ -7,6 +7,35 @@
 #include "profiling.hh"
 
 
+static void Parser_PerformLoad( std::string const& path, Module* module )
+{
+	TIME_PROC();
+
+	Parser parser;
+	parser.process_module( path );
+}
+
+
+Module* Parser_ScheduleLoad( std::string const& path )
+{
+	TIME_PROC();
+
+	bool created;
+	Module* mod = Compiler_FindOrAddModule( path, created );
+	if ( !mod ) return nullptr;
+	if ( !created ) return mod;
+
+	Job job;
+	job.str = path;
+	job.mod = mod;
+	job.proc = Parser_PerformLoad;
+
+	Compiler_ScheduleJob( job );
+
+	return mod;
+}
+
+
 Parser::Parser()
 	: lex_info()
 	, seen_tokens()
@@ -75,7 +104,7 @@ void Parser::process_module( std::string const& path )
 
 				Span full_span = join_span( start_span, tk.span );
 
-				Module* mod = Compiler_ScheduleLoad( load_path );
+				Module* mod = Parser_ScheduleLoad( load_path );
 				if ( !mod )
 				{
 					log_span_fatal( full_span, "Module at path '%s' either doesn't exist or is a directory", load_path.c_str() );
