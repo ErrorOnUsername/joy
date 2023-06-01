@@ -83,7 +83,7 @@ hi def link df_enum_decl       df_type
 " Comments
 "
 syn region df_line_comment  start="//"  end="$"   contains=df_todo
-syn region df_block_comment start="/\*" end="\*/" contains=df_todo
+syn region df_block_comment start="/\*" end="\*/" contains=df_todo,df_block_comment
 
 hi def link df_line_comment    df_comment
 hi def link df_block_comment   df_comment
