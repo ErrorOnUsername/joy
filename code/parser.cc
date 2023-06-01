@@ -12,7 +12,7 @@ static void Parser_PerformLoad( std::string const& path, Module* module )
 	TIME_PROC();
 
 	Parser parser;
-	parser.process_module( path );
+	parser.process_module( path, module );
 }
 
 
@@ -43,13 +43,11 @@ Parser::Parser()
 }
 
 
-void Parser::process_module( std::string const& path )
+void Parser::process_module( std::string const& path, Module* module )
 {
 	TIME_PROC();
 
-	bool did_create;
-	working_module = Compiler_FindOrAddModule( path, did_create );
-	assert( working_module && !did_create ); // FIXME: Assert and nicely fail (shouldn't really be possible to hit this anyways)
+	working_module = module;
 
 	{
 		// Initialize the module with the global scope
