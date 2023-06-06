@@ -163,6 +163,8 @@ bool Typechecker_StageAllTasks()
 }
 
 
+static void Typechecker_CheckScope( Module* module, Scope* scope );
+
 static void Typechecker_CheckModule( std::string const& path, Module* module )
 {
 	TIME_PROC();
@@ -184,5 +186,40 @@ static void Typechecker_CheckModule( std::string const& path, Module* module )
 	//         their parent scope, only the global scope
 	//   4. Typecheck statements
 
+	Typechecker_CheckScope( module, module->root_scope );
+
 	module->typechecker_complete = true;
+}
+
+
+static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t local_type_idx, StructDeclStmnt* decl )
+{
+}
+
+
+static void Typechecker_CheckEnumDecl( Module* module, Scope* scope, size_t local_type_idx, EnumDeclStmnt* decl )
+{
+}
+
+
+static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t local_type_idx, UnionDeclStmnt* decl )
+{
+}
+
+
+static void Typechecker_CheckScope( Module* module, Scope* scope )
+{
+	for ( size_t i = 0; i < scope->types.count; i++ )
+	{
+		AstNode* type_decl = scope->types[i];
+
+		switch ( type_decl->kind )
+		{
+			case AstNodeKind::StructDecl: Typechecker_CheckStructDecl( module, scope, i, (StructDeclStmnt*)type_decl ); break;
+			case AstNodeKind::EnumDecl:   Typechecker_CheckEnumDecl( module, scope, i, (EnumDeclStmnt*)type_decl ); break;
+			case AstNodeKind::UnionDecl:  Typechecker_CheckUnionDecl( module, scope, i, (UnionDeclStmnt*)type_decl ); break;
+			default:
+				log_span_fatal( type_decl->span, "Internal typechecker error! Supposed type is of invalid kind '%d'", type_decl->kind );
+		}
+	}
 }
