@@ -192,23 +192,78 @@ static void Typechecker_CheckModule( std::string const& path, Module* module )
 }
 
 
+static void Typechecker_LookupTypeID( Scope* scope, Type* type )
+{
+	TIME_PROC();
+
+	log_span_fatal( type->span, "TODO: Type lookup" );
+}
+
+
+static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type = nullptr )
+{
+	TIME_PROC();
+
+	log_span_fatal( expr->span, "TODO: Expression checking" );
+}
+
+
 static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t local_type_idx, StructDeclStmnt* decl )
 {
+	TIME_PROC();
+
+	for ( size_t i = 0; i < decl->members.count; i++ )
+	{
+		VarDeclStmnt* member = decl->members[i];
+
+		if ( member->type )
+		{
+			if ( member->type->name == decl->name )
+			{
+				log_span_fatal( member->type->span, "Cannot have a struct member with the same type without indirection. Consider making this a '*%s'", decl->name.c_str() );
+			}
+
+			Typechecker_LookupTypeID( scope, member->type );
+
+			if ( member->type )
+			{
+				Typechecker_CheckExpression( scope, member->default_value, member->type );
+			}
+		}
+		else
+		{
+			Typechecker_CheckExpression( scope, member->default_value );
+		}
+
+		if ( member->default_value && member->type && ( member->type->id != member->default_value->type->id ) )
+		{
+			// FIXME: #ERROR_CLEANUP
+			log_span_fatal( member->span, "Struct member and expression are of incongruent types" );
+		}
+	}
 }
 
 
 static void Typechecker_CheckEnumDecl( Module* module, Scope* scope, size_t local_type_idx, EnumDeclStmnt* decl )
 {
+	TIME_PROC();
+
+	log_span_fatal( decl->span, "TODO: Implement enum typechecking" );
 }
 
 
 static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t local_type_idx, UnionDeclStmnt* decl )
 {
+	TIME_PROC();
+
+	log_span_fatal( decl->span, "TODO: Implement union typechecking" );
 }
 
 
 static void Typechecker_CheckScope( Module* module, Scope* scope )
 {
+	TIME_PROC();
+
 	for ( size_t i = 0; i < scope->types.count; i++ )
 	{
 		AstNode* type_decl = scope->types[i];

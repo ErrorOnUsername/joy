@@ -65,7 +65,7 @@ struct AstNode {
 // Types
 //
 
-using TyKind = uint16_t;
+using TyKind = uint32_t;
 namespace TypeKind
 {
 	enum {
@@ -92,9 +92,12 @@ namespace TypeKind
 	};
 }
 
+using TypeID = int64_t;
+
 struct Type {
 	TyKind      kind;
 	Span        span;
+	TypeID      id;
 	std::string name;
 	std::string import_alias;
 	Type*       underlying; // for pointers and arrays

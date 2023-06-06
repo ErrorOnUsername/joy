@@ -696,6 +696,9 @@ void Parser::parse_struct_decl()
 	{
 		log_warn( "struct '%s' doesn't have any data members", decl->name.c_str() );
 	}
+
+	AstNode* as_node = (AstNode*)decl;
+	current_scope->types.append( as_node );
 }
 
 
@@ -856,6 +859,9 @@ void Parser::parse_enum_decl()
 	{
 		log_warn( "Enum '%s' has no variants", decl->name.c_str() );
 	}
+
+	AstNode* as_node = (AstNode*)decl;
+	current_scope->types.append( as_node );
 }
 
 
@@ -1019,6 +1025,9 @@ void Parser::parse_union_decl()
 	}
 
 	next_tk();
+
+	AstNode* as_node = (AstNode*)decl;
+	current_scope->types.append( as_node );
 }
 
 
@@ -1125,7 +1134,7 @@ VarDeclStmnt* Parser::parse_var_decl( char const* usage_in_str )
 	{
 		next_tk();
 
-		Type* type = parse_type();
+		decl->type = parse_type();
 
 		Token eq_tk = curr_tk();
 		if ( eq_tk.kind == TK::Assign )
