@@ -69,30 +69,70 @@ using TyKind = uint32_t;
 namespace TypeKind
 {
 	enum {
-		Invalid,
-		Pointer,
-		Array,
-		NamedUnknown,
-		PrimitiveNothing,
-		PrimitiveBool,
-		PrimitiveChar,
-		PrimitiveU8,
-		PrimitiveI8,
-		PrimitiveU16,
-		PrimitiveI16,
-		PrimitiveU32,
-		PrimitiveI32,
-		PrimitiveU64,
-		PrimitiveI64,
-		PrimitiveF32,
-		PrimitiveF64,
-		PrimitiveRawPtr,
-		PrimitiveString,
-		PrimitiveCString,
+		Invalid      = 0,
+		Pointer      = ( 1 << 0 ),
+		Array        = ( 1 << 1 ),
+		NamedUnknown = ( 1 << 2 ),
+
+		PrimitiveNothing = ( 1 << 3 ),
+		PrimitiveBool    = ( 1 << 4 ),
+		PrimitiveChar    = ( 1 << 5 ),
+		PrimitiveU8      = ( 1 << 6 ),
+		PrimitiveI8      = ( 1 << 7 ),
+		PrimitiveU16     = ( 1 << 8 ),
+		PrimitiveI16     = ( 1 << 9 ),
+		PrimitiveU32     = ( 1 << 10 ),
+		PrimitiveI32     = ( 1 << 11 ),
+		PrimitiveU64     = ( 1 << 12 ),
+		PrimitiveI64     = ( 1 << 13 ),
+		PrimitiveF32     = ( 1 << 14 ),
+		PrimitiveF64     = ( 1 << 15 ),
+		PrimitiveRawPtr  = ( 1 << 16 ),
+		PrimitiveString  = ( 1 << 17 ),
+		PrimitiveCString = ( 1 << 18 ),
+
+		Primitive = PrimitiveNothing
+		          | PrimitiveBool
+		          | PrimitiveChar
+		          | PrimitiveU8
+		          | PrimitiveI8
+		          | PrimitiveU16
+		          | PrimitiveI16
+		          | PrimitiveU32
+		          | PrimitiveI32
+		          | PrimitiveU64
+		          | PrimitiveI64
+		          | PrimitiveF32
+		          | PrimitiveF64
+	              | PrimitiveRawPtr
+		          | PrimitiveString
+		          | PrimitiveCString,
 	};
 }
 
 using TypeID = int64_t;
+
+namespace ReservedTypeID
+{
+	enum {
+		PrimitiveNothing = -1,
+		PrimitiveBool    = -2,
+		PrimitiveChar    = -3,
+		PrimitiveU8      = -4,
+		PrimitiveI8      = -5,
+		PrimitiveU16     = -6,
+		PrimitiveI16     = -7,
+		PrimitiveU32     = -8,
+		PrimitiveI32     = -9,
+		PrimitiveU64     = -10,
+		PrimitiveI64     = -11,
+		PrimitiveF32     = -12,
+		PrimitiveF64     = -13,
+		PrimitiveRawPtr  = -14,
+		PrimitiveString  = -15,
+		PrimitiveCString = -16,
+	};
+}
 
 struct Type {
 	TyKind      kind;

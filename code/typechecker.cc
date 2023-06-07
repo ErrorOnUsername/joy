@@ -3,6 +3,7 @@
 #include <thread>
 #include <vector>
 
+#include "ast.hh"
 #include "compiler.hh"
 #include "log.hh"
 #include "profiling.hh"
@@ -192,9 +193,42 @@ static void Typechecker_CheckModule( std::string const& path, Module* module )
 }
 
 
+static TypeID Typechecker_GetPrimitiveID( TyKind kind )
+{
+	switch ( kind )
+	{
+		case TypeKind::PrimitiveNothing: return ReservedTypeID::PrimitiveNothing;
+		case TypeKind::PrimitiveBool:    return ReservedTypeID::PrimitiveBool;
+		case TypeKind::PrimitiveChar:    return ReservedTypeID::PrimitiveChar;
+		case TypeKind::PrimitiveU8:      return ReservedTypeID::PrimitiveU8;
+		case TypeKind::PrimitiveI8:      return ReservedTypeID::PrimitiveI8;
+		case TypeKind::PrimitiveU16:     return ReservedTypeID::PrimitiveU16;
+		case TypeKind::PrimitiveI16:     return ReservedTypeID::PrimitiveI16;
+		case TypeKind::PrimitiveU32:     return ReservedTypeID::PrimitiveU32;
+		case TypeKind::PrimitiveI32:     return ReservedTypeID::PrimitiveI32;
+		case TypeKind::PrimitiveU64:     return ReservedTypeID::PrimitiveU64;
+		case TypeKind::PrimitiveI64:     return ReservedTypeID::PrimitiveI64;
+		case TypeKind::PrimitiveF32:     return ReservedTypeID::PrimitiveF32;
+		case TypeKind::PrimitiveF64:     return ReservedTypeID::PrimitiveF64;
+		case TypeKind::PrimitiveRawPtr:  return ReservedTypeID::PrimitiveRawPtr;
+		case TypeKind::PrimitiveString:  return ReservedTypeID::PrimitiveString;
+		case TypeKind::PrimitiveCString: return ReservedTypeID::PrimitiveCString;
+		default: log_fatal( "Internal compiler error! Unknown primitive type kind '%u'", kind );
+	}
+
+	return ReservedTypeID::PrimitiveNothing;
+}
+
+
 static void Typechecker_LookupTypeID( Scope* scope, Type* type )
 {
 	TIME_PROC();
+
+	if ( type->kind & TypeKind::Primitive )
+	{
+		type->id = Typechecker_GetPrimitiveID( type->kind );
+		return;
+	}
 
 	log_span_fatal( type->span, "TODO: Type lookup" );
 }
@@ -225,7 +259,7 @@ static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t lo
 
 			Typechecker_LookupTypeID( scope, member->type );
 
-			if ( member->type )
+			if ( member->default_value )
 			{
 				Typechecker_CheckExpression( scope, member->default_value, member->type );
 			}
