@@ -38,7 +38,7 @@ bool Typechecker_BuildTaskQueue( Module* root_module, int& level )
 
 	for ( size_t i = 0; i < root_module->imports.count; i++ )
 	{
-		Module* child = root_module->imports[i];
+		Module* child = root_module->imports[i]->module;
 
 		if ( level > 0 ) level--;
 		if ( Typechecker_BuildTaskQueue( child, level ) ) return true;
@@ -173,7 +173,7 @@ static void Typechecker_CheckModule( std::string const& path, Module* module )
 	// Make sure children have been properly typechecked
 	for ( size_t i = 0; i < module->imports.count; i++ )
 	{
-		if ( !module->imports[i]->typechecker_complete )
+		if ( !module->imports[i]->module->typechecker_complete )
 		{
 			log_fatal( "Child module was not properly typechecked!" );
 		}
@@ -220,7 +220,23 @@ static TypeID Typechecker_GetPrimitiveID( TyKind kind )
 }
 
 
-static void Typechecker_LookupTypeID( Scope* scope, Type* type )
+static std::string const& Typechecker_GetName( AstNode* type_decl )
+{
+	switch ( type_decl->kind )
+	{
+		case AstNodeKind::StructDecl: return ((StructDeclStmnt*)type_decl)->name;
+		case AstNodeKind::EnumDecl:   return ((EnumDeclStmnt*)type_decl)->name;
+		case AstNodeKind::UnionDecl:  return ((UnionDeclStmnt*)type_decl)->name;
+		default:
+			log_span_fatal( type_decl->span, "Internal compiler error! Tried to get name of type with invalid kind '%u'", type_decl->kind );
+	}
+}
+
+
+static void Typechecker_CheckType( Module* module, Scope* scope, size_t local_type_idx, AstNode* decl_node );
+
+
+static void Typechecker_LookupTypeID( Module* module, Scope* scope, Type* type )
 {
 	TIME_PROC();
 
@@ -230,7 +246,48 @@ static void Typechecker_LookupTypeID( Scope* scope, Type* type )
 		return;
 	}
 
-	log_span_fatal( type->span, "TODO: Type lookup" );
+	bool is_aliased = !type->import_alias.empty();
+
+	if ( !is_aliased )
+	{
+		for ( size_t i = 0; i < scope->types.count; i++ )
+		{
+			AstNode* type_decl = scope->types[i];
+			std::string const& name = Typechecker_GetName( type_decl );
+			if ( type->name != name ) continue;
+
+			if ( type_decl->type_id == ReservedTypeID::Unknown )
+			{
+				Typechecker_CheckType( module, scope, i, type_decl );
+			}
+
+			type->id = type_decl->type_id;
+			return;
+		}
+	}
+
+
+	for ( size_t i = 0; i < module->imports.count; i++ )
+	{
+		LoadStmnt* import = module->imports[i];
+		if ( is_aliased && type->import_alias != import->alias ) continue;
+
+		Scope* import_root_scope = import->module->root_scope;
+
+		for ( size_t j = 0; j < import_root_scope->types.count; j++ )
+		{
+			AstNode* type_decl = import_root_scope->types[i];
+			std::string const& name = Typechecker_GetName( type_decl );
+			if ( type->name != name ) continue;
+
+			type->id = type_decl->type_id;
+			return;
+		}
+
+		log_span_fatal( type->span, "Could not find type '%s' from module with import alias '%s'", type->name.c_str(), type->import_alias.c_str() );
+	}
+
+	log_span_fatal( type->span, "Unkown type name '%s'", type->name.c_str() );
 }
 
 
@@ -246,6 +303,18 @@ static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t lo
 {
 	TIME_PROC();
 
+	for ( int64_t i = local_type_idx - 1; i >= 0; i-- )
+	{
+		AstNode* other_type = scope->types[i];
+		std::string const& other_name = Typechecker_GetName( other_type );
+
+		if ( other_name == decl->name )
+		{
+			// TODO: #ERROR_CLEANUP
+			log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
+		}
+	}
+
 	for ( size_t i = 0; i < decl->members.count; i++ )
 	{
 		VarDeclStmnt* member = decl->members[i];
@@ -257,7 +326,7 @@ static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t lo
 				log_span_fatal( member->type->span, "Cannot have a struct member with the same type without indirection. Consider making this a '*%s'", decl->name.c_str() );
 			}
 
-			Typechecker_LookupTypeID( scope, member->type );
+			Typechecker_LookupTypeID( module, scope, member->type );
 
 			if ( member->default_value )
 			{
@@ -294,6 +363,19 @@ static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t loc
 }
 
 
+static void Typechecker_CheckType( Module* module, Scope* scope, size_t local_type_idx, AstNode* decl_node )
+{
+	switch ( decl_node->kind )
+	{
+		case AstNodeKind::StructDecl: Typechecker_CheckStructDecl( module, scope, local_type_idx, (StructDeclStmnt*)decl_node ); break;
+		case AstNodeKind::EnumDecl:   Typechecker_CheckEnumDecl( module, scope, local_type_idx, (EnumDeclStmnt*)decl_node ); break;
+		case AstNodeKind::UnionDecl:  Typechecker_CheckUnionDecl( module, scope, local_type_idx, (UnionDeclStmnt*)decl_node ); break;
+		default:
+			log_span_fatal( decl_node->span, "Internal typechecker error! Supposed type is of invalid kind '%d'", decl_node->kind );
+	}
+}
+
+
 static void Typechecker_CheckScope( Module* module, Scope* scope )
 {
 	TIME_PROC();
@@ -301,14 +383,6 @@ static void Typechecker_CheckScope( Module* module, Scope* scope )
 	for ( size_t i = 0; i < scope->types.count; i++ )
 	{
 		AstNode* type_decl = scope->types[i];
-
-		switch ( type_decl->kind )
-		{
-			case AstNodeKind::StructDecl: Typechecker_CheckStructDecl( module, scope, i, (StructDeclStmnt*)type_decl ); break;
-			case AstNodeKind::EnumDecl:   Typechecker_CheckEnumDecl( module, scope, i, (EnumDeclStmnt*)type_decl ); break;
-			case AstNodeKind::UnionDecl:  Typechecker_CheckUnionDecl( module, scope, i, (UnionDeclStmnt*)type_decl ); break;
-			default:
-				log_span_fatal( type_decl->span, "Internal typechecker error! Supposed type is of invalid kind '%d'", type_decl->kind );
-		}
+		Typechecker_CheckType( module, scope, i, type_decl );
 	}
 }

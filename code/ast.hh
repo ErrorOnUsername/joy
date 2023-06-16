@@ -33,6 +33,7 @@ namespace AstNodeKind
 		ContinueStmnt,
 		BreakStmnt,
 		ReturnStmnt,
+		LoadStmnt,
 	};
 }
 
@@ -51,12 +52,39 @@ namespace AstNodeFlag
 	};
 }
 
+
+using TypeID = int64_t;
+namespace ReservedTypeID
+{
+	enum {
+		Unknown = -1,
+
+		PrimitiveNothing = -2,
+		PrimitiveBool    = -3,
+		PrimitiveChar    = -4,
+		PrimitiveU8      = -5,
+		PrimitiveI8      = -6,
+		PrimitiveU16     = -7,
+		PrimitiveI16     = -8,
+		PrimitiveU32     = -9,
+		PrimitiveI32     = -10,
+		PrimitiveU64     = -11,
+		PrimitiveI64     = -12,
+		PrimitiveF32     = -13,
+		PrimitiveF64     = -14,
+		PrimitiveRawPtr  = -15,
+		PrimitiveString  = -16,
+		PrimitiveCString = -17,
+	};
+}
+
 struct Type;
 
 struct AstNode {
 	NodeKind kind = AstNodeKind::Invalid;
 	Span     span;
 	Type*    type  = nullptr;
+	TypeID   type_id = ReservedTypeID::Unknown;
 	uint64_t flags = AstNodeFlag::None;
 };
 
@@ -107,30 +135,6 @@ namespace TypeKind
 	              | PrimitiveRawPtr
 		          | PrimitiveString
 		          | PrimitiveCString,
-	};
-}
-
-using TypeID = int64_t;
-
-namespace ReservedTypeID
-{
-	enum {
-		PrimitiveNothing = -1,
-		PrimitiveBool    = -2,
-		PrimitiveChar    = -3,
-		PrimitiveU8      = -4,
-		PrimitiveI8      = -5,
-		PrimitiveU16     = -6,
-		PrimitiveI16     = -7,
-		PrimitiveU32     = -8,
-		PrimitiveI32     = -9,
-		PrimitiveU64     = -10,
-		PrimitiveI64     = -11,
-		PrimitiveF32     = -12,
-		PrimitiveF64     = -13,
-		PrimitiveRawPtr  = -14,
-		PrimitiveString  = -15,
-		PrimitiveCString = -16,
 	};
 }
 
@@ -306,6 +310,13 @@ struct ReturnStmnt : public AstNode {
 	AstNode* expr = nullptr;
 };
 
+struct Module;
+
+struct LoadStmnt : public AstNode {
+	Module* module = nullptr;
+	std::string alias;
+};
+
 
 //
 // Module
@@ -322,7 +333,7 @@ struct Module {
 	Arena node_arena;
 	Arena type_arena;
 
-	Array<Module*> imports;
+	Array<LoadStmnt*> imports;
 
 	Module()
 		: scope_arena( 2 * 1024 )

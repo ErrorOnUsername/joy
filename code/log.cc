@@ -66,6 +66,7 @@ void log_error( char const* msg, ... )
 }
 
 
+[[noreturn]]
 void log_fatal( char const* msg, ... )
 {
 	va_list va_args;
@@ -86,6 +87,7 @@ void log_fatal( char const* msg, ... )
 }
 
 
+[[noreturn]]
 void log_span_fatal( Span span, char const* msg, ... )
 {
 	va_list va_args;

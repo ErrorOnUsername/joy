@@ -108,7 +108,12 @@ void Parser::process_module( std::string const& path, Module* module )
 					log_span_fatal( full_span, "Module at path '%s' either doesn't exist or is a directory", load_path.c_str() );
 				}
 
-				working_module->imports.append( mod );
+				LoadStmnt* stmnt = working_module->node_arena.alloc<LoadStmnt>();
+				stmnt->kind   = AstNodeKind::LoadStmnt;
+				stmnt->span   = start_span;
+				stmnt->module = mod;
+
+				working_module->imports.append( stmnt );
 
 				next_tk();
 				break;
@@ -1934,3 +1939,4 @@ Token Parser::next_tk()
 
 	return seen_tokens[tk_idx];
 }
+
