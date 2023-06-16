@@ -109,7 +109,7 @@ void log_span_fatal( Span span, char const* msg, ... )
 		vprintf( msg, va_args );
 		printf( "\n" );
 
-		printf( "%s: [%zu, %zu)\n", file_data.name, span.start, span.end );
+		printf( "%s:\n", file_data.name );
 
 		printf( "\n%4zu| ", span.line );
 
