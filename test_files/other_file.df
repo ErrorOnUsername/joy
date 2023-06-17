@@ -1,10 +1,10 @@
 decl ExternalStruct : struct
 {
 	other_string: string;
-	other_float:  flong;
+	other_float:  f32;
 }
 
-decl sqrt : ( number: flong ) -> flong
+decl sqrt : ( number: f32 ) -> f32
 {
 	let x := number;
 	let y := 1.0;

@@ -936,7 +936,7 @@ void Parser::parse_union_decl()
 		//     ^~~~ could be here
 		//
 		// decl MyUnion : union {
-		//     Variant( member_a: ilong, member_b: flong );
+		//     Variant( member_a: i32, member_b: f32 );
 		//     ^~~~ Could also be this
 		//
 		if ( tk.kind != TK::Ident )
@@ -953,7 +953,7 @@ void Parser::parse_union_decl()
 		{
 			//
 			// decl MyUnion : union {
-			//     Variant( member_a: ilong, member_b: flong );
+			//     Variant( member_a: i32, member_b: f32 );
 			//            ^~~~ Should definitely be here (could be empty, in which case we throw a warning)
 			//
 			tk = next_tk();
@@ -1007,8 +1007,8 @@ void Parser::parse_union_decl()
 
 		//
 		// decl MyUnion : union {
-		//     Variant( member_a: ilong, member_b: flong );
-		//                                                ^~~~ Now we're at the end
+		//     Variant( member_a: i32, member_b: f32 );
+		//                                            ^~~~ Now we're at the end
 		//
 		tk = curr_tk();
 		if ( tk.kind != TK::Semicolon )
@@ -1645,21 +1645,21 @@ Type* Parser::parse_type()
 		case TK::Star:
 		{
 			//
-			// let some_var: *int;
+			// let some_var: *i32;
 			//               ^~~~ we're looking here
 			//
 
 			next_tk();
 
 			//
-			// let some_var: *int;
+			// let some_var: *i32;
 			//                ^~~~ now we're looking here
 			//
 
 			Type* underlying = parse_type();
 
 			//
-			// let some_var: *int;
+			// let some_var: *i32;
 			//                   ^~~~ parse_type() should leave us here
 			//
 
@@ -1671,14 +1671,14 @@ Type* Parser::parse_type()
 		case TK::LSquare:
 		{
 			//
-			// let some_arr: [int; 0];
+			// let some_arr: [i32; 0];
 			//               ^~~~ we start here
 			//
 
 			next_tk();
 
 			//
-			// let some_arr: [int; 0];
+			// let some_arr: [i32; 0];
 			//                ^~~~ now we're here
 			//
 
@@ -1688,7 +1688,7 @@ Type* Parser::parse_type()
 			ty->underlying = underlying;
 
 			//
-			// let some_arr: [int; 0];
+			// let some_arr: [i32; 0];
 			//                   ^~~~ pare_type() should leave us here
 			//
 
@@ -1701,7 +1701,7 @@ Type* Parser::parse_type()
 			next_tk();
 
 			//
-			// let some_arr: [int; 0];
+			// let some_arr: [i32; 0];
 			//                     ^~~~ now we should be looking at the size expression
 			//
 
@@ -1709,7 +1709,7 @@ Type* Parser::parse_type()
 			ty->size_expr      = size_expr;
 
 			//
-			// let some_arr: [int; 0];
+			// let some_arr: [i32; 0];
 			//                      ^~~~ parse_expr() should leave us right here
 			//
 
@@ -1722,7 +1722,7 @@ Type* Parser::parse_type()
 			next_tk();
 
 			//
-			// let some_arr: [int; 0];
+			// let some_arr: [i32; 0];
 			//                       ^~~~ now we just eat the terminating ']'
 			//
 

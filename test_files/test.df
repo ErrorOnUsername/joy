@@ -2,7 +2,7 @@
 
 decl MyType : struct
 {
-	my_int:    ilong;
+	my_int:    i32;
 	my_string: string;
 	my_thing:  cstring;
 	my_other:  ExternalStruct;
@@ -17,7 +17,7 @@ decl MyEnum : enum
 
 decl MyUnion : union
 {
-	VariantA( name: string, value: iword );
+	VariantA( name: string, value: i16 );
 	VariantB( name: string );
 }
 
