@@ -215,8 +215,6 @@ static TypeID Typechecker_GetPrimitiveID( TyKind kind )
 		case TypeKind::PrimitiveCString: return ReservedTypeID::PrimitiveCString;
 		default: log_fatal( "Internal compiler error! Unknown primitive type kind '%u'", kind );
 	}
-
-	return ReservedTypeID::PrimitiveNothing;
 }
 
 
@@ -359,7 +357,17 @@ static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t loc
 {
 	TIME_PROC();
 
-	log_span_fatal( decl->span, "TODO: Implement union typechecking" );
+	for ( size_t i = 0; i < decl->variants.count; i++ )
+	{
+		UnionVariant& variant = decl->variants[i];
+
+		for ( size_t j = 0; j < variant.members.count; j++ )
+		{
+			AstNode* member = variant.members[j];
+
+			Typechecker_LookupTypeID( module, scope, member->type );
+		}
+	}
 }
 
 
