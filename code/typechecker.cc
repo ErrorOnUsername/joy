@@ -357,6 +357,18 @@ static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t loc
 {
 	TIME_PROC();
 
+	for ( int64_t i = local_type_idx - 1; i >= 0; i-- )
+	{
+		AstNode* other_type = scope->types[i];
+		std::string const& other_name = Typechecker_GetName( other_type );
+
+		if ( other_name == decl->name )
+		{
+			// TODO: #ERROR_CLEANUP
+			log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
+		}
+	}
+
 	for ( size_t i = 0; i < decl->variants.count; i++ )
 	{
 		UnionVariant& variant = decl->variants[i];
