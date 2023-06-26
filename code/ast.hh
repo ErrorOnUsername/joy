@@ -113,11 +113,13 @@ namespace TypeKind
 		PrimitiveI32     = ( 1 << 11 ),
 		PrimitiveU64     = ( 1 << 12 ),
 		PrimitiveI64     = ( 1 << 13 ),
-		PrimitiveF32     = ( 1 << 14 ),
-		PrimitiveF64     = ( 1 << 15 ),
-		PrimitiveRawPtr  = ( 1 << 16 ),
-		PrimitiveString  = ( 1 << 17 ),
-		PrimitiveCString = ( 1 << 18 ),
+		PrimitiveUSize   = ( 1 << 14 ),
+		PrimitiveISize   = ( 1 << 15 ),
+		PrimitiveF32     = ( 1 << 16 ),
+		PrimitiveF64     = ( 1 << 17 ),
+		PrimitiveRawPtr  = ( 1 << 18 ),
+		PrimitiveString  = ( 1 << 19 ),
+		PrimitiveCString = ( 1 << 20 ),
 
 		Primitive = PrimitiveNothing
 		          | PrimitiveBool

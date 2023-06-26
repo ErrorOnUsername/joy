@@ -723,6 +723,8 @@ static std::unordered_map<std::string, TokenKind> s_keyword_type_map = {
 	{ "i32",      TK::PrimitiveI32     },
 	{ "u64",      TK::PrimitiveU64     },
 	{ "i64",      TK::PrimitiveI64     },
+	{ "usize",    TK::PrimitiveUSize   },
+	{ "isize",    TK::PrimitiveISize   },
 	{ "f32",      TK::PrimitiveF32     },
 	{ "f64",      TK::PrimitiveF64     },
 	{ "rawptr",   TK::PrimitiveRawPtr  },

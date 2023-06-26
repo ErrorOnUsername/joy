@@ -707,6 +707,25 @@ void Parser::parse_struct_decl()
 }
 
 
+static bool is_valid_enum_type( Type* underlying_type )
+{
+	switch ( underlying_type->kind )
+	{
+		case TypeKind::PrimitiveU8:
+		case TypeKind::PrimitiveI8:
+		case TypeKind::PrimitiveU16:
+		case TypeKind::PrimitiveI16:
+		case TypeKind::PrimitiveU32:
+		case TypeKind::PrimitiveI32:
+		case TypeKind::PrimitiveU64:
+		case TypeKind::PrimitiveI64:
+			return true;
+	}
+
+	return false;
+}
+
+
 void Parser::parse_enum_decl()
 {
 	TIME_PROC();
@@ -762,7 +781,30 @@ void Parser::parse_enum_decl()
 	Token l_curly_tk = curr_tk();
 	if ( l_curly_tk.kind != TK::LCurly )
 	{
-		log_span_fatal( l_curly_tk.span, "Expected a '{' after the 'enum' keyword in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+		Type* underlying_type = parse_type();
+		if ( !is_valid_enum_type( underlying_type ) )
+		{
+			log_span_fatal( underlying_type->span, "Underlying type for an enum must be an integer" );
+		}
+
+		decl->type = underlying_type;
+
+		consume_newlines();
+
+		l_curly_tk = curr_tk();
+		if ( l_curly_tk.kind != TK::LCurly )
+		{
+			log_span_fatal( l_curly_tk.span, "Expected a '{' after the 'enum' keyword in enum declaration, but got '%s'", Token_GetKindAsString( l_curly_tk.kind ) );
+		}
+	}
+	else
+	{
+		Type* default_underlying = working_module->type_arena.alloc<Type>();
+		default_underlying->kind = TypeKind::PrimitiveUSize;
+		default_underlying->span = name_tk.span;
+		default_underlying->name = "usize";
+
+		decl->type = default_underlying;
 	}
 
 	//
@@ -1785,66 +1827,91 @@ Type* Parser::parse_type()
 		case TK::PrimitiveNothing:
 			ty->kind = TypeKind::PrimitiveNothing;
 			ty->span = tk.span;
+			ty->name = "nothing";
 
 			next_tk();
 			break;
 		case TK::PrimitiveBool:
 			ty->kind = TypeKind::PrimitiveBool;
 			ty->span = tk.span;
+			ty->name = "bool";
 
 			next_tk();
 			break;
 		case TK::PrimitiveChar:
 			ty->kind = TypeKind::PrimitiveChar;
 			ty->span = tk.span;
+			ty->name = "char";
 
 			next_tk();
 			break;
 		case TK::PrimitiveU8:
 			ty->kind = TypeKind::PrimitiveU8;
 			ty->span = tk.span;
+			ty->name = "u8";
 
 			next_tk();
 			break;
 		case TK::PrimitiveI8:
 			ty->kind = TypeKind::PrimitiveI8;
 			ty->span = tk.span;
+			ty->name = "i8";
 
 			next_tk();
 			break;
 		case TK::PrimitiveU16:
 			ty->kind = TypeKind::PrimitiveU16;
 			ty->span = tk.span;
+			ty->name = "u16";
 
 			next_tk();
 			break;
 		case TK::PrimitiveI16:
 			ty->kind = TypeKind::PrimitiveI16;
 			ty->span = tk.span;
+			ty->name = "i16";
 
 			next_tk();
 			break;
 		case TK::PrimitiveU32:
 			ty->kind = TypeKind::PrimitiveU32;
 			ty->span = tk.span;
+			ty->name = "u32";
 
 			next_tk();
 			break;
 		case TK::PrimitiveI32:
 			ty->kind = TypeKind::PrimitiveI32;
 			ty->span = tk.span;
+			ty->name = "i32";
 
 			next_tk();
 			break;
 		case TK::PrimitiveU64:
 			ty->kind = TypeKind::PrimitiveU64;
 			ty->span = tk.span;
+			ty->name = "u64";
 
 			next_tk();
 			break;
 		case TK::PrimitiveI64:
 			ty->kind = TypeKind::PrimitiveI64;
 			ty->span = tk.span;
+			ty->name = "i64";
+
+			next_tk();
+			break;
+		case TK::PrimitiveUSize:
+			ty->kind = TypeKind::PrimitiveUSize;
+			ty->span = tk.span;
+			ty->name = "usize";
+
+			next_tk();
+			break;
+		case TK::PrimitiveISize:
+			ty->kind = TypeKind::PrimitiveISize;
+			ty->span = tk.span;
+			ty->name = "isize";
 
 			next_tk();
 			break;

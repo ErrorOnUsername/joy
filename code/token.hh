@@ -118,6 +118,8 @@ namespace TK
 		PrimitiveI32,
 		PrimitiveU64,
 		PrimitiveI64,
+		PrimitiveUSize,
+		PrimitiveISize,
 		PrimitiveF32,
 		PrimitiveF64,
 		PrimitiveRawPtr,
