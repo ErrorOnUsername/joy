@@ -289,6 +289,32 @@ static void Typechecker_LookupTypeID( Module* module, Scope* scope, Type* type )
 }
 
 
+static bool Typechecker_DoesIntFitInType( IntegerLiteralExpr* literal, Type* type )
+{
+	switch ( type->kind )
+	{
+		case TypeKind::PrimitiveU8:
+		case TypeKind::PrimitiveI8:
+			return literal->data <= 0xff;
+		case TypeKind::PrimitiveU16:
+		case TypeKind::PrimitiveI16:
+			return literal->data <= 0xffff;
+		case TypeKind::PrimitiveU32:
+		case TypeKind::PrimitiveI32:
+			return literal->data <= 0xffffffff;
+		case TypeKind::PrimitiveU64:
+		case TypeKind::PrimitiveI64:
+			return literal->data <= 0xffffffffffffffff;
+		case TypeKind::PrimitiveUSize:
+		case TypeKind::PrimitiveISize:
+			// TODO: #TARGET_PLATFORM_CHECK
+			return literal->data <= 0xffffffffffffffff;
+	}
+
+	return false;
+}
+
+
 static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type = nullptr )
 {
 	TIME_PROC();
@@ -349,7 +375,27 @@ static void Typechecker_CheckEnumDecl( Module* module, Scope* scope, size_t loca
 {
 	TIME_PROC();
 
-	log_span_fatal( decl->span, "TODO: Implement enum typechecking" );
+	for ( int64_t i = local_type_idx - 1; i >= 0; i-- )
+	{
+		AstNode* other_type = scope->types[i];
+		std::string const& other_name = Typechecker_GetName( other_type );
+
+		if ( other_name == decl->name )
+		{
+			// TODO: #ERROR_CLEANUP
+			log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
+		}
+	}
+
+	for ( size_t i = 0; i < decl->variants.count; i++ )
+	{
+		EnumVariant& variant = decl->variants[i];
+
+		if ( !Typechecker_DoesIntFitInType( variant.val, decl->type ) )
+		{
+			log_span_fatal( variant.span, "Enum variant value does not fit within underlying type '%s'", decl->type->name.c_str() );
+		}
+	}
 }
 
 
