@@ -162,10 +162,9 @@ struct Scope {
 
 	// TODO: data lookup tables...
 
-	Array<AstNode*>           types;
-	Array<ProcDeclStmnt*>     procedures;
-	Array<VarDeclStmnt*>      constants;
-	Array<AstNode*>           statements;
+	Array<AstNode*>       types;
+	Array<ProcDeclStmnt*> procedures;
+	Array<AstNode*>       statements;
 };
 
 

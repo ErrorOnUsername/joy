@@ -490,7 +490,7 @@ void Parser::parse_constant_decl()
 		log_span_fatal( decl->span, "Constants must be initialized to a value" );
 	}
 
-	if ( !( decl->flags & AstNodeFlag::Constant ) )
+	if ( !( decl->default_value->flags & AstNodeFlag::Constant ) )
 	{
 		log_span_fatal( decl->default_value->span, "Constant's cannot be initialized to a potentially non-constant value" );
 	}
@@ -501,7 +501,8 @@ void Parser::parse_constant_decl()
 		log_span_fatal( semicolon_tk.span, "Expected terminating ';' in constant declaration, but got '%s'", Token_GetKindAsString( semicolon_tk.kind ) );
 	}
 
-	current_scope->constants.append( decl );
+	AstNode* as_node = (AstNode*)decl;
+	current_scope->statements.append( as_node );
 
 	next_tk();
 }

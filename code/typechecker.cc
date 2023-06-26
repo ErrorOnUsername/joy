@@ -442,6 +442,27 @@ static void Typechecker_CheckType( Module* module, Scope* scope, size_t local_ty
 }
 
 
+static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDeclStmnt* decl )
+{
+	TIME_PROC();
+
+	log_span_fatal( decl->span, "Implement procedure typechecking" );
+}
+
+
+static void Typechecker_CheckStatementList( Module* module, Scope* scope )
+{
+	TIME_PROC();
+
+	for ( size_t i = 0; i < scope->statements.count; i++ )
+	{
+		AstNode* stmnt = scope->statements[0];
+
+		log_span_fatal( stmnt->span, "Implement statement typechecking" );
+	}
+}
+
+
 static void Typechecker_CheckScope( Module* module, Scope* scope )
 {
 	TIME_PROC();
@@ -450,5 +471,12 @@ static void Typechecker_CheckScope( Module* module, Scope* scope )
 	{
 		AstNode* type_decl = scope->types[i];
 		Typechecker_CheckType( module, scope, i, type_decl );
+	}
+
+	Typechecker_CheckStatementList( module, scope );
+
+	for ( size_t i = 0; i < scope->procedures.count; i++ )
+	{
+		Typechecker_CheckProcedureDecl( module, scope, scope->procedures[i] );
 	}
 }
