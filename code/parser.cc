@@ -1916,6 +1916,18 @@ Type* Parser::parse_type()
 
 			next_tk();
 			break;
+		case TK::PrimitiveUSize:
+			ty->kind = TypeKind::PrimitiveUSize;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
+		case TK::PrimitiveISize:
+			ty->kind = TypeKind::PrimitiveISize;
+			ty->span = tk.span;
+
+			next_tk();
+			break;
 		case TK::PrimitiveF32:
 			ty->kind = TypeKind::PrimitiveF32;
 			ty->span = tk.span;

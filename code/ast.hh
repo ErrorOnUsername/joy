@@ -70,11 +70,13 @@ namespace ReservedTypeID
 		PrimitiveI32     = -10,
 		PrimitiveU64     = -11,
 		PrimitiveI64     = -12,
-		PrimitiveF32     = -13,
-		PrimitiveF64     = -14,
-		PrimitiveRawPtr  = -15,
-		PrimitiveString  = -16,
-		PrimitiveCString = -17,
+		PrimitiveUSize   = -13,
+		PrimitiveISize   = -14,
+		PrimitiveF32     = -15,
+		PrimitiveF64     = -16,
+		PrimitiveRawPtr  = -17,
+		PrimitiveString  = -18,
+		PrimitiveCString = -19,
 	};
 }
 
@@ -132,6 +134,8 @@ namespace TypeKind
 		          | PrimitiveI32
 		          | PrimitiveU64
 		          | PrimitiveI64
+		          | PrimitiveUSize
+		          | PrimitiveISize
 		          | PrimitiveF32
 		          | PrimitiveF64
 	              | PrimitiveRawPtr
