@@ -846,6 +846,10 @@ void Parser::parse_enum_decl()
 		variant.span = tk.span;
 		variant.name = tk.str;
 
+		// FIXME: This can most certainly overflow entirely silently
+		//        and completely fuck shit up. pls rethink this later
+		//        and make it better future me :)
+
 		tk = next_tk();
 		if ( tk.kind == TK::Assign )
 		{
@@ -1916,45 +1920,38 @@ Type* Parser::parse_type()
 
 			next_tk();
 			break;
-		case TK::PrimitiveUSize:
-			ty->kind = TypeKind::PrimitiveUSize;
-			ty->span = tk.span;
-
-			next_tk();
-			break;
-		case TK::PrimitiveISize:
-			ty->kind = TypeKind::PrimitiveISize;
-			ty->span = tk.span;
-
-			next_tk();
-			break;
 		case TK::PrimitiveF32:
 			ty->kind = TypeKind::PrimitiveF32;
 			ty->span = tk.span;
+			ty->name = "f32";
 
 			next_tk();
 			break;
 		case TK::PrimitiveF64:
 			ty->kind = TypeKind::PrimitiveF64;
 			ty->span = tk.span;
+			ty->name = "f64";
 
 			next_tk();
 			break;
 		case TK::PrimitiveRawPtr:
 			ty->kind = TypeKind::PrimitiveRawPtr;
 			ty->span = tk.span;
+			ty->name = "rawptr";
 
 			next_tk();
 			break;
 		case TK::PrimitiveString:
 			ty->kind = TypeKind::PrimitiveString;
 			ty->span = tk.span;
+			ty->name = "string";
 
 			next_tk();
 			break;
 		case TK::PrimitiveCString:
 			ty->kind = TypeKind::PrimitiveCString;
 			ty->span = tk.span;
+			ty->name = "cstring";
 
 			next_tk();
 			break;
