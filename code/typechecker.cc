@@ -323,20 +323,47 @@ static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expe
 }
 
 
-static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t local_type_idx, StructDeclStmnt* decl )
+static bool Typechecker_IsTypeAlreadyDefined( Module* module, Scope* scope, size_t local_type_idx, std::string const& name )
 {
-	TIME_PROC();
-
 	for ( int64_t i = local_type_idx - 1; i >= 0; i-- )
 	{
 		AstNode* other_type = scope->types[i];
 		std::string const& other_name = Typechecker_GetName( other_type );
 
-		if ( other_name == decl->name )
+		if ( other_name == name )
 		{
-			// TODO: #ERROR_CLEANUP
-			log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
+			return true;
 		}
+	}
+
+	for ( size_t i = 0; i < module->imports.count; i++ )
+	{
+		LoadStmnt* load = module->imports[i];
+		Module* mod = load->module;
+		Scope* root_scope = mod->root_scope;
+
+		if ( !load->alias.empty() ) continue;
+
+		for ( size_t j = 0; j < root_scope->types.count; j++ )
+		{
+			std::string const& other_name = Typechecker_GetName( root_scope->types[j] );
+
+			if ( other_name == name ) return true;
+		}
+	}
+
+	return false;
+}
+
+
+static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t local_type_idx, StructDeclStmnt* decl )
+{
+	TIME_PROC();
+
+	if ( Typechecker_IsTypeAlreadyDefined( module, scope, local_type_idx, Typechecker_GetName( decl ) ) )
+	{
+		// TODO: #ERROR_CLEANUP
+		log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
 	}
 
 	for ( size_t i = 0; i < decl->members.count; i++ )
@@ -375,16 +402,10 @@ static void Typechecker_CheckEnumDecl( Module* module, Scope* scope, size_t loca
 {
 	TIME_PROC();
 
-	for ( int64_t i = local_type_idx - 1; i >= 0; i-- )
+	if ( Typechecker_IsTypeAlreadyDefined( module, scope, local_type_idx, Typechecker_GetName( decl ) ) )
 	{
-		AstNode* other_type = scope->types[i];
-		std::string const& other_name = Typechecker_GetName( other_type );
-
-		if ( other_name == decl->name )
-		{
-			// TODO: #ERROR_CLEANUP
-			log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
-		}
+		// TODO: #ERROR_CLEANUP
+		log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
 	}
 
 	for ( size_t i = 0; i < decl->variants.count; i++ )
@@ -403,16 +424,10 @@ static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t loc
 {
 	TIME_PROC();
 
-	for ( int64_t i = local_type_idx - 1; i >= 0; i-- )
+	if ( Typechecker_IsTypeAlreadyDefined( module, scope, local_type_idx, Typechecker_GetName( decl ) ) )
 	{
-		AstNode* other_type = scope->types[i];
-		std::string const& other_name = Typechecker_GetName( other_type );
-
-		if ( other_name == decl->name )
-		{
-			// TODO: #ERROR_CLEANUP
-			log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
-		}
+		// TODO: #ERROR_CLEANUP
+		log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
 	}
 
 	for ( size_t i = 0; i < decl->variants.count; i++ )
