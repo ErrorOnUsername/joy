@@ -22,6 +22,7 @@ set( SOURCES
 	code/parser.cc
 	code/token.cc
 	code/typechecker.cc
+	code/type_registry.cc
 )
 
 add_executable( ${CMAKE_PROJECT_NAME} ${SOURCES} )
