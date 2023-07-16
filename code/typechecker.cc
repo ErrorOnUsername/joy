@@ -457,9 +457,47 @@ static void Typechecker_CheckType( Module* module, Scope* scope, size_t local_ty
 }
 
 
+static ProcDeclStmnt* Typechecker_LookupProcDecl( Module* module, Scope* scope, std::string const& proc_name, ProcDeclStmnt* current_decl = nullptr )
+{
+	TIME_PROC();
+
+	for ( size_t i = 0; i < scope->procedures.count; i++ )
+	{
+		ProcDeclStmnt* proc = scope->procedures[i];
+
+		if ( proc != current_decl && proc->name == proc_name ) return proc;
+	}
+
+	if ( scope->parent ) return nullptr;
+
+	for ( size_t i = 0; i < module->imports.count; i++ )
+	{
+		LoadStmnt* load = module->imports[i];
+		Module* other_mod = load->module;
+		Scope* other_root_scope = other_mod->root_scope;
+
+		if ( !load->alias.empty() ) continue;
+
+		for ( size_t j = 0; j < other_root_scope->procedures.count; j++ )
+		{
+			ProcDeclStmnt* proc = other_root_scope->procedures[j];
+
+			if ( proc->name == proc_name ) return proc;
+		}
+	}
+
+	return nullptr;
+}
+
+
 static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDeclStmnt* decl )
 {
 	TIME_PROC();
+
+	if ( Typechecker_LookupProcDecl( module, scope, decl->name, decl ) )
+	{
+		log_span_fatal( decl->span, "Multiple definitions of this procedure fount in the current scope" );
+	}
 
 	log_span_fatal( decl->span, "Implement procedure typechecking" );
 }
