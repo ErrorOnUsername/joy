@@ -512,6 +512,9 @@ static ProcDeclStmnt* Typechecker_LookupProcDecl( Module* module, Scope* scope, 
 }
 
 
+static void Typechecker_CheckScope( Module* module, Scope* scope );
+
+
 static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDeclStmnt* decl )
 {
 	TIME_PROC();
@@ -521,11 +524,43 @@ static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDe
 		log_span_fatal( decl->span, "Multiple definitions of this procedure fount in the current scope" );
 	}
 
-	//log_span_fatal( decl->span, "Implement procedure typechecking" );
+	for ( size_t i = 0; i < decl->params.count; i++ )
+	{
+		VarDeclStmnt* param = decl->params[i];
+
+		if ( param->type )
+		{
+			Typechecker_LookupTypeID( module, scope, param->type );
+		}
+
+		if ( param->default_value )
+		{
+			Typechecker_CheckExpression( scope, param->default_value, param->type ? param->type : nullptr );
+		}
+
+		if ( !param->type )
+		{
+			param->type_id = param->default_value->type_id;
+		}
+	}
+
+	for ( size_t i = 0; i < decl->return_types.count; i++ )
+	{
+		Type* ret_ty = decl->return_types[i];
+
+		Typechecker_LookupTypeID( module, scope, ret_ty );
+	}
+
+	if ( !decl->body )
+	{
+		log_span_fatal( decl->span, "Implement foreign function importing" );
+	}
+
+	Typechecker_CheckScope( module, decl->body->scope );
 }
 
 
-static void Typechecker_CheckStatementList( Module* module, Scope* scope )
+static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDeclStmnt* proc_ctx = nullptr )
 {
 	TIME_PROC();
 
