@@ -164,7 +164,7 @@ bool Typechecker_StageAllTasks()
 }
 
 
-static void Typechecker_CheckScope( Module* module, Scope* scope );
+static void Typechecker_CheckScope( Module* module, Scope* scope, ProcDeclStmnt* proc_ctx = nullptr );
 
 static void Typechecker_CheckModule( std::string const& path, Module* module )
 {
@@ -512,9 +512,6 @@ static ProcDeclStmnt* Typechecker_LookupProcDecl( Module* module, Scope* scope, 
 }
 
 
-static void Typechecker_CheckScope( Module* module, Scope* scope );
-
-
 static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDeclStmnt* decl )
 {
 	TIME_PROC();
@@ -556,7 +553,73 @@ static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDe
 		log_span_fatal( decl->span, "Implement foreign function importing" );
 	}
 
-	Typechecker_CheckScope( module, decl->body->scope );
+	Typechecker_CheckScope( module, decl->body->scope, decl );
+}
+
+
+static void Typechecker_CheckBinOp( Scope* scope, BinaryOperationExpr* expr )
+{
+	log_span_fatal( expr->span, "impl Typechecker_CheckBinOp" );
+}
+
+
+static void Typechecker_CheckUnaryOp( Scope* scope, UnaryOperationExpr* expr )
+{
+	log_span_fatal( expr->span, "impl Typechecker_CheckUnaryOp" );
+}
+
+
+static void Typechecker_CheckVarDecl( Scope* scope, VarDeclStmnt* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckVarDecl" );
+}
+
+
+static void Typechecker_CheckIfStmnt( Scope* scope, IfStmnt* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckIfStmnt" );
+}
+
+
+static void Typechecker_CheckProcCall( Scope* scope, ProcCallExpr* expr )
+{
+	log_span_fatal( expr->span, "impl Typechecker_CheckProcCall" );
+}
+
+
+static void Typechecker_CheckForLoop( Scope* scope, ForLoopStmnt* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckForLoop" );
+}
+
+
+static void Typechecker_CheckWhileLoop( Scope* scope, WhileLoopStmnt* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckWhileLoop" );
+}
+
+
+static void Typechecker_CheckInfiniteLoop( Scope* scope, InfiniteLoopStmnt* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckInfiniteLoop" );
+}
+
+
+static void Typechecker_CheckContinueStmnt( Scope* scope, AstNode* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckContinueStmnt" );
+}
+
+
+static void Typechecker_CheckBreakStmnt( Scope* scope, AstNode* stmnt )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckBreakStmnt" );
+}
+
+
+static void Typechecker_CheckReturnStmnt( Scope* scope, ReturnStmnt* stmnt, ProcDeclStmnt* proc_ctx )
+{
+	log_span_fatal( stmnt->span, "impl Typechecker_CheckReturnStmnt" );
 }
 
 
@@ -566,14 +629,32 @@ static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDe
 
 	for ( size_t i = 0; i < scope->statements.count; i++ )
 	{
-		AstNode* stmnt = scope->statements[0];
+		AstNode* stmnt = scope->statements[i];
+
+		switch ( stmnt->kind )
+		{
+			case AstNodeKind::BinaryOperation: Typechecker_CheckBinOp( scope, (BinaryOperationExpr*)stmnt );
+			case AstNodeKind::UnaryOperation:  Typechecker_CheckUnaryOp( scope, (UnaryOperationExpr*)stmnt );
+			case AstNodeKind::VarDecl:         Typechecker_CheckVarDecl( scope, (VarDeclStmnt*)stmnt );
+			case AstNodeKind::IfStmnt:         Typechecker_CheckIfStmnt( scope, (IfStmnt*)stmnt );
+			case AstNodeKind::ProcCall:        Typechecker_CheckProcCall( scope, (ProcCallExpr*)stmnt );
+			case AstNodeKind::LexicalBlock:    Typechecker_CheckScope( module, ((LexicalBlock*)stmnt)->scope );
+			case AstNodeKind::ForLoop:         Typechecker_CheckForLoop( scope, (ForLoopStmnt*)stmnt );
+			case AstNodeKind::WhileLoop:       Typechecker_CheckWhileLoop( scope, (WhileLoopStmnt*)stmnt );
+			case AstNodeKind::InfiniteLoop:    Typechecker_CheckInfiniteLoop( scope, (InfiniteLoopStmnt*)stmnt );
+			case AstNodeKind::ContinueStmnt:   Typechecker_CheckContinueStmnt( scope, stmnt );
+			case AstNodeKind::BreakStmnt:      Typechecker_CheckBreakStmnt( scope, stmnt );
+			case AstNodeKind::ReturnStmnt:     Typechecker_CheckReturnStmnt( scope, (ReturnStmnt*)stmnt, proc_ctx );
+			default:
+				log_span_fatal( stmnt->span, "Got statement of unknown kind" );
+		}
 
 		log_span_fatal( stmnt->span, "Implement statement typechecking" );
 	}
 }
 
 
-static void Typechecker_CheckScope( Module* module, Scope* scope )
+static void Typechecker_CheckScope( Module* module, Scope* scope, ProcDeclStmnt* proc_ctx )
 {
 	TIME_PROC();
 
@@ -583,7 +664,7 @@ static void Typechecker_CheckScope( Module* module, Scope* scope )
 		Typechecker_CheckType( module, scope, i, type_decl );
 	}
 
-	Typechecker_CheckStatementList( module, scope );
+	Typechecker_CheckStatementList( module, scope, proc_ctx );
 
 	for ( size_t i = 0; i < scope->procedures.count; i++ )
 	{
