@@ -238,6 +238,8 @@ static void Typechecker_LookupTypeID( Module* module, Scope* scope, Type* type )
 {
 	TIME_PROC();
 
+	if ( type->id != ReservedTypeID::Unknown ) return; // This type has already been found
+
 	if ( type->kind & TypeKind::Primitive )
 	{
 		type->id = Typechecker_GetPrimitiveID( type->kind );
@@ -248,19 +250,27 @@ static void Typechecker_LookupTypeID( Module* module, Scope* scope, Type* type )
 
 	if ( !is_aliased )
 	{
-		for ( size_t i = 0; i < scope->types.count; i++ )
-		{
-			AstNode* type_decl = scope->types[i];
-			std::string const& name = Typechecker_GetName( type_decl );
-			if ( type->name != name ) continue;
+		Scope* current_scope = scope;
 
-			if ( type_decl->type_id == ReservedTypeID::Unknown )
+		while ( current_scope )
+		{
+			for ( size_t i = 0; i < current_scope->types.count; i++ )
 			{
-				Typechecker_CheckType( module, scope, i, type_decl );
+				AstNode* type_decl = current_scope->types[i];
+				std::string const& name = Typechecker_GetName( type_decl );
+				if ( type->name != name ) continue;
+
+				if ( type_decl->type_id == ReservedTypeID::Unknown )
+				{
+					Typechecker_CheckType( module, current_scope, i, type_decl );
+				}
+
+				type->owning_scope = current_scope;
+				type->id           = type_decl->type_id;
+				return;
 			}
 
-			type->id = type_decl->type_id;
-			return;
+			current_scope = scope->parent;
 		}
 	}
 
@@ -278,7 +288,13 @@ static void Typechecker_LookupTypeID( Module* module, Scope* scope, Type* type )
 			std::string const& name = Typechecker_GetName( type_decl );
 			if ( type->name != name ) continue;
 
-			type->id = type_decl->type_id;
+			if ( type_decl->type_id == ReservedTypeID::Unknown )
+			{
+				log_span_fatal( type_decl->span, "Type definition in child module doesn't have valid TypeID" );
+			}
+
+			type->owning_scope = import_root_scope;
+			type->id           = type_decl->type_id;
 			return;
 		}
 
@@ -366,6 +382,8 @@ static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t lo
 		log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
 	}
 
+	decl->type_id = scope->registered_type_count++;
+
 	for ( size_t i = 0; i < decl->members.count; i++ )
 	{
 		VarDeclStmnt* member = decl->members[i];
@@ -408,6 +426,8 @@ static void Typechecker_CheckEnumDecl( Module* module, Scope* scope, size_t loca
 		log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
 	}
 
+	decl->type_id = scope->registered_type_count++;
+
 	for ( size_t i = 0; i < decl->variants.count; i++ )
 	{
 		EnumVariant& variant = decl->variants[i];
@@ -429,6 +449,8 @@ static void Typechecker_CheckUnionDecl( Module* module, Scope* scope, size_t loc
 		// TODO: #ERROR_CLEANUP
 		log_span_fatal( decl->span, "Duplicate definitions of type '%s' in the same lexical scope", decl->name.c_str() );
 	}
+
+	decl->type_id = scope->registered_type_count++;
 
 	for ( size_t i = 0; i < decl->variants.count; i++ )
 	{
@@ -499,7 +521,7 @@ static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDe
 		log_span_fatal( decl->span, "Multiple definitions of this procedure fount in the current scope" );
 	}
 
-	log_span_fatal( decl->span, "Implement procedure typechecking" );
+	//log_span_fatal( decl->span, "Implement procedure typechecking" );
 }
 
 

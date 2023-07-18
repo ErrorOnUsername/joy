@@ -144,14 +144,17 @@ namespace TypeKind
 	};
 }
 
+struct Scope;
+
 struct Type {
-	TyKind      kind;
+	TyKind      kind = TypeKind::Invalid;
 	Span        span;
-	TypeID      id;
+	TypeID      id   = ReservedTypeID::Unknown;
 	std::string name;
 	std::string import_alias;
-	Type*       underlying; // for pointers and arrays
-	AstNode*    size_expr; // for arrays
+	Type*       underlying   = nullptr; // for pointers and arrays
+	AstNode*    size_expr    = nullptr; // for arrays
+	Scope*      owning_scope = nullptr;
 };
 
 
@@ -165,6 +168,8 @@ struct Scope {
 	Scope* parent = nullptr;
 
 	// TODO: data lookup tables...
+
+	size_t registered_type_count = 0;
 
 	Array<AstNode*>       types;
 	Array<ProcDeclStmnt*> procedures;
