@@ -1786,15 +1786,15 @@ Type* Parser::parse_type()
 			//  1:  let some_thing: MyType;
 			//                      ^~~~ just a normal type name
 			//
-			//  2:  let some_thing: OtherModuleAlias::OtherType;
+			//  2:  let some_thing: OtherModuleAlias.OtherType;
 			//                      ^~~~ or a type that's guarded by an import alias name
 			//
 
 			Token maybe_ns_char = next_tk();
-			if ( maybe_ns_char.kind == TK::DoubleColon )
+			if ( maybe_ns_char.kind == TK::Dot )
 			{
 				//
-				// let some_thing: OtherModuleAlias::OtherType;
+				// let some_thing: OtherModuleAlias.OtherType;
 				//                                 ^~~~ we're looking at this right now
 				//
 
@@ -1805,8 +1805,8 @@ Type* Parser::parse_type()
 				}
 
 				//
-				// let some_thing: OtherModuleAlias::OtherType;
-				//                                   ^~~~ now we're here
+				// let some_thing: OtherModuleAlias.OtherType;
+				//                                  ^~~~ now we're here
 				//
 
 				ty->import_alias = tk.str;
@@ -1816,8 +1816,8 @@ Type* Parser::parse_type()
 				next_tk();
 
 				//
-				// let some_thing: OtherModuleAlias::OtherType;
-				//                                            ^~~~ We have to make sure to leave the cursor after the last token
+				// let some_thing: OtherModuleAlias.OtherType;
+				//                                           ^~~~ We have to make sure to leave the cursor after the last token
 				//
 			}
 			else

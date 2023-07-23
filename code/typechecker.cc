@@ -633,18 +633,22 @@ static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDe
 
 		switch ( stmnt->kind )
 		{
-			case AstNodeKind::BinaryOperation: Typechecker_CheckBinOp( scope, (BinaryOperationExpr*)stmnt );
-			case AstNodeKind::UnaryOperation:  Typechecker_CheckUnaryOp( scope, (UnaryOperationExpr*)stmnt );
-			case AstNodeKind::VarDecl:         Typechecker_CheckVarDecl( scope, (VarDeclStmnt*)stmnt );
-			case AstNodeKind::IfStmnt:         Typechecker_CheckIfStmnt( scope, (IfStmnt*)stmnt );
-			case AstNodeKind::ProcCall:        Typechecker_CheckProcCall( scope, (ProcCallExpr*)stmnt );
-			case AstNodeKind::LexicalBlock:    Typechecker_CheckScope( module, ((LexicalBlock*)stmnt)->scope );
-			case AstNodeKind::ForLoop:         Typechecker_CheckForLoop( scope, (ForLoopStmnt*)stmnt );
-			case AstNodeKind::WhileLoop:       Typechecker_CheckWhileLoop( scope, (WhileLoopStmnt*)stmnt );
-			case AstNodeKind::InfiniteLoop:    Typechecker_CheckInfiniteLoop( scope, (InfiniteLoopStmnt*)stmnt );
-			case AstNodeKind::ContinueStmnt:   Typechecker_CheckContinueStmnt( scope, stmnt );
-			case AstNodeKind::BreakStmnt:      Typechecker_CheckBreakStmnt( scope, stmnt );
-			case AstNodeKind::ReturnStmnt:     Typechecker_CheckReturnStmnt( scope, (ReturnStmnt*)stmnt, proc_ctx );
+			case AstNodeKind::VarDecl:         Typechecker_CheckVarDecl( scope, (VarDeclStmnt*)stmnt ); break;
+			case AstNodeKind::IfStmnt:         Typechecker_CheckIfStmnt( scope, (IfStmnt*)stmnt ); break;
+			case AstNodeKind::ProcCall:        Typechecker_CheckProcCall( scope, (ProcCallExpr*)stmnt ); break;
+			case AstNodeKind::LexicalBlock:    Typechecker_CheckScope( module, ((LexicalBlock*)stmnt)->scope ); break;
+			case AstNodeKind::ForLoop:         Typechecker_CheckForLoop( scope, (ForLoopStmnt*)stmnt ); break;
+			case AstNodeKind::WhileLoop:       Typechecker_CheckWhileLoop( scope, (WhileLoopStmnt*)stmnt ); break;
+			case AstNodeKind::InfiniteLoop:    Typechecker_CheckInfiniteLoop( scope, (InfiniteLoopStmnt*)stmnt ); break;
+			case AstNodeKind::ContinueStmnt:   Typechecker_CheckContinueStmnt( scope, stmnt ); break;
+			case AstNodeKind::BreakStmnt:      Typechecker_CheckBreakStmnt( scope, stmnt ); break;
+			case AstNodeKind::ReturnStmnt:     Typechecker_CheckReturnStmnt( scope, (ReturnStmnt*)stmnt, proc_ctx ); break;
+			case AstNodeKind::BinaryOperation:
+			case AstNodeKind::UnaryOperation:
+			{
+				Typechecker_CheckExpression( scope, stmnt );
+				break;
+			}
 			default:
 				log_span_fatal( stmnt->span, "Got statement of unknown kind" );
 		}
