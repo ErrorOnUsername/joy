@@ -331,12 +331,7 @@ static bool Typechecker_DoesIntFitInType( IntegerLiteralExpr* literal, Type* typ
 }
 
 
-static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type = nullptr )
-{
-	TIME_PROC();
-
-	log_span_fatal( expr->span, "TODO: Expression checking" );
-}
+static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type = nullptr );
 
 
 static bool Typechecker_IsTypeAlreadyDefined( Module* module, Scope* scope, size_t local_type_idx, std::string const& name )
@@ -620,6 +615,38 @@ static void Typechecker_CheckBreakStmnt( Scope* scope, AstNode* stmnt )
 static void Typechecker_CheckReturnStmnt( Scope* scope, ReturnStmnt* stmnt, ProcDeclStmnt* proc_ctx )
 {
 	log_span_fatal( stmnt->span, "impl Typechecker_CheckReturnStmnt" );
+}
+
+
+static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type )
+{
+	TIME_PROC();
+
+	switch ( expr->kind )
+	{
+		case AstNodeKind::BinaryOperation:
+		{
+			break;
+		}
+		case AstNodeKind::UnaryOperation:
+		{
+			break;
+		}
+		case AstNodeKind::IntegerLiteral:
+		{
+			break;
+		}
+		case AstNodeKind::FloatingPointLiteral:
+		{
+			break;
+		}
+		case AstNodeKind::StringLiteral:
+		{
+			break;
+		}
+	}
+
+	log_span_fatal( expr->span, "TODO: Expression checking" );
 }
 
 
