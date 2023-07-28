@@ -107,7 +107,6 @@ namespace TK
 		KeywordEnum,
 		KeywordUnion,
 
-		PrimitiveNothing,
 		PrimitiveBool,
 		PrimitiveChar,
 		PrimitiveU8,

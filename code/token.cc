@@ -79,7 +79,6 @@ char const* Token_GetKindAsString( TokenKind kind )
 		case TK::KeywordStruct:    return "struct";
 		case TK::KeywordEnum:      return "enum";
 		case TK::KeywordUnion:     return "union";
-		case TK::PrimitiveNothing: return "nothing";
 		case TK::PrimitiveBool:    return "bool";
 		case TK::PrimitiveChar:    return "char";
 		case TK::PrimitiveU8:      return "u8";

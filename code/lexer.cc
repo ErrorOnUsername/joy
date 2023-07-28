@@ -712,7 +712,6 @@ static std::unordered_map<std::string, TokenKind> s_keyword_type_map = {
 	{ "struct",   TK::KeywordStruct    },
 	{ "enum",     TK::KeywordEnum      },
 	{ "union",    TK::KeywordUnion     },
-	{ "nothing",  TK::PrimitiveNothing },
 	{ "bool",     TK::PrimitiveBool    },
 	{ "char",     TK::PrimitiveChar    },
 	{ "u8",       TK::PrimitiveU8      },

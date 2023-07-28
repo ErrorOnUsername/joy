@@ -1829,13 +1829,6 @@ Type* Parser::parse_type()
 			ty->span = final_span;
 			break;
 		}
-		case TK::PrimitiveNothing:
-			ty->kind = TypeKind::PrimitiveNothing;
-			ty->span = tk.span;
-			ty->name = "nothing";
-
-			next_tk();
-			break;
 		case TK::PrimitiveBool:
 			ty->kind = TypeKind::PrimitiveBool;
 			ty->span = tk.span;

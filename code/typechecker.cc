@@ -197,7 +197,6 @@ static TypeID Typechecker_GetPrimitiveID( TyKind kind )
 {
 	switch ( kind )
 	{
-		case TypeKind::PrimitiveNothing: return ReservedTypeID::PrimitiveNothing;
 		case TypeKind::PrimitiveBool:    return ReservedTypeID::PrimitiveBool;
 		case TypeKind::PrimitiveChar:    return ReservedTypeID::PrimitiveChar;
 		case TypeKind::PrimitiveU8:      return ReservedTypeID::PrimitiveU8;

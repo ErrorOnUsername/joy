@@ -59,24 +59,23 @@ namespace ReservedTypeID
 	enum {
 		Unknown = -1,
 
-		PrimitiveNothing = -2,
-		PrimitiveBool    = -3,
-		PrimitiveChar    = -4,
-		PrimitiveU8      = -5,
-		PrimitiveI8      = -6,
-		PrimitiveU16     = -7,
-		PrimitiveI16     = -8,
-		PrimitiveU32     = -9,
-		PrimitiveI32     = -10,
-		PrimitiveU64     = -11,
-		PrimitiveI64     = -12,
-		PrimitiveUSize   = -13,
-		PrimitiveISize   = -14,
-		PrimitiveF32     = -15,
-		PrimitiveF64     = -16,
-		PrimitiveRawPtr  = -17,
-		PrimitiveString  = -18,
-		PrimitiveCString = -19,
+		PrimitiveBool    = -2,
+		PrimitiveChar    = -3,
+		PrimitiveU8      = -4,
+		PrimitiveI8      = -5,
+		PrimitiveU16     = -6,
+		PrimitiveI16     = -7,
+		PrimitiveU32     = -8,
+		PrimitiveI32     = -9,
+		PrimitiveU64     = -10,
+		PrimitiveI64     = -11,
+		PrimitiveUSize   = -12,
+		PrimitiveISize   = -13,
+		PrimitiveF32     = -14,
+		PrimitiveF64     = -15,
+		PrimitiveRawPtr  = -16,
+		PrimitiveString  = -17,
+		PrimitiveCString = -18,
 	};
 }
 
@@ -104,7 +103,6 @@ namespace TypeKind
 		Array        = ( 1 << 1 ),
 		NamedUnknown = ( 1 << 2 ),
 
-		PrimitiveNothing = ( 1 << 3 ),
 		PrimitiveBool    = ( 1 << 4 ),
 		PrimitiveChar    = ( 1 << 5 ),
 		PrimitiveU8      = ( 1 << 6 ),
@@ -123,8 +121,7 @@ namespace TypeKind
 		PrimitiveString  = ( 1 << 19 ),
 		PrimitiveCString = ( 1 << 20 ),
 
-		Primitive = PrimitiveNothing
-		          | PrimitiveBool
+		Primitive = PrimitiveBool
 		          | PrimitiveChar
 		          | PrimitiveU8
 		          | PrimitiveI8
