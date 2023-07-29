@@ -617,32 +617,66 @@ static void Typechecker_CheckReturnStmnt( Scope* scope, ReturnStmnt* stmnt, Proc
 }
 
 
+static void Typechecker_LookupNameInScope( Scope* scope, VarRefExpr* ref )
+{
+	log_span_fatal( ref->span, "impl Typechecker_LookupNameInScope" );
+}
+
+
+static bool Typechecker_IsBinaryOpValidForTypes( BinOpKind op_kind, Type* lhs_ty, Type* rhs_ty )
+{
+	return false;
+}
+
+
+static void Typechecker_CheckBinOpExpr( Scope* scope, BinaryOperationExpr* bin_op )
+{
+	BinOpKind op_kind = bin_op->op_kind;
+	AstNode*  lhs     = bin_op->lhs;
+	AstNode*  rhs     = bin_op->rhs;
+
+	Typechecker_CheckExpression( scope, lhs );
+	Typechecker_CheckExpression( scope, rhs );
+
+	if ( !Typechecker_IsBinaryOpValidForTypes( op_kind, lhs->type, rhs->type ) )
+	{
+		log_span_fatal( bin_op->span, "Binary operation '%s' is not valid between types '%s' and '%s'", BinaryOperator_AsStr( op_kind ), lhs->type->name.c_str(), rhs->type->name.c_str() );
+	}
+}
+
+
+static bool Typechecker_IsUnaryOpValidForType( UnOpKind op_kind, Type* rand_ty )
+{
+	return false;
+}
+
+
+static void Typechecker_CheckUnaryOpExpr( Scope* scope, UnaryOperationExpr* unary_op )
+{
+	Typechecker_CheckExpression( scope, unary_op->operand );
+
+	if ( !Typechecker_IsUnaryOpValidForType( unary_op->op_kind, unary_op->operand->type ) )
+	{
+		log_span_fatal( unary_op->span, "Unary operator '%s' is not valid for type '%s'", UnaryOperator_AsStr( unary_op->op_kind ), unary_op->type->name.c_str() );
+	}
+}
+
+
 static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type )
 {
 	TIME_PROC();
 
 	switch ( expr->kind )
 	{
-		case AstNodeKind::BinaryOperation:
-		{
-			break;
-		}
-		case AstNodeKind::UnaryOperation:
-		{
-			break;
-		}
+		case AstNodeKind::BinaryOperation: Typechecker_CheckBinOpExpr( scope, (BinaryOperationExpr*)expr ); break;
+		case AstNodeKind::UnaryOperation:  Typechecker_CheckUnaryOpExpr( scope, (UnaryOperationExpr*)expr ); break;
 		case AstNodeKind::IntegerLiteral:
-		{
-			break;
-		}
 		case AstNodeKind::FloatingPointLiteral:
-		{
-			break;
-		}
 		case AstNodeKind::StringLiteral:
-		{
-			break;
-		}
+			break; // These can all be whatever type is required in the moment.
+		case AstNodeKind::VarRef: Typechecker_LookupNameInScope( scope, (VarRefExpr*)expr ); break;
+		default:
+			log_span_fatal( expr->span, "Unexpected expression in Typechecker_CheckExpression" );
 	}
 
 	log_span_fatal( expr->span, "TODO: Expression checking" );

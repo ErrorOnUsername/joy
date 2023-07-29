@@ -199,6 +199,45 @@ inline static bool BinaryOperator_IsAssign( BinOpKind op )
 }
 
 
+inline static char const* BinaryOperator_AsStr( BinOpKind kind )
+{
+	switch ( kind )
+	{
+		case BinaryOpKind::Invalid:         return "INVALID";
+		case BinaryOpKind::MemberAccess:    return ".";
+		case BinaryOpKind::Range:           return "..";
+		case BinaryOpKind::Multiply:        return "*";
+		case BinaryOpKind::Divide:          return "/";
+		case BinaryOpKind::Modulo:          return "%";
+		case BinaryOpKind::Add:             return "+";
+		case BinaryOpKind::Subtract:        return "-";
+		case BinaryOpKind::LessThan:        return "<";
+		case BinaryOpKind::LessThanOrEq:    return "<=";
+		case BinaryOpKind::GreaterThan:     return ">";
+		case BinaryOpKind::GreaterThanOrEq: return ">=";
+		case BinaryOpKind::EqualTo:         return "==";
+		case BinaryOpKind::NotEqualTo:      return "!=";
+		case BinaryOpKind::BitwiseAnd:      return "&";
+		case BinaryOpKind::BitwiseOr:       return "|";
+		case BinaryOpKind::BitwiseXor:      return "^";
+		case BinaryOpKind::LogicalAnd:      return "&&";
+		case BinaryOpKind::LogicalOr:       return "||";
+		case BinaryOpKind::LogicalXor:      return "^^";
+		case BinaryOpKind::Assign:          return "=";
+		case BinaryOpKind::AddAssign:       return "+=";
+		case BinaryOpKind::SubtractAssign:  return "-=";
+		case BinaryOpKind::MultiplyAssign:  return "*=";
+		case BinaryOpKind::DivideAssign:    return "/=";
+		case BinaryOpKind::ModuloAssign:    return "%=";
+		case BinaryOpKind::NotAssign:       return "~=";
+		case BinaryOpKind::AndAssign:       return "&=";
+		case BinaryOpKind::OrAssign:        return "|=";
+		case BinaryOpKind::XorAssign:       return "^=";
+		default:                            return "UNKNOWN";
+	}
+}
+
+
 using UnOpKind = uint16_t;
 namespace UnaryOpKind
 {
@@ -214,4 +253,23 @@ namespace UnaryOpKind
 		PostfixIncrement,
 		PostfixDecrement,
 	};
+}
+
+
+inline static char const* UnaryOperator_AsStr( UnOpKind kind )
+{
+	switch ( kind )
+	{
+		case UnaryOpKind::Invalid:          return "INVALID";
+		case UnaryOpKind::LogicalNot:       return "!";
+		case UnaryOpKind::BitwiseNot:       return "~";
+		case UnaryOpKind::Negate:           return "-";
+		case UnaryOpKind::Dereference:      return "*";
+		case UnaryOpKind::AddressOf:        return "&";
+		case UnaryOpKind::PrefixIncrement:  return "++x";
+		case UnaryOpKind::PrefixDecrement:  return "--x";
+		case UnaryOpKind::PostfixIncrement: return "x++";
+		case UnaryOpKind::PostfixDecrement: return "x--";
+		default:                            return "UNKNOWN";
+	}
 }
