@@ -506,7 +506,7 @@ static ProcDeclStmnt* Typechecker_LookupProcDecl( Module* module, Scope* scope, 
 }
 
 
-static void Typechecker_CheckVarDecl( Scope* scope, VarDeclStmnt* stmnt );
+static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt* stmnt );
 
 
 static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDeclStmnt* decl )
@@ -522,7 +522,7 @@ static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDe
 	{
 		VarDeclStmnt* param = decl->params[i];
 
-		Typechecker_CheckVarDecl( scope, param );
+		Typechecker_CheckVarDecl( module, scope, param );
 	}
 
 	for ( size_t i = 0; i < decl->return_types.count; i++ )
@@ -553,9 +553,34 @@ static void Typechecker_CheckUnaryOp( Scope* scope, UnaryOperationExpr* expr )
 }
 
 
-static void Typechecker_CheckVarDecl( Scope* scope, VarDeclStmnt* stmnt )
+static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt* stmnt )
 {
-	log_span_fatal( stmnt->span, "impl Typechecker_CheckVarDecl" );
+	for ( size_t i = 0; i < scope->vars.count; i++ )
+	{
+		VarDeclStmnt* var = scope->vars[i];
+		if ( stmnt->name == var->name )
+		{
+			// FIXME: #ERROR_CLEANUP
+			log_span_fatal( stmnt->span, "Variable already defined in this lexical scope" );
+		}
+	}
+
+	if ( stmnt->type )
+	{
+		Typechecker_LookupTypeID( module, scope, stmnt->type );
+	}
+
+	if ( stmnt->default_value )
+	{
+		Typechecker_CheckExpression( scope, (AstNode*)stmnt, stmnt->type );
+	}
+
+	if ( !stmnt->type )
+	{
+		stmnt->type = stmnt->default_value->type; // FIXME: Copy node and change span rather than just copying the pointer. This could mean that the output would be fucked
+	}
+
+	scope->vars.append( stmnt );
 }
 
 
@@ -683,7 +708,7 @@ static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDe
 
 		switch ( stmnt->kind )
 		{
-			case AstNodeKind::VarDecl:         Typechecker_CheckVarDecl( scope, (VarDeclStmnt*)stmnt ); break;
+			case AstNodeKind::VarDecl:         Typechecker_CheckVarDecl( module, scope, (VarDeclStmnt*)stmnt ); break;
 			case AstNodeKind::IfStmnt:         Typechecker_CheckIfStmnt( scope, (IfStmnt*)stmnt ); break;
 			case AstNodeKind::ProcCall:        Typechecker_CheckProcCall( scope, (ProcCallExpr*)stmnt ); break;
 			case AstNodeKind::LexicalBlock:    Typechecker_CheckScope( module, ((LexicalBlock*)stmnt)->scope ); break;

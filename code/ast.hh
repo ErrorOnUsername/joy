@@ -172,7 +172,7 @@ struct Scope {
 	Array<ProcDeclStmnt*> procedures;
 	Array<AstNode*>       statements;
 
-	Array<VarDeclStmnt*> reserved_vars;
+	Array<VarDeclStmnt*> vars;
 };
 
 
