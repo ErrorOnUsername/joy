@@ -135,7 +135,7 @@ namespace TypeKind
 		          | PrimitiveISize
 		          | PrimitiveF32
 		          | PrimitiveF64
-	              | PrimitiveRawPtr
+		          | PrimitiveRawPtr
 		          | PrimitiveString
 		          | PrimitiveCString,
 	};
@@ -171,6 +171,8 @@ struct Scope {
 	Array<AstNode*>       types;
 	Array<ProcDeclStmnt*> procedures;
 	Array<AstNode*>       statements;
+
+	Array<VarDeclStmnt*> reserved_vars;
 };
 
 

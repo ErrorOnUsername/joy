@@ -506,6 +506,9 @@ static ProcDeclStmnt* Typechecker_LookupProcDecl( Module* module, Scope* scope, 
 }
 
 
+static void Typechecker_CheckVarDecl( Scope* scope, VarDeclStmnt* stmnt );
+
+
 static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDeclStmnt* decl )
 {
 	TIME_PROC();
@@ -519,20 +522,7 @@ static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDe
 	{
 		VarDeclStmnt* param = decl->params[i];
 
-		if ( param->type )
-		{
-			Typechecker_LookupTypeID( module, scope, param->type );
-		}
-
-		if ( param->default_value )
-		{
-			Typechecker_CheckExpression( scope, param->default_value, param->type ? param->type : nullptr );
-		}
-
-		if ( !param->type )
-		{
-			param->type_id = param->default_value->type_id;
-		}
+		Typechecker_CheckVarDecl( scope, param );
 	}
 
 	for ( size_t i = 0; i < decl->return_types.count; i++ )
