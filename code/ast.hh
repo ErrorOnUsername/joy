@@ -37,6 +37,8 @@ namespace AstNodeKind
 	};
 }
 
+char const* AstNodeKind_AsStr( NodeKind kind );
+
 namespace AstNodeFlag
 {
 	enum {
