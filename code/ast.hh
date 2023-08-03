@@ -204,11 +204,12 @@ struct CharacterLiteralExpr : public AstNode {
 //
 
 struct VarRefExpr : public AstNode {
-	Array<std::string> name_path;
+	std::string name;
+	AstNode* var_def = nullptr;
 };
 
 struct ProcCallExpr : public AstNode {
-	Array<std::string> name_path;
+	std::string name;
 	Array<AstNode*> params;
 };
 

@@ -572,7 +572,7 @@ static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt
 
 	if ( stmnt->default_value )
 	{
-		Typechecker_CheckExpression( scope, (AstNode*)stmnt, stmnt->type );
+		Typechecker_CheckExpression( scope, stmnt->default_value, stmnt->type );
 	}
 
 	if ( !stmnt->type )
@@ -634,7 +634,21 @@ static void Typechecker_CheckReturnStmnt( Scope* scope, ReturnStmnt* stmnt, Proc
 
 static void Typechecker_LookupNameInScope( Scope* scope, VarRefExpr* ref )
 {
-	log_span_fatal( ref->span, "impl Typechecker_LookupNameInScope" );
+	Scope* current_scope = scope;
+
+	while ( current_scope )
+	{
+		for ( size_t i = 0; i < scope->vars.count; i++ )
+		{
+			if ( ref->name == scope->vars[i]->name )
+			{
+				ref->var_def = scope->vars[i];
+				ref->type    = scope->vars[i]->type;
+			}
+		}
+
+		current_scope = current_scope->parent;
+	}
 }
 
 
@@ -691,10 +705,8 @@ static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expe
 			break; // These can all be whatever type is required in the moment.
 		case AstNodeKind::VarRef: Typechecker_LookupNameInScope( scope, (VarRefExpr*)expr ); break;
 		default:
-			log_span_fatal( expr->span, "Unexpected expression in Typechecker_CheckExpression" );
+			log_span_fatal( expr->span, "Unexpected expression in Typechecker_CheckExpression: '%s'", AstNodeKind_AsStr( expr->kind ) );
 	}
-
-	log_span_fatal( expr->span, "TODO: Expression checking" );
 }
 
 
@@ -727,8 +739,6 @@ static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDe
 			default:
 				log_span_fatal( stmnt->span, "Got statement of unknown kind" );
 		}
-
-		log_span_fatal( stmnt->span, "Implement statement typechecking" );
 	}
 }
 

@@ -1526,27 +1526,10 @@ AstNode* Parser::parse_operand( bool can_construct )
 		}
 		case TK::Ident:
 		{
-			Array<std::string> name;
+			std::string name = lead_tk.str;
 
-			Token tk = curr_tk();
+			Token tk = next_tk();
 			Span start_span = tk.span;
-
-			for ( ;; )
-			{
-				name.append( tk.str );
-
-				tk = next_tk();
-				if ( tk.kind != TK::DoubleColon )
-				{
-					break;
-				}
-
-				tk = next_tk();
-				if ( tk.kind != TK::Ident )
-				{
-					break;
-				}
-			}
 
 			switch ( tk.kind )
 			{
@@ -1554,8 +1537,6 @@ AstNode* Parser::parse_operand( bool can_construct )
 				{
 					// im sorry. this is very dumb but im just too tired to deal with this
 					if ( !can_construct ) goto USE_AS_IDENT_LABEL;
-
-					int a = 0;
 
 					log_span_fatal( tk.span, "Implement structure literals" );
 					break;
@@ -1600,7 +1581,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 					ProcCallExpr* expr = working_module->node_arena.alloc<ProcCallExpr>();
 					expr->kind = AstNodeKind::ProcCall;
 					expr->span = join_span( start_span, end_name_span );
-					expr->name_path.swap( name );
+					expr->name = name;
 					expr->params.swap( params );
 
 					prefix = expr;
@@ -1612,7 +1593,7 @@ AstNode* Parser::parse_operand( bool can_construct )
 					VarRefExpr* expr = working_module->node_arena.alloc<VarRefExpr>();
 					expr->kind = AstNodeKind::VarRef;
 					expr->span = join_span( start_span, peek_tk( -1 ).span );
-					expr->name_path.swap( name );
+					expr->name = name;
 
 					prefix = expr;
 				}
