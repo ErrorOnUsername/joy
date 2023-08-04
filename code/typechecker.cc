@@ -661,6 +661,10 @@ static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt
 			{
 				stmnt->type = create_primitive_type( module, stmnt->span, TypeKind::PrimitiveString );
 			}
+			else
+			{
+				log_span_fatal( stmnt->default_value->span, "Cannot give default value to unkown literal expression" );
+			}
 		}
 	}
 
