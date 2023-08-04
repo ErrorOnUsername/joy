@@ -522,7 +522,7 @@ static void Typechecker_CheckProcedureDecl( Module* module, Scope* scope, ProcDe
 	{
 		VarDeclStmnt* param = decl->params[i];
 
-		Typechecker_CheckVarDecl( module, scope, param );
+		Typechecker_CheckVarDecl( module, decl->body->scope, param );
 	}
 
 	for ( size_t i = 0; i < decl->return_types.count; i++ )
@@ -553,6 +553,70 @@ static void Typechecker_CheckUnaryOp( Scope* scope, UnaryOperationExpr* expr )
 }
 
 
+static TypeID reserved_type_id_from_kind( TyKind kind )
+{
+	switch ( kind )
+	{
+		case TypeKind::PrimitiveBool:    return ReservedTypeID::PrimitiveBool;
+		case TypeKind::PrimitiveChar:    return ReservedTypeID::PrimitiveChar;
+		case TypeKind::PrimitiveU8:      return ReservedTypeID::PrimitiveU8;
+		case TypeKind::PrimitiveI8:      return ReservedTypeID::PrimitiveI8;
+		case TypeKind::PrimitiveU16:     return ReservedTypeID::PrimitiveU16;
+		case TypeKind::PrimitiveI16:     return ReservedTypeID::PrimitiveI16;
+		case TypeKind::PrimitiveU32:     return ReservedTypeID::PrimitiveU32;
+		case TypeKind::PrimitiveI32:     return ReservedTypeID::PrimitiveI32;
+		case TypeKind::PrimitiveU64:     return ReservedTypeID::PrimitiveU64;
+		case TypeKind::PrimitiveI64:     return ReservedTypeID::PrimitiveI64;
+		case TypeKind::PrimitiveUSize:   return ReservedTypeID::PrimitiveUSize;
+		case TypeKind::PrimitiveISize:   return ReservedTypeID::PrimitiveISize;
+		case TypeKind::PrimitiveF32:     return ReservedTypeID::PrimitiveF32;
+		case TypeKind::PrimitiveF64:     return ReservedTypeID::PrimitiveF64;
+		case TypeKind::PrimitiveRawPtr:  return ReservedTypeID::PrimitiveRawPtr;
+		case TypeKind::PrimitiveString:  return ReservedTypeID::PrimitiveString;
+		case TypeKind::PrimitiveCString: return ReservedTypeID::PrimitiveCString;
+		default:                         return ReservedTypeID::Unknown;
+	}
+}
+
+
+static char const* reserved_type_id_as_str( TypeID id )
+{
+	switch ( id )
+	{
+		case ReservedTypeID::PrimitiveBool:    return "bool";
+		case ReservedTypeID::PrimitiveChar:    return "char";
+		case ReservedTypeID::PrimitiveU8:      return "u8";
+		case ReservedTypeID::PrimitiveI8:      return "i8";
+		case ReservedTypeID::PrimitiveU16:     return "u16";
+		case ReservedTypeID::PrimitiveI16:     return "i16";
+		case ReservedTypeID::PrimitiveU32:     return "u32";
+		case ReservedTypeID::PrimitiveI32:     return "i32";
+		case ReservedTypeID::PrimitiveU64:     return "u64";
+		case ReservedTypeID::PrimitiveI64:     return "i64";
+		case ReservedTypeID::PrimitiveUSize:   return "usize";
+		case ReservedTypeID::PrimitiveISize:   return "isize";
+		case ReservedTypeID::PrimitiveF32:     return "f32";
+		case ReservedTypeID::PrimitiveF64:     return "f64";
+		case ReservedTypeID::PrimitiveRawPtr:  return "rawptr";
+		case ReservedTypeID::PrimitiveString:  return "string";
+		case ReservedTypeID::PrimitiveCString: return "cstring";
+		default:                               return "UNKNOWN";
+	}
+}
+
+
+static Type* create_primitive_type( Module* module, Span& span, TyKind kind )
+{
+	Type* new_type = module->type_arena.alloc<Type>();
+	new_type->kind = kind;
+	new_type->span = span;
+	new_type->id   = reserved_type_id_from_kind( kind );
+	new_type->name = reserved_type_id_as_str( new_type->id );
+
+	return new_type;
+}
+
+
 static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt* stmnt )
 {
 	for ( size_t i = 0; i < scope->vars.count; i++ )
@@ -577,7 +641,27 @@ static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt
 
 	if ( !stmnt->type )
 	{
-		stmnt->type = stmnt->default_value->type; // FIXME: Copy node and change span rather than just copying the pointer. This could mean that the output would be fucked
+		if ( stmnt->default_value->type )
+		{
+			stmnt->type = stmnt->default_value->type; // FIXME: Copy node and change span rather than just copying the pointer. This could mean that the output would be fucked
+		}
+		else
+		{
+			// Default types for literals
+
+			if ( stmnt->default_value->flags & AstNodeFlag::IntegerLiteral )
+			{
+				stmnt->type = create_primitive_type( module, stmnt->span, TypeKind::PrimitiveISize );
+			}
+			else if ( stmnt->default_value->flags & AstNodeFlag::FloatingPointLiteral )
+			{
+				stmnt->type = create_primitive_type( module, stmnt->span, TypeKind::PrimitiveF32 );
+			}
+			else if ( stmnt->default_value->flags & AstNodeFlag::StringLiteral )
+			{
+				stmnt->type = create_primitive_type( module, stmnt->span, TypeKind::PrimitiveString );
+			}
+		}
 	}
 
 	scope->vars.append( stmnt );
@@ -651,6 +735,8 @@ static void Typechecker_LookupNameInScope( Scope* scope, VarRefExpr* ref )
 			{
 				ref->var_def = scope->vars[i];
 				ref->type    = scope->vars[i]->type;
+
+				return;
 			}
 		}
 
@@ -676,7 +762,7 @@ static void Typechecker_CheckBinOpExpr( Scope* scope, BinaryOperationExpr* bin_o
 
 	if ( !Typechecker_IsBinaryOpValidForTypes( op_kind, lhs->type, rhs->type ) )
 	{
-		log_span_fatal( bin_op->span, "Binary operation '%s' is not valid for the given operands", BinaryOperator_AsStr( op_kind ) );
+		log_span_fatal( bin_op->span, "Binary operation '%s' is not valid between types '%s' and '%s'", BinaryOperator_AsStr( op_kind ), lhs->type->name.c_str(), rhs->type->name.c_str() );
 	}
 }
 
