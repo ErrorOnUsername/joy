@@ -164,6 +164,70 @@ bool Typechecker_StageAllTasks()
 }
 
 
+static TypeID reserved_type_id_from_kind( TyKind kind )
+{
+	switch ( kind )
+	{
+		case TypeKind::PrimitiveBool:    return ReservedTypeID::PrimitiveBool;
+		case TypeKind::PrimitiveChar:    return ReservedTypeID::PrimitiveChar;
+		case TypeKind::PrimitiveU8:      return ReservedTypeID::PrimitiveU8;
+		case TypeKind::PrimitiveI8:      return ReservedTypeID::PrimitiveI8;
+		case TypeKind::PrimitiveU16:     return ReservedTypeID::PrimitiveU16;
+		case TypeKind::PrimitiveI16:     return ReservedTypeID::PrimitiveI16;
+		case TypeKind::PrimitiveU32:     return ReservedTypeID::PrimitiveU32;
+		case TypeKind::PrimitiveI32:     return ReservedTypeID::PrimitiveI32;
+		case TypeKind::PrimitiveU64:     return ReservedTypeID::PrimitiveU64;
+		case TypeKind::PrimitiveI64:     return ReservedTypeID::PrimitiveI64;
+		case TypeKind::PrimitiveUSize:   return ReservedTypeID::PrimitiveUSize;
+		case TypeKind::PrimitiveISize:   return ReservedTypeID::PrimitiveISize;
+		case TypeKind::PrimitiveF32:     return ReservedTypeID::PrimitiveF32;
+		case TypeKind::PrimitiveF64:     return ReservedTypeID::PrimitiveF64;
+		case TypeKind::PrimitiveRawPtr:  return ReservedTypeID::PrimitiveRawPtr;
+		case TypeKind::PrimitiveString:  return ReservedTypeID::PrimitiveString;
+		case TypeKind::PrimitiveCString: return ReservedTypeID::PrimitiveCString;
+		default:                         return ReservedTypeID::Unknown;
+	}
+}
+
+
+static char const* reserved_type_id_as_str( TypeID id )
+{
+	switch ( id )
+	{
+		case ReservedTypeID::PrimitiveBool:    return "bool";
+		case ReservedTypeID::PrimitiveChar:    return "char";
+		case ReservedTypeID::PrimitiveU8:      return "u8";
+		case ReservedTypeID::PrimitiveI8:      return "i8";
+		case ReservedTypeID::PrimitiveU16:     return "u16";
+		case ReservedTypeID::PrimitiveI16:     return "i16";
+		case ReservedTypeID::PrimitiveU32:     return "u32";
+		case ReservedTypeID::PrimitiveI32:     return "i32";
+		case ReservedTypeID::PrimitiveU64:     return "u64";
+		case ReservedTypeID::PrimitiveI64:     return "i64";
+		case ReservedTypeID::PrimitiveUSize:   return "usize";
+		case ReservedTypeID::PrimitiveISize:   return "isize";
+		case ReservedTypeID::PrimitiveF32:     return "f32";
+		case ReservedTypeID::PrimitiveF64:     return "f64";
+		case ReservedTypeID::PrimitiveRawPtr:  return "rawptr";
+		case ReservedTypeID::PrimitiveString:  return "string";
+		case ReservedTypeID::PrimitiveCString: return "cstring";
+		default:                               return "UNKNOWN";
+	}
+}
+
+
+static Type* create_primitive_type( Module* module, Span& span, TyKind kind )
+{
+	Type* new_type = module->type_arena.alloc<Type>();
+	new_type->kind = kind;
+	new_type->span = span;
+	new_type->id   = reserved_type_id_from_kind( kind );
+	new_type->name = reserved_type_id_as_str( new_type->id );
+
+	return new_type;
+}
+
+
 static void Typechecker_CheckScope( Module* module, Scope* scope, ProcDeclStmnt* proc_ctx = nullptr );
 
 static void Typechecker_CheckModule( std::string const& path, Module* module )
@@ -550,70 +614,6 @@ static void Typechecker_CheckBinOp( Scope* scope, BinaryOperationExpr* expr )
 static void Typechecker_CheckUnaryOp( Scope* scope, UnaryOperationExpr* expr )
 {
 	log_span_fatal( expr->span, "impl Typechecker_CheckUnaryOp" );
-}
-
-
-static TypeID reserved_type_id_from_kind( TyKind kind )
-{
-	switch ( kind )
-	{
-		case TypeKind::PrimitiveBool:    return ReservedTypeID::PrimitiveBool;
-		case TypeKind::PrimitiveChar:    return ReservedTypeID::PrimitiveChar;
-		case TypeKind::PrimitiveU8:      return ReservedTypeID::PrimitiveU8;
-		case TypeKind::PrimitiveI8:      return ReservedTypeID::PrimitiveI8;
-		case TypeKind::PrimitiveU16:     return ReservedTypeID::PrimitiveU16;
-		case TypeKind::PrimitiveI16:     return ReservedTypeID::PrimitiveI16;
-		case TypeKind::PrimitiveU32:     return ReservedTypeID::PrimitiveU32;
-		case TypeKind::PrimitiveI32:     return ReservedTypeID::PrimitiveI32;
-		case TypeKind::PrimitiveU64:     return ReservedTypeID::PrimitiveU64;
-		case TypeKind::PrimitiveI64:     return ReservedTypeID::PrimitiveI64;
-		case TypeKind::PrimitiveUSize:   return ReservedTypeID::PrimitiveUSize;
-		case TypeKind::PrimitiveISize:   return ReservedTypeID::PrimitiveISize;
-		case TypeKind::PrimitiveF32:     return ReservedTypeID::PrimitiveF32;
-		case TypeKind::PrimitiveF64:     return ReservedTypeID::PrimitiveF64;
-		case TypeKind::PrimitiveRawPtr:  return ReservedTypeID::PrimitiveRawPtr;
-		case TypeKind::PrimitiveString:  return ReservedTypeID::PrimitiveString;
-		case TypeKind::PrimitiveCString: return ReservedTypeID::PrimitiveCString;
-		default:                         return ReservedTypeID::Unknown;
-	}
-}
-
-
-static char const* reserved_type_id_as_str( TypeID id )
-{
-	switch ( id )
-	{
-		case ReservedTypeID::PrimitiveBool:    return "bool";
-		case ReservedTypeID::PrimitiveChar:    return "char";
-		case ReservedTypeID::PrimitiveU8:      return "u8";
-		case ReservedTypeID::PrimitiveI8:      return "i8";
-		case ReservedTypeID::PrimitiveU16:     return "u16";
-		case ReservedTypeID::PrimitiveI16:     return "i16";
-		case ReservedTypeID::PrimitiveU32:     return "u32";
-		case ReservedTypeID::PrimitiveI32:     return "i32";
-		case ReservedTypeID::PrimitiveU64:     return "u64";
-		case ReservedTypeID::PrimitiveI64:     return "i64";
-		case ReservedTypeID::PrimitiveUSize:   return "usize";
-		case ReservedTypeID::PrimitiveISize:   return "isize";
-		case ReservedTypeID::PrimitiveF32:     return "f32";
-		case ReservedTypeID::PrimitiveF64:     return "f64";
-		case ReservedTypeID::PrimitiveRawPtr:  return "rawptr";
-		case ReservedTypeID::PrimitiveString:  return "string";
-		case ReservedTypeID::PrimitiveCString: return "cstring";
-		default:                               return "UNKNOWN";
-	}
-}
-
-
-static Type* create_primitive_type( Module* module, Span& span, TyKind kind )
-{
-	Type* new_type = module->type_arena.alloc<Type>();
-	new_type->kind = kind;
-	new_type->span = span;
-	new_type->id   = reserved_type_id_from_kind( kind );
-	new_type->name = reserved_type_id_as_str( new_type->id );
-
-	return new_type;
 }
 
 
