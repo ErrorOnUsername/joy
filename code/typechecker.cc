@@ -602,9 +602,16 @@ static void Typechecker_CheckForLoop( Scope* scope, ForLoopStmnt* stmnt )
 }
 
 
-static void Typechecker_CheckWhileLoop( Scope* scope, WhileLoopStmnt* stmnt )
+static void Typechecker_CheckWhileLoop( Module* module, Scope* scope, WhileLoopStmnt* stmnt )
 {
-	log_span_fatal( stmnt->span, "impl Typechecker_CheckWhileLoop" );
+	Typechecker_CheckExpression( scope, stmnt->condition_expr );
+
+	if ( stmnt->condition_expr->type_id != ReservedTypeID::PrimitiveBool )
+	{
+		log_span_fatal( stmnt->condition_expr->span, "While loop condition does not result in a boolean expression" );
+	}
+
+	Typechecker_CheckScope( module, stmnt->body->scope );
 }
 
 
@@ -669,7 +676,7 @@ static void Typechecker_CheckBinOpExpr( Scope* scope, BinaryOperationExpr* bin_o
 
 	if ( !Typechecker_IsBinaryOpValidForTypes( op_kind, lhs->type, rhs->type ) )
 	{
-		log_span_fatal( bin_op->span, "Binary operation '%s' is not valid between types '%s' and '%s'", BinaryOperator_AsStr( op_kind ), lhs->type->name.c_str(), rhs->type->name.c_str() );
+		log_span_fatal( bin_op->span, "Binary operation '%s' is not valid for the given operands", BinaryOperator_AsStr( op_kind ) );
 	}
 }
 
@@ -725,7 +732,7 @@ static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDe
 			case AstNodeKind::ProcCall:        Typechecker_CheckProcCall( scope, (ProcCallExpr*)stmnt ); break;
 			case AstNodeKind::LexicalBlock:    Typechecker_CheckScope( module, ((LexicalBlock*)stmnt)->scope ); break;
 			case AstNodeKind::ForLoop:         Typechecker_CheckForLoop( scope, (ForLoopStmnt*)stmnt ); break;
-			case AstNodeKind::WhileLoop:       Typechecker_CheckWhileLoop( scope, (WhileLoopStmnt*)stmnt ); break;
+			case AstNodeKind::WhileLoop:       Typechecker_CheckWhileLoop( module, scope, (WhileLoopStmnt*)stmnt ); break;
 			case AstNodeKind::InfiniteLoop:    Typechecker_CheckInfiniteLoop( scope, (InfiniteLoopStmnt*)stmnt ); break;
 			case AstNodeKind::ContinueStmnt:   Typechecker_CheckContinueStmnt( scope, stmnt ); break;
 			case AstNodeKind::BreakStmnt:      Typechecker_CheckBreakStmnt( scope, stmnt ); break;
