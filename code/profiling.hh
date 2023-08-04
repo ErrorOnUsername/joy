@@ -1,9 +1,9 @@
 #pragma once
 
 
-#ifdef __linux__
+#ifndef __linux__
 
-#define USE_OPTICK 0
+#define USE_OPTICK 1
 #include <optick.h>
 
 
