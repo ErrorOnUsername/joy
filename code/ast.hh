@@ -123,20 +123,25 @@ namespace TypeKind
 		PrimitiveString  = ( 1 << 19 ),
 		PrimitiveCString = ( 1 << 20 ),
 
+		PrimitiveInteger = PrimitiveU8
+		                 | PrimitiveI8
+		                 | PrimitiveU16
+		                 | PrimitiveI16
+		                 | PrimitiveU32
+		                 | PrimitiveI32
+		                 | PrimitiveU64
+		                 | PrimitiveI64
+		                 | PrimitiveUSize
+		                 | PrimitiveISize,
+
+		PrimitiveFloat = PrimitiveF32 | PrimitiveF64,
+
+		PrimitiveNumber = PrimitiveInteger | PrimitiveFloat,
+
 		Primitive = PrimitiveBool
 		          | PrimitiveChar
-		          | PrimitiveU8
-		          | PrimitiveI8
-		          | PrimitiveU16
-		          | PrimitiveI16
-		          | PrimitiveU32
-		          | PrimitiveI32
-		          | PrimitiveU64
-		          | PrimitiveI64
-		          | PrimitiveUSize
-		          | PrimitiveISize
-		          | PrimitiveF32
-		          | PrimitiveF64
+				  | PrimitiveInteger
+				  | PrimitiveFloat
 		          | PrimitiveRawPtr
 		          | PrimitiveString
 		          | PrimitiveCString,

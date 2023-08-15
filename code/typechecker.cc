@@ -394,7 +394,7 @@ static bool Typechecker_DoesIntFitInType( IntegerLiteralExpr* literal, Type* typ
 }
 
 
-static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type = nullptr );
+static void Typechecker_CheckExpression( Module* module, Scope* scope, AstNode* expr, Type* expected_type = nullptr );
 
 
 static bool Typechecker_IsTypeAlreadyDefined( Module* module, Scope* scope, size_t local_type_idx, std::string const& name )
@@ -457,12 +457,12 @@ static void Typechecker_CheckStructDecl( Module* module, Scope* scope, size_t lo
 
 			if ( member->default_value )
 			{
-				Typechecker_CheckExpression( scope, member->default_value, member->type );
+				Typechecker_CheckExpression( module, scope, member->default_value, member->type );
 			}
 		}
 		else
 		{
-			Typechecker_CheckExpression( scope, member->default_value );
+			Typechecker_CheckExpression( module, scope, member->default_value );
 		}
 
 		if ( member->default_value && member->type && ( member->type->id != member->default_value->type->id ) )
@@ -636,7 +636,7 @@ static void Typechecker_CheckVarDecl( Module* module, Scope* scope, VarDeclStmnt
 
 	if ( stmnt->default_value )
 	{
-		Typechecker_CheckExpression( scope, stmnt->default_value, stmnt->type );
+		Typechecker_CheckExpression( module, scope, stmnt->default_value, stmnt->type );
 	}
 
 	if ( !stmnt->type )
@@ -692,7 +692,7 @@ static void Typechecker_CheckForLoop( Scope* scope, ForLoopStmnt* stmnt )
 
 static void Typechecker_CheckWhileLoop( Module* module, Scope* scope, WhileLoopStmnt* stmnt )
 {
-	Typechecker_CheckExpression( scope, stmnt->condition_expr );
+	Typechecker_CheckExpression( module, scope, stmnt->condition_expr );
 
 	if ( stmnt->condition_expr->type_id != ReservedTypeID::PrimitiveBool )
 	{
@@ -749,25 +749,96 @@ static void Typechecker_LookupNameInScope( Scope* scope, VarRefExpr* ref )
 }
 
 
-static bool Typechecker_IsBinaryOpValidForTypes( BinOpKind op_kind, Type* lhs_ty, Type* rhs_ty )
-{
-	return false;
-}
-
-
-static void Typechecker_CheckBinOpExpr( Scope* scope, BinaryOperationExpr* bin_op )
+static void Typechecker_CheckBinOpExpr( Module* module, Scope* scope, BinaryOperationExpr* bin_op )
 {
 	BinOpKind op_kind = bin_op->op_kind;
 	AstNode*  lhs     = bin_op->lhs;
 	AstNode*  rhs     = bin_op->rhs;
 
-	Typechecker_CheckExpression( scope, lhs );
-	Typechecker_CheckExpression( scope, rhs );
+	Typechecker_CheckExpression( module, scope, lhs );
+	Typechecker_CheckExpression( module, scope, rhs );
 
-	if ( !Typechecker_IsBinaryOpValidForTypes( op_kind, lhs->type, rhs->type ) )
+	switch ( op_kind )
 	{
-		log_span_fatal( bin_op->span, "Binary operation '%s' is not valid between types '%s' and '%s'", BinaryOperator_AsStr( op_kind ), lhs->type->name.c_str(), rhs->type->name.c_str() );
+		case BinaryOpKind::MemberAccess:
+		{
+			break;
+		}
+		case BinaryOpKind::Range:
+		{
+			break;
+		}
+		case BinaryOpKind::Multiply:
+		case BinaryOpKind::Divide:
+		case BinaryOpKind::Modulo:
+		case BinaryOpKind::Add:
+		case BinaryOpKind::Subtract:
+		{
+			if ( !( lhs->type->kind & TypeKind::PrimitiveNumber ) )
+			{
+				log_span_fatal( lhs->span, "left-hand side of expression is of incompatable type '%s' for operation", lhs->type->name.c_str() );
+			}
+
+			if ( !( rhs->type->kind & TypeKind::PrimitiveNumber ) )
+			{
+				log_span_fatal( rhs->span, "right-hand side of expression is of incompatable type '%s' for operation", rhs->type->name.c_str() );
+			}
+
+
+			// TODO: Type ellision
+			if ( lhs->type->kind != rhs->type->kind )
+			{
+				log_span_fatal( bin_op->span, "operands are of incompatable types '%s' and '%s'", lhs->type->name.c_str(), rhs->type->name.c_str() );
+			}
+
+			create_primitive_type( module, bin_op->span, lhs->type->kind );
+
+			break;
+		}
+		case BinaryOpKind::LessThan:
+		case BinaryOpKind::LessThanOrEq:
+		case BinaryOpKind::GreaterThan:
+		case BinaryOpKind::GreaterThanOrEq:
+		{
+			break;
+		}
+		case BinaryOpKind::EqualTo:
+		case BinaryOpKind::NotEqualTo:
+		{
+			break;
+		}
+		case BinaryOpKind::BitwiseAnd:
+		case BinaryOpKind::BitwiseOr:
+		case BinaryOpKind::BitwiseXor:
+		case BinaryOpKind::LogicalAnd:
+		case BinaryOpKind::LogicalOr:
+		case BinaryOpKind::LogicalXor:
+		{
+			break;
+		}
+		case BinaryOpKind::Assign:
+		{
+			break;
+		}
+		case BinaryOpKind::AddAssign:
+		case BinaryOpKind::SubtractAssign:
+		case BinaryOpKind::MultiplyAssign:
+		case BinaryOpKind::DivideAssign:
+		case BinaryOpKind::ModuloAssign:
+		case BinaryOpKind::NotAssign:
+		case BinaryOpKind::AndAssign:
+		case BinaryOpKind::OrAssign:
+		case BinaryOpKind::XorAssign:
+		{
+			break;
+		}
+		case BinaryOpKind::Invalid:
+		{
+			log_span_fatal( bin_op->span, "Got invalid binary operation" );
+		}
 	}
+
+	log_span_fatal( bin_op->span, "impl binary operation typechecking" );
 }
 
 
@@ -777,9 +848,9 @@ static bool Typechecker_IsUnaryOpValidForType( UnOpKind op_kind, Type* rand_ty )
 }
 
 
-static void Typechecker_CheckUnaryOpExpr( Scope* scope, UnaryOperationExpr* unary_op )
+static void Typechecker_CheckUnaryOpExpr( Module* module, Scope* scope, UnaryOperationExpr* unary_op )
 {
-	Typechecker_CheckExpression( scope, unary_op->operand );
+	Typechecker_CheckExpression( module, scope, unary_op->operand );
 
 	if ( !Typechecker_IsUnaryOpValidForType( unary_op->op_kind, unary_op->operand->type ) )
 	{
@@ -788,14 +859,14 @@ static void Typechecker_CheckUnaryOpExpr( Scope* scope, UnaryOperationExpr* unar
 }
 
 
-static void Typechecker_CheckExpression( Scope* scope, AstNode* expr, Type* expected_type )
+static void Typechecker_CheckExpression( Module* module, Scope* scope, AstNode* expr, Type* expected_type )
 {
 	TIME_PROC();
 
 	switch ( expr->kind )
 	{
-		case AstNodeKind::BinaryOperation: Typechecker_CheckBinOpExpr( scope, (BinaryOperationExpr*)expr ); break;
-		case AstNodeKind::UnaryOperation:  Typechecker_CheckUnaryOpExpr( scope, (UnaryOperationExpr*)expr ); break;
+		case AstNodeKind::BinaryOperation: Typechecker_CheckBinOpExpr( module, scope, (BinaryOperationExpr*)expr ); break;
+		case AstNodeKind::UnaryOperation:  Typechecker_CheckUnaryOpExpr( module, scope, (UnaryOperationExpr*)expr ); break;
 		case AstNodeKind::IntegerLiteral:
 		case AstNodeKind::FloatingPointLiteral:
 		case AstNodeKind::StringLiteral:
@@ -830,7 +901,7 @@ static void Typechecker_CheckStatementList( Module* module, Scope* scope, ProcDe
 			case AstNodeKind::BinaryOperation:
 			case AstNodeKind::UnaryOperation:
 			{
-				Typechecker_CheckExpression( scope, stmnt );
+				Typechecker_CheckExpression( module, scope, stmnt );
 				break;
 			}
 			default:
