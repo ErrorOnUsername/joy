@@ -14,14 +14,6 @@ FileData :: struct
 
 file_registry: [dynamic]FileData
 
-fm_shutdown :: proc()
-{
-    for file_data in &file_registry
-    {
-        delete( file_data.data )
-    }
-}
-
 
 fm_open :: proc( path: string ) -> ( id: FileID, ok: bool )
 {

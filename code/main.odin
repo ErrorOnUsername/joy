@@ -6,7 +6,6 @@ import "core:os"
 
 main :: proc()
 {
-    defer fm_shutdown()
     id, ok := fm_open( "test/basic/main.dfly" )
     if !ok {
         fmt.eprintln( "Could not load file" )
