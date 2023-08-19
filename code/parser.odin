@@ -5,6 +5,18 @@ import "core:mem"
 import "core:strings"
 
 
+pump_parse_package :: proc( file_id: FileID ) -> PumpResult
+{
+    file_data := fm_get_data( file_id )
+
+    if !file_data.is_dir {
+        log_errorf( "File '{}' is not a directory", file_data.rel_path )
+        return .Error
+    }
+
+    return .Continue
+}
+
 pump_parse_file :: proc( owning_package: ^Package, file_id: FileID ) -> PumpResult
 {
     data := fm_get_data( file_id )

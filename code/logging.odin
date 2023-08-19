@@ -16,3 +16,17 @@ log_errorf :: proc( msg: string, args: ..any )
     fmt.sbprintf( &sb, msg, args )
     fmt.eprintf( "Error: {}\n", strings.to_string( sb ) )
 }
+
+
+log_warning :: proc( msg: string )
+{
+    fmt.eprintf( "Warning: {}\n", msg )
+}
+
+log_warningf :: proc( msg: string, args: ..any )
+{
+    sb: strings.Builder
+
+    fmt.sbprintf( &sb, msg, args )
+    fmt.eprintf( "Warning: {}\n", strings.to_string( sb ) )
+}
