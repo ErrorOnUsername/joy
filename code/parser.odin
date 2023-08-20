@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:mem"
+import "core:os"
 import "core:strings"
 
 
@@ -10,14 +11,32 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
     file_data := fm_get_data( file_id )
 
     if !file_data.is_dir {
-        log_errorf( "File '{}' is not a directory", file_data.rel_path )
+        log_errorf( "Package '{}' is not a directory", file_data.rel_path )
         return .Error
+    }
+
+    handle, open_errno := os.open( file_data.abs_path )
+    defer os.close( handle )
+
+    if open_errno != os.ERROR_NONE {
+        log_errorf( "Could not open directory: '{}' (errno: {})", file_data.rel_path, open_errno )
+        return .Error
+    }
+
+
+    f_infos, errno := os.read_dir( handle, -1 )
+
+    for f_info in f_infos {
+        sub_file_id, open_ok := fm_open( f_info.fullpath )
+        sub_file_data        := fm_get_data( sub_file_id )
+
+        compiler_enqueue_work( .ParsePackage if sub_file_data.is_dir else .ParseFile, sub_file_id )
     }
 
     return .Continue
 }
 
-pump_parse_file :: proc( owning_package: ^Package, file_id: FileID ) -> PumpResult
+pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 {
     data := fm_get_data( file_id )
     if data == nil {

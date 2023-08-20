@@ -6,17 +6,21 @@ import "core:os"
 
 main :: proc()
 {
-    id, ok := fm_open( "test/basic/main.dfly" )
+    compiler_init()
+    defer compiler_deinit()
+
+    id, ok := fm_open( "test/basic" )
     if !ok {
         fmt.eprintln( "Could not load file" )
         return
     }
 
+    compiler_enqueue_work( .ParsePackage, id )
 
-    result := compiler_pump( .ParseFile, id )
-    if result == .Error
-    {
-        fmt.eprintln( "Compilation failed" )
+    tasks_failed := compiler_finish_work()
+    if tasks_failed != 0 {
+        fmt.printf( "Parsing phase failed! ({} task(s) reported errors)\n", tasks_failed )
+        fmt.println( "Compilation failed" )
         return
     }
 

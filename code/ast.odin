@@ -127,7 +127,7 @@ Node :: struct
 }
 
 
-new :: proc( $T: typeid, span: Span ) -> ^T
+new_node :: proc( $T: typeid, span: Span ) -> ^T
 {
     new_node, _     := mem.new( T )
     new_node.span    = span
