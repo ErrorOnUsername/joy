@@ -1,5 +1,8 @@
 package main
 
+import "core:intrinsics"
+import "core:mem"
+
 
 PlatformFlags :: bit_set[Platform]
 Platform :: enum
@@ -17,6 +20,7 @@ Package :: struct
 
 Module :: struct
 {
+    owning_pkg:     ^Package,
     platform_flags: PlatformFlags,
     private_scope:  ^Scope,
     imports:        [dynamic]^ImportStmnt,
@@ -24,7 +28,8 @@ Module :: struct
 
 Scope :: struct
 {
-    decls: [dynamic]^Decl,
+    using node: Node,
+    decls:      [dynamic]^Decl,
 }
 
 
@@ -115,6 +120,7 @@ Expr :: struct
 
 AnyNode :: union
 {
+    ^Scope,
     ^Decl,
     ^Stmnt,
     ^Expr,
@@ -127,9 +133,9 @@ Node :: struct
 }
 
 
-new_node :: proc( $T: typeid, span: Span ) -> ^T
+new_node :: proc( $T: typeid, span: Span, allocator: mem.Allocator ) -> ^T
 {
-    new_node, _     := mem.new( T )
+    new_node, _     := mem.new( T, allocator )
     new_node.span    = span
     new_node.derived = new_node
     base: ^Node      = new_node

@@ -24,5 +24,10 @@ main :: proc()
         return
     }
 
+    root_package_data := fm_get_data( id )
+    pkg := root_package_data.pkg
+
+    fmt.println( pkg )
+
     fmt.println( "Compilation successful" )
 }

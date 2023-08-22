@@ -14,6 +14,8 @@ FileData :: struct
     is_dir:   bool,
     data:     string,
     read_idx: uint,
+
+    pkg: ^Package,
 }
 
 file_id_map:   map[string]FileID

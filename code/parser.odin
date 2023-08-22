@@ -15,6 +15,16 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
         return .Error
     }
 
+    if file_data.pkg != nil {
+        log_errorf( "Tried to parse a package '{}' that's already been parsed (cyclical reference?)", file_data.rel_path )
+        return .Error
+    }
+
+    pkg, _ := new( Package )
+    pkg.shared_scope = new_node( Scope, { file_id, 0, 0 }, context.allocator )
+
+    file_data.pkg = pkg
+
     handle, open_errno := os.open( file_data.abs_path )
     defer os.close( handle )
 
@@ -29,6 +39,8 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
     for f_info in f_infos {
         sub_file_id, open_ok := fm_open( f_info.fullpath )
         sub_file_data        := fm_get_data( sub_file_id )
+
+        sub_file_data.pkg = file_data.pkg
 
         compiler_enqueue_work( .ParsePackage if sub_file_data.is_dir else .ParseFile, sub_file_id )
     }
@@ -70,7 +82,7 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
         end := len( data.data )
 
         token.kind = .EndOfFile
-        token.span = { uint( end - 1 ), uint( end ) }
+        token.span = { data.id, uint( end - 1 ), uint( end ) }
         return
     }
 
@@ -84,32 +96,32 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
             data.read_idx += 1
 
             token.kind = .Colon
-            token.span = { data.read_idx - 1 , data.read_idx }
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case ';':
             data.read_idx += 1
 
             token.kind = .Semicolon
-            token.span = { data.read_idx - 1 , data.read_idx }
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '(':
             data.read_idx += 1
 
             token.kind = .LParen
-            token.span = { data.read_idx - 1 , data.read_idx }
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case ')':
             data.read_idx += 1
 
             token.kind = .RParen
-            token.span = { data.read_idx - 1 , data.read_idx }
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '{':
             data.read_idx += 1
 
             token.kind = .LCurly
-            token.span = { data.read_idx - 1 , data.read_idx }
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '}':
             data.read_idx += 1
 
             token.kind = .RCurly
-            token.span = { data.read_idx - 1 , data.read_idx }
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '\r':
             if data.data[data.read_idx + 1] != '\n' {
                 log_errorf( "Carriage return not followed by newline??? Got {:q} instead", rune( data.data[data.read_idx + 1] ) )
@@ -119,17 +131,17 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
                 token.kind = .EndOfLine
             }
 
-            token.span = { data.read_idx, data.read_idx + 2 }
+            token.span = { data.id, data.read_idx, data.read_idx + 2 }
             data.read_idx += 2
         case '\n':
             data.read_idx += 1
 
             token.kind = .EndOfLine
-            token.span = { data.read_idx - 1, data.read_idx }
+            token.span = { data.id, data.read_idx - 1, data.read_idx }
         case '"':
             ok = get_string_literal( data, token )
         case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-            token.span = { data.read_idx, data.read_idx + 1 }
+            token.span = { data.id, data.read_idx, data.read_idx + 1 }
             log_error( "implement number literal parsing" )
             ok = false
         case:
@@ -185,7 +197,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
         data.read_idx += 1
     }
 
-    token.span = { start, data.read_idx - 1 }
+    token.span = { data.id, start, data.read_idx - 1 }
 
     if !found_end_quote {
         log_error( "Unterminated string literal" )
@@ -213,7 +225,7 @@ get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 
     ident_slice := data.data[start:data.read_idx]
 
-    token.span = { start, data.read_idx }
+    token.span = { data.id, start, data.read_idx }
 
     if ident_slice in keyword_map {
         token.kind = keyword_map[ident_slice]
@@ -233,6 +245,7 @@ is_valid_ident_char :: proc( c: u8 ) -> bool
 
 Span :: struct
 {
+    file:  FileID,
     start: uint,
     end:   uint,
 }
