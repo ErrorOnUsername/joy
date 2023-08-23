@@ -34,6 +34,15 @@ job_data_allocator: mem.Allocator
 job_pool: thread.Pool
 
 
+@(thread_local)
+tl_ast_pool: mem.Dynamic_Pool
+@(thread_local)
+tl_ast_allocator: mem.Allocator
+
+@(thread_local)
+thread_data_initialized: bool
+
+
 compiler_init :: proc()
 {
     thread.pool_init( &job_pool, context.allocator, os.processor_core_count() )
@@ -73,6 +82,15 @@ compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID )
 
 threading_proc :: proc( task: thread.Task )
 {
+    if !thread_data_initialized {
+        mem.dynamic_pool_init( &tl_ast_pool )
+        tl_ast_allocator = mem.dynamic_pool_allocator( &tl_ast_pool )
+
+        context.allocator = tl_ast_allocator
+
+        thread_data_initialized = true
+    }
+
     task_data := cast(^WorkerData)task.data
     task_data.result = compiler_pump( task_data.action, task_data.file_id )
 

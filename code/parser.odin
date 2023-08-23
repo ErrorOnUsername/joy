@@ -21,7 +21,7 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
     }
 
     pkg, _ := new( Package )
-    pkg.shared_scope = new_node( Scope, { file_id, 0, 0 }, context.allocator )
+    pkg.shared_scope = new_node( Scope, { file_id, 0, 0 } )
 
     file_data.pkg = pkg
 
@@ -58,20 +58,58 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 
     fmt.println( data.data )
 
+    mod_ptr, _ := mem.new( Module, tl_ast_allocator )
+    mod_ptr.owning_pkg    = data.pkg
+    mod_ptr.private_scope = new_node( Scope, { file_id, 0, 0 } )
+
+    append( &mod_ptr.owning_pkg.modules, mod_ptr )
+
     token: Token
     token.kind = .Invalid
 
-    for token.kind != .EndOfFile {
-        get_ok := next_token( data, &token )
-        if !get_ok {
-            log_errorf( "Got invalid token at span {}", token.span )
-            return .Error
-        }
+    parse_ok := parse_top_level_stmnts( data, mod_ptr )
 
-        fmt.printf( "Got token '{}'\n", token )
+    return .Continue if parse_ok else .Error
+}
+
+parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := true )
+{
+    first_tk: Token
+    eat_newlines( file_data, &first_tk )
+
+    #partial switch first_tk.kind {
+        case .Decl:
+            decl_ptr := parse_decl( file_data )
+
+            ok = decl_ptr != nil
+        case .Let:
+            log_error( "impl globals" )
+            ok = false
+        case:
+            log_errorf( "Unexpected token kind: {}", first_tk.kind )
+            ok = false
     }
 
-    return .Continue
+    return
+}
+
+parse_decl :: proc( file_data: ^FileData ) -> ^Decl
+{
+    name_tk: Token
+    next_token( file_data, &name_tk )
+
+    log_error( "impl parse_decl" )
+
+    return nil
+}
+
+eat_newlines :: proc( file_data: ^FileData, tk: ^Token )
+{
+    next_token( file_data, tk )
+
+    for tk.kind == .EndOfLine {
+        next_token( file_data, tk )
+    }
 }
 
 next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )

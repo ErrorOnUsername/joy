@@ -133,9 +133,9 @@ Node :: struct
 }
 
 
-new_node :: proc( $T: typeid, span: Span, allocator: mem.Allocator ) -> ^T
+new_node :: proc( $T: typeid, span: Span ) -> ^T
 {
-    new_node, _     := mem.new( T, allocator )
+    new_node, _     := mem.new( T )
     new_node.span    = span
     new_node.derived = new_node
     base: ^Node      = new_node

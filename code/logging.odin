@@ -3,6 +3,10 @@ package main
 import "core:fmt"
 import "core:strings"
 
+//
+// FIXME: This need a mutex to protect it...
+//
+
 
 log_error :: proc( msg: string )
 {
