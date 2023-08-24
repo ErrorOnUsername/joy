@@ -75,7 +75,7 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := true )
 {
     first_tk: Token
-    eat_newlines( file_data, &first_tk )
+    next_non_newline_tk( file_data, &first_tk )
 
     #partial switch first_tk.kind {
         case .Decl:
@@ -98,12 +98,60 @@ parse_decl :: proc( file_data: ^FileData ) -> ^Decl
     name_tk: Token
     next_token( file_data, &name_tk )
 
-    log_error( "impl parse_decl" )
+    if name_tk.kind != .Ident {
+        log_spanned_error( &name_tk.span, "Expected identifier for declaration name, but got something else" )
+    }
 
+    colon_tk: Token
+    next_token( file_data, &colon_tk )
+
+    if colon_tk.kind == .Colon {
+        distiction_tk: Token
+        next_token( file_data, &distiction_tk )
+
+        file_data.read_idx = name_tk.span.start
+
+        #partial switch distiction_tk.kind {
+            case .Struct: return parse_struct_decl( file_data )
+            case .Enum:   return parse_enum_decl( file_data )
+            case .Union:  return parse_union_decl( file_data )
+            case .LParen: return parse_proc_decl( file_data )
+        }
+    } else {
+        file_data.read_idx = name_tk.span.start
+    }
+
+    // If we made it here it was supposed to be a constant declaration
+
+    log_error( "impl constants" )
     return nil
 }
 
-eat_newlines :: proc( file_data: ^FileData, tk: ^Token )
+parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
+{
+    log_error( "impl structs" )
+    return nil
+}
+
+parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
+{
+    log_error( "impl enums" )
+    return nil
+}
+
+parse_union_decl :: proc( file_data: ^FileData ) -> ^UnionDecl
+{
+    log_error( "impl unions" )
+    return nil
+}
+
+parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
+{
+    log_error( "impl procs" )
+    return nil
+}
+
+next_non_newline_tk :: proc( file_data: ^FileData, tk: ^Token )
 {
     next_token( file_data, tk )
 
@@ -128,13 +176,22 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
         data.read_idx += 1
     }
 
+    full_data_len := uint( len( data.data ) )
+
     start_ch := data.data[data.read_idx]
     switch start_ch {
         case ':':
             data.read_idx += 1
 
-            token.kind = .Colon
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
+            if data.read_idx < full_data_len && data.data[data.read_idx] == '=' {
+                data.read_idx += 1
+
+                token.kind = .ColonAssign
+                token.span = { data.id, data.read_idx - 1 , data.read_idx }
+            } else {
+                token.kind = .Colon
+                token.span = { data.id, data.read_idx - 1 , data.read_idx }
+            }
         case ';':
             data.read_idx += 1
 
@@ -249,8 +306,11 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 }
 
 keyword_map := map[string]TokenKind {
-    "decl" = .Decl,
-    "let"  = .Let,
+    "decl"   = .Decl,
+    "let"    = .Let,
+    "struct" = .Struct,
+    "enum"   = .Enum,
+    "union"  = .Union,
 }
 
 get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
@@ -305,10 +365,15 @@ TokenKind :: enum
     Decl,
     Let,
 
+    Struct,
+    Enum,
+    Union,
+
     Ident,
     String,
 
     Colon,
+    ColonAssign,
     Semicolon,
 
     LParen,

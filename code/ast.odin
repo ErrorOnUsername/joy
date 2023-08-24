@@ -38,6 +38,21 @@ Scope :: struct
 // Declarations
 //
 
+StructDecl :: struct
+{
+    using decl: Decl,
+}
+
+EnumDecl :: struct
+{
+    using decl: Decl,
+}
+
+UnionDecl :: struct
+{
+    using decl: Decl,
+}
+
 ProcLinkage :: enum
 {
     Internal,
@@ -85,6 +100,9 @@ Ident :: struct
 
 AnyDecl :: union
 {
+    ^StructDecl,
+    ^EnumDecl,
+    ^UnionDecl,
     ^ProcDecl,
     ^ForeignLibraryDecl,
 }
