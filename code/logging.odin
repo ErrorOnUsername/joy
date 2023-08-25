@@ -14,6 +14,12 @@ log_spanned_error :: proc( span: ^Span, msg: string )
     log_error( msg )
 }
 
+log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
+{
+    print_span( span )
+    log_errorf( msg, args )
+}
+
 log_error :: proc( msg: string )
 {
     fmt.eprintf( "Error: {}\n", msg )

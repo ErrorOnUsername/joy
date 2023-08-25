@@ -66,6 +66,12 @@ ProcDecl :: struct
     foreign_lib_name: ^Ident,
 }
 
+VarDecl :: struct
+{
+    using decl:    Decl,
+    default_value: ^Expr,
+}
+
 ForeignLibraryDecl :: struct
 {
     using decl:        Decl,
@@ -105,6 +111,7 @@ AnyDecl :: union
     ^UnionDecl,
     ^ProcDecl,
     ^ForeignLibraryDecl,
+    ^VarDecl,
 }
 
 Decl :: struct
@@ -147,6 +154,7 @@ AnyNode :: union
 Node :: struct
 {
     span:    Span,
+    type:    ^Type,
     derived: AnyNode,
 }
 
@@ -155,20 +163,22 @@ new_node :: proc( $T: typeid, span: Span ) -> ^T
 {
     new_node, _     := mem.new( T )
     new_node.span    = span
-    new_node.derived = new_node
     base: ^Node      = new_node
     _                = base
 
     when intrinsics.type_has_field( T, "derived_decl" ) {
-        new_new.derived_decl = new_node
+        new_node.derived      = cast(^Decl) new_node
+        new_node.derived_decl = new_node
     }
 
     when intrinsics.type_has_field( T, "derived_stmnt" ) {
-        new_new.derived_stmnt = new_node
+        new_node.derived       = cast(^Stmnt) new_node
+        new_node.derived_stmnt = new_node
     }
 
     when intrinsics.type_has_field( T, "derived_expr" ) {
-        new_new.derived_expr = new_node
+        new_node.derived      = cast(^Expr) new_node
+        new_node.derived_expr = new_node
     }
 
     return new_node

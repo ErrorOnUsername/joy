@@ -147,7 +147,97 @@ parse_union_decl :: proc( file_data: ^FileData ) -> ^UnionDecl
 
 parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
 {
+    name_tk: Token
+    next_token( file_data, &name_tk )
+    if name_tk.kind != .Ident do return nil
+
+    colon_tk: Token
+    next_token( file_data, &colon_tk )
+    if colon_tk.kind != .Colon do return nil
+
+    l_paren_tk: Token
+    next_token( file_data, &l_paren_tk )
+    if l_paren_tk.kind != .LParen do return nil
+
+    decl, params_ok := parse_var_decl( file_data )
+    found_r_paren := false
+
+    for params_ok && decl != nil {
+        comma_tk: Token
+        next_token( file_data, &comma_tk )
+
+        if comma_tk.kind == .RParen {
+            file_data.read_idx = comma_tk.span.start
+            break
+        } else if comma_tk.kind != .Comma {
+            log_spanned_error( &comma_tk.span, "Expected ',' to separate procedure parameters")
+        }
+
+        decl, params_ok = parse_var_decl( file_data )
+    }
+
+    if !params_ok {
+        log_spanned_error( &name_tk.span, "Malfomed parameter list for procedure decl" )
+        return nil
+    }
+
+    r_paren_tk: Token
+    next_token( file_data, &r_paren_tk )
+
+    if r_paren_tk.kind != .RParen {
+        log_spanned_error( &r_paren_tk.span, "Expected ')' to terminate parameter list" )
+    }
+
     log_error( "impl procs" )
+    return nil
+}
+
+parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
+{
+    name_tk: Token
+    next_non_newline_tk( file_data, &name_tk )
+
+    if name_tk.kind != .Ident {
+        file_data.read_idx = name_tk.span.start
+        return nil, true
+    }
+
+    decl := new_node( VarDecl, name_tk.span )
+
+
+    colon_tk: Token
+    next_token( file_data, &colon_tk )
+
+    if colon_tk.kind == .Colon {
+        decl.type = parse_type( file_data )
+
+        if decl.type == nil do return nil, false
+    } else if colon_tk.kind != .ColonAssign {
+        log_spanned_errorf( &colon_tk.span, "Expected ':' or ':=' after identifier, but got '{}'", colon_tk.kind )
+        return nil, false
+    }
+
+    assign_tk: Token
+    next_token( file_data, &assign_tk )
+
+    if decl.type == nil || ( decl.type != nil && assign_tk.kind == .Assign ) {
+        decl.default_value = parse_expr( file_data )
+    } else {
+        file_data.read_idx = assign_tk.span.start
+    }
+
+    return decl, true
+}
+
+parse_type :: proc( file_data: ^FileData ) -> ^Type
+{
+    log_error( "impl type parsing" )
+    return nil
+}
+
+parse_expr :: proc( file_data: ^FileData ) -> ^Expr
+{
+    log_error( "impl expr parsing" )
     return nil
 }
 
@@ -217,6 +307,16 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 
             token.kind = .RCurly
             token.span = { data.id, data.read_idx - 1 , data.read_idx }
+        case '=':
+            data.read_idx += 1
+
+            token.kind = .Assign
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
+        case ',':
+            data.read_idx += 1
+
+            token.kind = .Comma
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '\r':
             if data.data[data.read_idx + 1] != '\n' {
                 log_errorf( "Carriage return not followed by newline??? Got {:q} instead", rune( data.data[data.read_idx + 1] ) )
@@ -241,6 +341,10 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
             ok = false
         case:
             ok = get_ident_or_keword( data, token )
+    }
+
+    if token.kind != .Invalid && len( token.str ) == 0 {
+        token.str = data.data[token.span.start:token.span.end]
     }
 
     return
@@ -372,6 +476,9 @@ TokenKind :: enum
     Ident,
     String,
 
+    Assign,
+
+    Comma,
     Colon,
     ColonAssign,
     Semicolon,
