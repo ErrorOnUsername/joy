@@ -129,8 +129,62 @@ parse_decl :: proc( file_data: ^FileData ) -> ^Decl
 
 parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
 {
-    log_error( "impl structs" )
-    return nil
+    name_tk: Token
+    next_token( file_data, &name_tk )
+    if name_tk.kind != .Ident do return nil
+
+    colon_tk: Token
+    next_token( file_data, &colon_tk )
+    if colon_tk.kind != .Colon do return nil
+
+    struct_tk: Token
+    next_token( file_data, &struct_tk )
+    if struct_tk.kind != .Struct do return nil
+
+    l_curly_tk: Token
+    next_non_newline_tk( file_data, &l_curly_tk )
+    if l_curly_tk.kind != .LCurly {
+        log_spanned_error( &l_curly_tk.span, "Expected '{' To begin struct body" );
+    }
+
+    decl := new_node( StructDecl, name_tk.span )
+
+    member, members_ok := parse_var_decl( file_data )
+
+    for members_ok && member != nil {
+        append( &decl.members, member )
+
+        semicolon_tk: Token
+        next_token( file_data, &semicolon_tk )
+        if semicolon_tk.kind == .RCurly {
+            file_data.read_idx = semicolon_tk.span.start
+            break
+        } else if semicolon_tk.kind != .Semicolon {
+            log_spanned_error( &semicolon_tk.span, "Expected ';' to terminate structure member" )
+            return nil
+        }
+
+        member, members_ok = parse_var_decl( file_data )
+    }
+
+    if !members_ok {
+        log_spanned_error( &decl.span, "Failed to parse struct members" )
+        return nil
+    }
+
+    r_curly_tk: Token
+    next_non_newline_tk( file_data, &r_curly_tk )
+    if r_curly_tk.kind != .RCurly {
+        log_spanned_error( &r_curly_tk.span, "Expected '}' to terminate struct declaration" )
+        return nil
+    }
+
+    if len( decl.members ) == 0 {
+        log_spanned_error( &decl.span, "Struct declaration is empty" )
+        return nil
+    }
+
+    return decl
 }
 
 parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
@@ -265,7 +319,24 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 
 parse_type :: proc( file_data: ^FileData ) -> ^Type
 {
-    log_error( "impl type parsing" )
+    lead_tk: Token
+    next_token( file_data, &lead_tk )
+
+    #partial switch lead_tk.kind {
+        case .U8, .I8, .U16, .I16, .U32, .I32, .U64, .I64, .F32, .F64:
+            log_error( "impl primitive parsing" )
+            return nil
+        case .Star:
+            log_error( "impl pointer parsing" )
+            return nil
+        case .LSquare:
+            log_error( "impl array/slice parsing" )
+            return nil
+        case .Ident:
+            log_error( "impl type name parsing" )
+            return nil
+    }
+
     return nil
 }
 
@@ -340,6 +411,21 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
             data.read_idx += 1
 
             token.kind = .RCurly
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
+        case '[':
+            data.read_idx += 1
+
+            token.kind = .LSquare
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
+        case ']':
+            data.read_idx += 1
+
+            token.kind = .RSquare
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
+        case '*':
+            data.read_idx += 1
+
+            token.kind = .Star
             token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '=':
             data.read_idx += 1
@@ -449,6 +535,16 @@ keyword_map := map[string]TokenKind {
     "struct" = .Struct,
     "enum"   = .Enum,
     "union"  = .Union,
+    "u8"     = .U8,
+    "i8"     = .I8,
+    "u16"    = .U16,
+    "i16"    = .I16,
+    "u32"    = .U32,
+    "i32"    = .I32,
+    "u64"    = .U64,
+    "i64"    = .I64,
+    "f32"    = .F32,
+    "f64"    = .F64,
 }
 
 get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
@@ -512,6 +608,7 @@ TokenKind :: enum
 
     Assign,
 
+    Star,
     Comma,
     Colon,
     ColonAssign,
@@ -523,4 +620,17 @@ TokenKind :: enum
     RParen,
     LCurly,
     RCurly,
+    LSquare,
+    RSquare,
+
+    U8,
+    I8,
+    U16,
+    I16,
+    U32,
+    I32,
+    U64,
+    I64,
+    F32,
+    F64,
 }

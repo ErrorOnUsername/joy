@@ -41,6 +41,7 @@ Scope :: struct
 StructDecl :: struct
 {
     using decl: Decl,
+    members: [dynamic]^VarDecl,
 }
 
 EnumDecl :: struct

@@ -1,4 +1,9 @@
 
+decl MyStruct : struct
+{
+    member_0: i32;
+}
+
 decl main : ()
 {
     println( "Hello, World!" );
