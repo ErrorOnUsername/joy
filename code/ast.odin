@@ -64,6 +64,8 @@ ProcDecl :: struct
     using decl:       Decl,
     linkage:          ProcLinkage,
     foreign_lib_name: ^Ident,
+    params:           [dynamic]^VarDecl,
+    body:             ^Scope,
 }
 
 VarDecl :: struct

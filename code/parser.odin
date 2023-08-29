@@ -159,10 +159,16 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
     next_token( file_data, &l_paren_tk )
     if l_paren_tk.kind != .LParen do return nil
 
-    decl, params_ok := parse_var_decl( file_data )
+    decl := new_node( ProcDecl, name_tk.span )
+    decl.name    = name_tk.str
+    decl.linkage = .Internal
+
+    param, params_ok := parse_var_decl( file_data )
     found_r_paren := false
 
-    for params_ok && decl != nil {
+    for params_ok && param != nil {
+        append( &decl.params, param )
+
         comma_tk: Token
         next_token( file_data, &comma_tk )
 
@@ -173,7 +179,7 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
             log_spanned_error( &comma_tk.span, "Expected ',' to separate procedure parameters")
         }
 
-        decl, params_ok = parse_var_decl( file_data )
+        param, params_ok = parse_var_decl( file_data )
     }
 
     if !params_ok {
@@ -186,9 +192,37 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
 
     if r_paren_tk.kind != .RParen {
         log_spanned_error( &r_paren_tk.span, "Expected ')' to terminate parameter list" )
+        return nil
     }
 
-    log_error( "impl procs" )
+    ret_arrow: Token
+    next_token( file_data, &ret_arrow )
+    if ret_arrow.kind == .SmolArrow {
+    } else {
+        file_data.read_idx = ret_arrow.span.start
+    }
+
+    l_curly_tk: Token
+    next_non_newline_tk( file_data, &l_curly_tk )
+    if l_curly_tk.kind != .LCurly {
+        log_spanned_error( &l_curly_tk.span, "Expected '{' to start funtion body" )
+        return nil
+    }
+
+    file_data.read_idx = l_curly_tk.span.start
+
+    decl.body = parse_scope( file_data )
+    if decl.body == nil {
+        log_spanned_error( &decl.span, "Failed to parse procedure body" )
+        return nil
+    }
+
+    return decl
+}
+
+parse_scope :: proc( file_data: ^FileData ) -> ^Scope
+{
+    log_error( "impl parse_scope" )
     return nil
 }
 
@@ -482,6 +516,8 @@ TokenKind :: enum
     Colon,
     ColonAssign,
     Semicolon,
+
+    SmolArrow,
 
     LParen,
     RParen,
