@@ -1,7 +1,14 @@
 
+decl MyEnum : enum
+{
+    VariantA,
+    VariantB,
+}
+
 decl MyStruct : struct
 {
     member_0: i32;
+    member_1: f32;
 }
 
 decl main : ()

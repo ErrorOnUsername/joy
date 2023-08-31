@@ -77,17 +77,21 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
     first_tk: Token
     next_non_newline_tk( file_data, &first_tk )
 
-    #partial switch first_tk.kind {
-        case .Decl:
-            decl_ptr := parse_decl( file_data )
+    for ok && first_tk.kind != .EndOfFile {
+        #partial switch first_tk.kind {
+            case .Decl:
+                decl_ptr := parse_decl( file_data )
 
-            ok = decl_ptr != nil
-        case .Let:
-            log_error( "impl globals" )
-            ok = false
-        case:
-            log_errorf( "Unexpected token kind: {}", first_tk.kind )
-            ok = false
+                ok = decl_ptr != nil
+            case .Let:
+                log_error( "impl globals" )
+                ok = false
+            case:
+                log_errorf( "Unexpected token kind: {}", first_tk.kind )
+                ok = false
+        }
+
+        next_non_newline_tk( file_data, &first_tk )
     }
 
     return
@@ -144,10 +148,11 @@ parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
     l_curly_tk: Token
     next_non_newline_tk( file_data, &l_curly_tk )
     if l_curly_tk.kind != .LCurly {
-        log_spanned_error( &l_curly_tk.span, "Expected '{' To begin struct body" );
+        log_spanned_error( &l_curly_tk.span, "Expected '{' to begin struct body" );
     }
 
     decl := new_node( StructDecl, name_tk.span )
+    decl.name = name_tk.str
 
     member, members_ok := parse_var_decl( file_data )
 
@@ -189,6 +194,31 @@ parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
 
 parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
 {
+    name_tk: Token
+    next_token( file_data, &name_tk )
+    if name_tk.kind != .Ident do return nil
+
+    colon_tk: Token
+    next_token( file_data, &colon_tk )
+    if colon_tk.kind != .Colon do return nil
+
+    enum_tk: Token
+    next_token( file_data, &enum_tk )
+    if enum_tk.kind != .Enum do return nil
+
+    l_curly_tk: Token
+    next_non_newline_tk( file_data, &l_curly_tk )
+    if l_curly_tk.kind != .LCurly {
+        log_spanned_error( &l_curly_tk.span, "Expected '{' to begin enum body" )
+        return nil
+    }
+
+    decl := new_node( EnumDecl, name_tk.span )
+    decl.name = name_tk.str
+
+    // parse variants...
+
+
     log_error( "impl enums" )
     return nil
 }
@@ -291,6 +321,7 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
     }
 
     decl := new_node( VarDecl, name_tk.span )
+    decl.name = name_tk.str
 
 
     colon_tk: Token
@@ -324,8 +355,10 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
 
     #partial switch lead_tk.kind {
         case .U8, .I8, .U16, .I16, .U32, .I32, .U64, .I64, .F32, .F64:
-            log_error( "impl primitive parsing" )
-            return nil
+            prim := new_type( PrimitiveType )
+            prim.kind = type_prim_kind_from_tk( lead_tk.kind )
+
+            return prim
         case .Star:
             log_error( "impl pointer parsing" )
             return nil
