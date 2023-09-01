@@ -216,11 +216,32 @@ parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
     decl := new_node( EnumDecl, name_tk.span )
     decl.name = name_tk.str
 
-    // parse variants...
 
+    // TODO: Variant values
+    variant_tk: Token
+    next_non_newline_tk( file_data, &variant_tk )
 
-    log_error( "impl enums" )
-    return nil
+    for variant_tk.kind != .RCurly {
+        if variant_tk.kind != .Ident {
+            log_spanned_error( &variant_tk.span, "Expected identifier for enum variant name" )
+            return nil
+        }
+
+        variant := new_node( EnumVariant, variant_tk.span )
+        variant.name = variant_tk.str
+
+        next_token( file_data, &variant_tk )
+        if variant_tk.kind != .Semicolon {
+            log_spanned_error( &variant_tk.span, "Expected ';' to terminate enum variant" )
+            return nil
+        }
+
+        append( &decl.variants, variant )
+
+        next_non_newline_tk( file_data, &variant_tk )
+    }
+
+    return decl
 }
 
 parse_union_decl :: proc( file_data: ^FileData ) -> ^UnionDecl
@@ -296,16 +317,31 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
     file_data.read_idx = l_curly_tk.span.start
 
     decl.body = parse_scope( file_data )
-    if decl.body == nil {
-        log_spanned_error( &decl.span, "Failed to parse procedure body" )
-        return nil
-    }
+    if decl.body == nil do return nil
+
+    decl.body.parent = file_data.pkg.shared_scope
 
     return decl
 }
 
+parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
+{
+    start_tk: Token
+    next_non_newline_tk( file_data, &start_tk )
+
+    #partial switch start_tk.kind {
+        case .Decl: return parse_decl( file_data )
+        case .Let:  return parse_let( file_data )
+        case:       return parse_expr( file_data )
+    }
+}
+
 parse_scope :: proc( file_data: ^FileData ) -> ^Scope
 {
+    l_curly_tk: Token
+    next_token( file_data, &l_curly_tk )
+    if l_curly_tk.kind != .LCurly do return nil
+
     log_error( "impl parse_scope" )
     return nil
 }

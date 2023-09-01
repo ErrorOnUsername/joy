@@ -30,6 +30,7 @@ Scope :: struct
 {
     using node: Node,
     decls:      [dynamic]^Decl,
+    parent:     ^Scope,
 }
 
 
@@ -44,9 +45,16 @@ StructDecl :: struct
     members: [dynamic]^VarDecl,
 }
 
+EnumVariant :: struct
+{
+    using node: Node,
+    name:       string,
+}
+
 EnumDecl :: struct
 {
     using decl: Decl,
+    variants:   [dynamic]^EnumVariant,
 }
 
 UnionDecl :: struct
@@ -152,6 +160,7 @@ AnyNode :: union
     ^Decl,
     ^Stmnt,
     ^Expr,
+    ^EnumVariant,
 }
 
 Node :: struct

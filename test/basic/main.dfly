@@ -1,8 +1,8 @@
 
 decl MyEnum : enum
 {
-    VariantA,
-    VariantB,
+    VariantA;
+    VariantB;
 }
 
 decl MyStruct : struct
