@@ -341,6 +341,8 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
             return var
         case:
             expr  := parse_expr( file_data )
+            if expr != nil do return nil
+
             stmnt := new_node( ExprStmnt, expr.span )
             stmnt.expr = expr
 
