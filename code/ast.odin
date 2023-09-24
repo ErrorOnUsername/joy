@@ -29,7 +29,7 @@ Module :: struct
 Scope :: struct
 {
     using node: Node,
-    decls:      [dynamic]^Decl,
+    stmnts:      [dynamic]^Stmnt,
     parent:     ^Scope,
 }
 
@@ -41,8 +41,9 @@ Scope :: struct
 
 StructDecl :: struct
 {
-    using decl: Decl,
-    members: [dynamic]^VarDecl,
+    using stmnt: Stmnt,
+    name:        string,
+    members:     [dynamic]^VarDecl,
 }
 
 EnumVariant :: struct
@@ -53,13 +54,15 @@ EnumVariant :: struct
 
 EnumDecl :: struct
 {
-    using decl: Decl,
-    variants:   [dynamic]^EnumVariant,
+    using stmnt: Stmnt,
+    name:        string,
+    variants:    [dynamic]^EnumVariant,
 }
 
 UnionDecl :: struct
 {
-    using decl: Decl,
+    using stmnt: Stmnt,
+    name:        string,
 }
 
 ProcLinkage :: enum
@@ -70,7 +73,8 @@ ProcLinkage :: enum
 
 ProcDecl :: struct
 {
-    using decl:       Decl,
+    using stmnt:      Stmnt,
+    name:             string,
     linkage:          ProcLinkage,
     foreign_lib_name: ^Ident,
     params:           [dynamic]^VarDecl,
@@ -79,13 +83,15 @@ ProcDecl :: struct
 
 VarDecl :: struct
 {
-    using decl:    Decl,
+    using stmnt:   Stmnt,
+    name:          string,
     default_value: ^Expr,
 }
 
 ForeignLibraryDecl :: struct
 {
-    using decl:        Decl,
+    using stmnt:       Stmnt,
+    name:              string,
     is_system_library: bool,
     library_path:      string,
 }
@@ -101,6 +107,12 @@ ImportStmnt :: struct
     using stmnt: Stmnt,
 }
 
+ExprStmnt :: struct
+{
+    using stmnt: Stmnt,
+    expr:        ^Expr,
+}
+
 
 
 //
@@ -114,27 +126,16 @@ Ident :: struct
 }
 
 
-
-AnyDecl :: union
+AnyStmnt :: union 
 {
+    ^ImportStmnt,
     ^StructDecl,
     ^EnumDecl,
     ^UnionDecl,
     ^ProcDecl,
     ^ForeignLibraryDecl,
     ^VarDecl,
-}
-
-Decl :: struct
-{
-    using node:   Node,
-    name:         string,
-    derived_decl: AnyDecl,
-}
-
-AnyStmnt :: struct
-{
-    ^ImportStmnt,
+    ^ExprStmnt,
 }
 
 Stmnt :: struct
@@ -157,7 +158,6 @@ Expr :: struct
 AnyNode :: union
 {
     ^Scope,
-    ^Decl,
     ^Stmnt,
     ^Expr,
     ^EnumVariant,
@@ -177,11 +177,6 @@ new_node :: proc( $T: typeid, span: Span ) -> ^T
     new_node.span    = span
     base: ^Node      = new_node
     _                = base
-
-    when intrinsics.type_has_field( T, "derived_decl" ) {
-        new_node.derived      = cast(^Decl) new_node
-        new_node.derived_decl = new_node
-    }
 
     when intrinsics.type_has_field( T, "derived_stmnt" ) {
         new_node.derived       = cast(^Stmnt) new_node

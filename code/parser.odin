@@ -97,7 +97,7 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
     return
 }
 
-parse_decl :: proc( file_data: ^FileData ) -> ^Decl
+parse_decl :: proc( file_data: ^FileData ) -> ^Stmnt
 {
     name_tk: Token
     next_token( file_data, &name_tk )
@@ -331,8 +331,20 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
     #partial switch start_tk.kind {
         case .Decl: return parse_decl( file_data )
-        case .Let:  return parse_let( file_data )
-        case:       return parse_expr( file_data )
+        case .Let:
+            var, ok := parse_var_decl( file_data )
+            if !ok {
+                span_ptr := &start_tk.span if var == nil else &var.span
+                log_spanned_error( span_ptr, "Malformed var decl" )
+            }
+
+            return var
+        case:
+            expr  := parse_expr( file_data )
+            stmnt := new_node( ExprStmnt, expr.span )
+            stmnt.expr = expr
+
+            return stmnt
     }
 }
 
