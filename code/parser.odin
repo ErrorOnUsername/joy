@@ -454,6 +454,26 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
 parse_expr :: proc( file_data: ^FileData ) -> ^Expr
 {
     log_error( "impl expr parsing" )
+
+    // 1. get the first operand (lhs)
+    // 2. peek the operator
+    //      - if none, return
+    // 4. get the next operand (rhs)
+    // 5. peek the next operator
+    //      - if it's a higher priority, build that as the nested expr
+
+    return nil
+}
+
+parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -> ^Expr
+{
+    lead_tk: Token
+    next_non_newline_tk( file_data, &lead_tk )
+
+    #partial switch lead_tk.kind {
+        case .Dot:
+    }
+
     return nil
 }
 
@@ -547,6 +567,11 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
             data.read_idx += 1
 
             token.kind = .Comma
+            token.span = { data.id, data.read_idx - 1 , data.read_idx }
+        case '.':
+            data.read_idx += 1
+
+            token.kind = .Dot
             token.span = { data.id, data.read_idx - 1 , data.read_idx }
         case '\r':
             if data.data[data.read_idx + 1] != '\n' {
@@ -724,6 +749,7 @@ TokenKind :: enum
     Colon,
     ColonAssign,
     Semicolon,
+    Dot,
 
     SmolArrow,
 
