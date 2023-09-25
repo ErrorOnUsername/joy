@@ -336,15 +336,30 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
             if !ok {
                 span_ptr := &start_tk.span if var == nil else &var.span
                 log_spanned_error( span_ptr, "Malformed var decl" )
+                return nil
+            }
+
+            sc_tk: Token
+            next_token( file_data, &sc_tk )
+            if sc_tk.kind != .Semicolon {
+                log_spanned_error( &sc_tk.span, "Expected terminating ';' after let statement" )
+                return nil
             }
 
             return var
         case:
             expr  := parse_expr( file_data )
-            if expr != nil do return nil
+            if expr == nil do return nil
 
             stmnt := new_node( ExprStmnt, expr.span )
             stmnt.expr = expr
+
+            sc_tk: Token
+            next_token( file_data, &sc_tk )
+            if sc_tk.kind != .Semicolon {
+                log_spanned_error( &sc_tk.span, "Expected terminating ';' after expression statement" )
+                return nil
+            }
 
             return stmnt
     }
@@ -352,9 +367,22 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 parse_scope :: proc( file_data: ^FileData ) -> ^Scope
 {
-    l_curly_tk: Token
-    next_token( file_data, &l_curly_tk )
-    if l_curly_tk.kind != .LCurly do return nil
+    tk: Token
+    next_token( file_data, &tk )
+    if tk.kind != .LCurly do return nil
+
+    for tk.kind != .RCurly {
+        stmnt := parse_stmnt( file_data )
+        if stmnt == nil do return nil
+
+        next_non_newline_tk( file_data, &tk )
+        if tk.kind == .LCurly {
+            sub_scope := parse_scope( file_data )
+            if sub_scope == nil do return nil
+        } else {
+            file_data.read_idx = tk.span.start
+        }
+    }
 
     log_error( "impl parse_scope" )
     return nil
