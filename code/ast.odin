@@ -125,6 +125,91 @@ Ident :: struct
     name:       string,
 }
 
+BinaryOperator :: enum
+{
+    Invalid,
+
+    MemberAccess,
+
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+
+    LessThanOrEq,
+    LessThan,
+    GreaterThanOrEq,
+    GreaterThan,
+
+    Equal,
+    NotEqual,
+
+    LogicalAnd,
+    LogicalOr,
+    LogicalXOr,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXOr,
+
+    Assign,
+
+    AddAssign,
+    SubtractAssign,
+    MultiplyAssign,
+    DivideAssign,
+    ModuloAssign,
+    AndAssign,
+    OrAssign,
+    XOrAssign,
+}
+
+BinOpExpr :: struct
+{
+    using expr: Expr,
+    op:         BinaryOperator,
+    lhs:        ^Expr,
+    rhs:        ^Expr,
+}
+
+bin_op_priority :: proc( op: BinaryOperator ) -> i8
+{
+    switch op {
+        case .Invalid: return -1
+
+        case .MemberAccess:
+            return 12
+
+        case .Multiply, .Divide, .Modulo:
+            return 11
+
+        case .Add, .Subtract:
+            return 10
+
+        case .LessThanOrEq, .LessThan,
+             .GreaterThanOrEq, .GreaterThan:
+            return 9
+
+        case .Equal, .NotEqual:
+            return 8
+
+        case .BitwiseAnd: return 7
+        case .BitwiseOr:  return 6
+        case .BitwiseXOr: return 5
+        case .LogicalAnd: return 4
+        case .LogicalOr:  return 3
+        case .LogicalXOr: return 2
+
+        case .Assign, .AddAssign,
+             .SubtractAssign, .MultiplyAssign,
+             .DivideAssign, .ModuloAssign,
+             .AndAssign, .OrAssign, .XOrAssign:
+            return 1
+    }
+
+    return -1
+}
+
 
 AnyStmnt :: union 
 {
@@ -144,9 +229,10 @@ Stmnt :: struct
     derived_stmnt: AnyStmnt,
 }
 
-AnyExpr :: struct
+AnyExpr :: union
 {
     ^Ident,
+    ^BinOpExpr,
 }
 
 Expr :: struct

@@ -451,8 +451,60 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
     return nil
 }
 
-parse_expr :: proc( file_data: ^FileData ) -> ^Expr
+parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -> ^Expr
 {
+    lhs := parse_operand( file_data, can_create_struct_literal )
+    if lhs == nil do return nil
+
+    op_tk: Token
+    next_non_newline_tk( file_data, &op_tk )
+
+    op := tk_to_bin_op( &op_tk )
+
+    for {
+        if op == .Invalid {
+            file_data.read_idx = op_tk.span.start
+            break
+        }
+
+        rhs := parse_operand( file_data, false )
+        if rhs == nil do return nil
+
+        peek_op_tk: Token
+        next_non_newline_tk( file_data, &peek_op_tk )
+
+        peek_op := tk_to_bin_op( &peek_op_tk )
+
+        if peek_op != .Invalid && bin_op_priority( peek_op ) > bin_op_priority( op ) {
+            new_lhs := rhs
+            new_rhs := parse_operand( file_data, false )
+
+            new_span, ok := join_span( &new_lhs.span, &new_rhs.span )
+            if !ok do return nil
+
+            rhs_bop := new_node( BinOpExpr, new_span )
+            rhs_bop.op  = peek_op
+            rhs_bop.lhs = new_lhs
+            rhs_bop.rhs = new_rhs
+
+            rhs = rhs_bop
+        } else {
+            file_data.read_idx = peek_op_tk.span.start
+        }
+
+        span, ok := join_span( &lhs.span, &rhs.span )
+        if !ok do return nil
+
+        bop := new_node( BinOpExpr, span )
+        bop.op = op
+        bop.lhs = lhs
+        bop.rhs = rhs
+
+        lhs = bop
+
+        next_non_newline_tk( file_data, &op_tk )
+    }
+
     log_error( "impl expr parsing" )
 
     // 1. get the first operand (lhs)
@@ -462,7 +514,7 @@ parse_expr :: proc( file_data: ^FileData ) -> ^Expr
     // 5. peek the next operator
     //      - if it's a higher priority, build that as the nested expr
 
-    return nil
+    return lhs
 }
 
 parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -> ^Expr
@@ -708,6 +760,38 @@ get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 is_valid_ident_char :: proc( c: u8 ) -> bool
 {
     return ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) || c == '_'
+}
+
+tk_to_bin_op :: proc( tk: ^Token ) -> BinaryOperator
+{
+    #partial switch tk.kind {
+        // TODO: Impl
+    }
+
+    return .Invalid
+}
+
+join_span :: proc( l_span: ^Span, r_span: ^Span ) -> ( ret: Span, ok := true )
+{
+    ret = {}
+
+    if l_span.file != r_span.file {
+        ok = false
+        log_errorf( "left span '{}' and right span '{}' are not in the same file!", l_span, r_span )
+        return
+    }
+
+    if l_span.start > r_span.end {
+        ok = false
+        log_errorf( "left span '{}' comes after right span '{}'!", l_span, r_span )
+        return
+    }
+
+    ret.file  = l_span.file
+    ret.start = l_span.start
+    ret.end   = r_span.end
+
+    return
 }
 
 
