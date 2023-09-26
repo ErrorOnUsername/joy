@@ -538,6 +538,222 @@ next_non_newline_tk :: proc( file_data: ^FileData, tk: ^Token )
     }
 }
 
+
+StateNode :: struct
+{
+    char:    u8,
+    tk_kind: TokenKind,
+    next:    []StateNode,
+}
+
+TokenParseStateTree :: struct
+{
+    nodes: []StateNode,
+}
+
+parse_state_tree := TokenParseStateTree {
+    {
+        {
+            char    = ':',
+            tk_kind = .Colon,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .ColonAssign,
+                    next    = {},
+                },
+            },
+        },
+        { ';', .Semicolon, {} },
+        { ',', .Comma, {} },
+        { '.', .Dot, {} },
+        { '(', .LParen, {} },
+        { ')', .RParen, {} },
+        { '{', .LCurly, {} },
+        { '}', .RCurly, {} },
+        { '[', .LSquare, {} },
+        { ']', .RSquare, {} },
+        {
+            char    = '=',
+            tk_kind = .Assign,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .Equal,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '!',
+            tk_kind = .Bang,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .NotEqual,
+                    next    = {},
+                },
+            },
+        },
+        { '~', .Tilde, {}, },
+        {
+            char    = '&',
+            tk_kind = .Ampersand,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .AmpersandAssign,
+                    next    = {},
+                },
+                {
+                    char    = '&',
+                    tk_kind = .DoubleAmpersand,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '|',
+            tk_kind = .Pipe,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .PipeAssign,
+                    next    = {},
+                },
+                {
+                    char    = '|',
+                    tk_kind = .DoublePipe,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '^',
+            tk_kind = .Caret,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .CaretAssign,
+                    next    = {},
+                },
+                {
+                    char    = '^',
+                    tk_kind = .DoubleCaret,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '<',
+            tk_kind = .LAngle,
+            next    = {
+                {
+                    char    = '<',
+                    tk_kind = .LShift,
+                    next    = {}, // TODO: Arithmetic shift?
+                },
+                {
+                    char    = '=',
+                    tk_kind = .LessThanOrEqual,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '>',
+            tk_kind = .RAngle,
+            next    = {
+                {
+                    char    = '>',
+                    tk_kind = .RShift,
+                    next    = {}, // TODO: Arithmetic shift?
+                },
+                {
+                    char    = '=',
+                    tk_kind = .GreaterThanOrEqual,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '+',
+            tk_kind = .Plus,
+            next    = {
+                {
+                    char    = '+',
+                    tk_kind = .PlusPlus,
+                    next    = {},
+                },
+                {
+                    char    = '=',
+                    tk_kind = .PlusAssign,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '-',
+            tk_kind = .Minus,
+            next    = {
+                {
+                    char    = '-',
+                    tk_kind = .MinusMinus,
+                    next    = {},
+                },
+                {
+                    char    = '=',
+                    tk_kind = .MinusAssign,
+                    next    = {},
+                },
+                {
+                    char    = '>',
+                    tk_kind = .SmolArrow,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '*',
+            tk_kind = .Star,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .StarAssign,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '/',
+            tk_kind = .Slash,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .SlashAssign,
+                    next    = {},
+                },
+            },
+        },
+        {
+            char    = '%',
+            tk_kind = .Percent,
+            next    = {
+                {
+                    char    = '=',
+                    tk_kind = .PercentAssign,
+                    next    = {},
+                },
+            },
+        },
+    },
+}
+
+try_lex_from_parse_tree_node :: proc( data: ^FileData, token: ^Token, nodes: []StateNode ) -> bool
+{
+    return true
+}
+
 next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 {
     token^ = { }
@@ -557,98 +773,36 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
     full_data_len := uint( len( data.data ) )
 
     start_ch := data.data[data.read_idx]
-    switch start_ch {
-        case ':':
-            data.read_idx += 1
 
-            if data.read_idx < full_data_len && data.data[data.read_idx] == '=' {
+    parse_tree_res_ok := try_lex_from_parse_tree_node( data, token, parse_state_tree.nodes )
+
+    if !parse_tree_res_ok {
+        switch start_ch {
+            case '\r':
+                if data.data[data.read_idx + 1] != '\n' {
+                    log_errorf( "Carriage return not followed by newline??? Got {:q} instead", rune( data.data[data.read_idx + 1] ) )
+                    token.kind = .Invalid
+                    ok = false
+                } else {
+                    token.kind = .EndOfLine
+                }
+
+                token.span = { data.id, data.read_idx, data.read_idx + 2 }
+                data.read_idx += 2
+            case '\n':
                 data.read_idx += 1
 
-                token.kind = .ColonAssign
-                token.span = { data.id, data.read_idx - 1 , data.read_idx }
-            } else {
-                token.kind = .Colon
-                token.span = { data.id, data.read_idx - 1 , data.read_idx }
-            }
-        case ';':
-            data.read_idx += 1
-
-            token.kind = .Semicolon
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '(':
-            data.read_idx += 1
-
-            token.kind = .LParen
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case ')':
-            data.read_idx += 1
-
-            token.kind = .RParen
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '{':
-            data.read_idx += 1
-
-            token.kind = .LCurly
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '}':
-            data.read_idx += 1
-
-            token.kind = .RCurly
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '[':
-            data.read_idx += 1
-
-            token.kind = .LSquare
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case ']':
-            data.read_idx += 1
-
-            token.kind = .RSquare
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '*':
-            data.read_idx += 1
-
-            token.kind = .Star
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '=':
-            data.read_idx += 1
-
-            token.kind = .Assign
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case ',':
-            data.read_idx += 1
-
-            token.kind = .Comma
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '.':
-            data.read_idx += 1
-
-            token.kind = .Dot
-            token.span = { data.id, data.read_idx - 1 , data.read_idx }
-        case '\r':
-            if data.data[data.read_idx + 1] != '\n' {
-                log_errorf( "Carriage return not followed by newline??? Got {:q} instead", rune( data.data[data.read_idx + 1] ) )
-                token.kind = .Invalid
-                ok = false
-            } else {
                 token.kind = .EndOfLine
-            }
-
-            token.span = { data.id, data.read_idx, data.read_idx + 2 }
-            data.read_idx += 2
-        case '\n':
-            data.read_idx += 1
-
-            token.kind = .EndOfLine
-            token.span = { data.id, data.read_idx - 1, data.read_idx }
-        case '"':
-            ok = get_string_literal( data, token )
-        case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-            token.span = { data.id, data.read_idx, data.read_idx + 1 }
-            log_error( "implement number literal parsing" )
-            ok = false
-        case:
-            ok = get_ident_or_keword( data, token )
+                token.span = { data.id, data.read_idx - 1, data.read_idx }
+            case '"':
+                ok = get_string_literal( data, token )
+            case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+                token.span = { data.id, data.read_idx, data.read_idx + 1 }
+                log_error( "implement number literal parsing" )
+                ok = false
+            case:
+                ok = get_ident_or_keword( data, token )
+        }
     }
 
     if token.kind != .Invalid && len( token.str ) == 0 {
@@ -827,13 +981,28 @@ TokenKind :: enum
     String,
 
     Assign,
+    Equal,
 
-    Star,
+    Semicolon,
     Comma,
+    Dot,
+    Tilde,
+
     Colon,
     ColonAssign,
-    Semicolon,
-    Dot,
+
+    Plus,
+    PlusPlus,
+    PlusAssign,
+    Minus,
+    MinusMinus,
+    MinusAssign,
+    Star,
+    StarAssign,
+    Slash,
+    SlashAssign,
+    Percent,
+    PercentAssign,
 
     SmolArrow,
 
@@ -843,6 +1012,26 @@ TokenKind :: enum
     RCurly,
     LSquare,
     RSquare,
+
+    LAngle,
+    LessThanOrEqual,
+    LShift,
+    RAngle,
+    GreaterThanOrEqual,
+    RShift,
+
+    Bang,
+    NotEqual,
+
+    Ampersand,
+    DoubleAmpersand,
+    AmpersandAssign,
+    Pipe,
+    DoublePipe,
+    PipeAssign,
+    Caret,
+    DoubleCaret,
+    CaretAssign,
 
     U8,
     I8,
