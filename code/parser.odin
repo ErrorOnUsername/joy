@@ -751,7 +751,38 @@ parse_state_tree := TokenParseStateTree {
 
 try_lex_from_parse_tree_node :: proc( data: ^FileData, token: ^Token, nodes: []StateNode ) -> bool
 {
-    return true
+    token.kind       = .Invalid
+    token.span.file  = data.id
+    token.span.start = data.read_idx
+    token.span.end   = data.read_idx + 1
+
+    ch := data.data[data.read_idx]
+
+    current_node_list := nodes
+    idx               := 0
+
+    for {
+        if len( current_node_list ) == 0 || idx == len( current_node_list ) do break
+
+        node := &current_node_list[idx]
+
+        if node.char == ch {
+            token.kind     = node.tk_kind
+            token.span.end = data.read_idx + 1
+
+            data.read_idx += 1
+            ch = data.data[data.read_idx]
+
+            current_node_list = node.next
+            idx               = 0
+
+            continue
+        }
+
+        idx += 1
+    }
+
+    return token.kind != .Invalid
 }
 
 next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
@@ -772,11 +803,11 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 
     full_data_len := uint( len( data.data ) )
 
-    start_ch := data.data[data.read_idx]
-
     parse_tree_res_ok := try_lex_from_parse_tree_node( data, token, parse_state_tree.nodes )
 
     if !parse_tree_res_ok {
+        start_ch := data.data[data.read_idx]
+
         switch start_ch {
             case '\r':
                 if data.data[data.read_idx + 1] != '\n' {
