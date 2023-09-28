@@ -125,6 +125,12 @@ Ident :: struct
 	name:       string,
 }
 
+StringLiteralExpr :: struct
+{
+	using expr: Expr,
+	str:        string,
+}
+
 BinaryOperator :: enum
 {
 	Invalid,
@@ -232,6 +238,7 @@ Stmnt :: struct
 AnyExpr :: union
 {
 	^Ident,
+	^StringLiteralExpr,
 	^BinOpExpr,
 }
 

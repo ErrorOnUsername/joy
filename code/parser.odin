@@ -348,6 +348,8 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 			return var
 		case:
+			file_data.read_idx = start_tk.span.start
+
 			expr  := parse_expr( file_data )
 			if expr == nil do return nil
 
@@ -524,7 +526,61 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 	#partial switch lead_tk.kind {
 		case .Dot:
+			rand           := parse_operand( file_data, can_create_struct_literal )
+			ident_expr, ok := rand.derived_expr.(^Ident)
+			_               = ident_expr
+
+			if !ok {
+				log_spanned_error( &rand.span, "Prefix operator '.' must be followed by an identifier" )
+				return nil
+			}
+
+			log_spanned_error( &lead_tk.span, "impl auto type '.' prefix" )
+		case .PlusPlus:
+			log_spanned_error( &lead_tk.span, "impl prefix increment" )
+			return nil
+		case .MinusMinus:
+			log_spanned_error( &lead_tk.span, "impl prefix decrement" )
+			return nil
+		case .Star:
+			log_spanned_error( &lead_tk.span, "impl dereference" )
+			return nil
+		case .Minus:
+			log_spanned_error( &lead_tk.span, "impl negate" )
+			return nil
+		case .Number:
+			log_spanned_error( &lead_tk.span, "impl number exprs" )
+			return nil
+		case .String:
+			node := new_node( StringLiteralExpr, lead_tk.span )
+			node.str = lead_tk.str
+
+			return node
 	}
+
+	if lead_tk.kind != .Ident {
+		log_spanned_error( &lead_tk.span, "Unexpected token in operand" )
+	}
+
+	tail_tk: Token
+	next_token( file_data, &tail_tk )
+
+	#partial switch tail_tk.kind {
+		case .LParen:
+			log_spanned_error( &tail_tk.span, "impl procedure calls" )
+			return nil
+		case .LCurly:
+			if can_create_struct_literal {
+				log_spanned_error( &tail_tk.span, "impl struct literals" )
+				return nil
+			} else {
+				file_data.read_idx = tail_tk.span.start
+			}
+		case:
+			file_data.read_idx = tail_tk.span.start
+	}
+
+	log_error( "impl parse_operand" )
 
 	return nil
 }
@@ -797,7 +853,7 @@ next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 		return
 	}
 
-	for data.data[data.read_idx] == ' ' {
+	for data.data[data.read_idx] == ' ' || data.data[data.read_idx] == '\t' {
 		data.read_idx += 1
 	}
 
@@ -1010,6 +1066,7 @@ TokenKind :: enum
 
 	Ident,
 	String,
+	Number,
 
 	Assign,
 	Equal,
