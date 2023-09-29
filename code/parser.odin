@@ -526,16 +526,8 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 	#partial switch lead_tk.kind {
 		case .Dot:
-			rand           := parse_operand( file_data, can_create_struct_literal )
-			ident_expr, ok := rand.derived_expr.(^Ident)
-			_               = ident_expr
-
-			if !ok {
-				log_spanned_error( &rand.span, "Prefix operator '.' must be followed by an identifier" )
-				return nil
-			}
-
 			log_spanned_error( &lead_tk.span, "impl auto type '.' prefix" )
+			return nil
 		case .PlusPlus:
 			log_spanned_error( &lead_tk.span, "impl prefix increment" )
 			return nil
@@ -573,16 +565,15 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			if can_create_struct_literal {
 				log_spanned_error( &tail_tk.span, "impl struct literals" )
 				return nil
-			} else {
-				file_data.read_idx = tail_tk.span.start
 			}
-		case:
-			file_data.read_idx = tail_tk.span.start
 	}
 
-	log_error( "impl parse_operand" )
+	file_data.read_idx = tail_tk.span.start
 
-	return nil
+	ident := new_node( Ident, lead_tk.span )
+	ident.name = lead_tk.str
+
+	return ident
 }
 
 next_non_newline_tk :: proc( file_data: ^FileData, tk: ^Token )
