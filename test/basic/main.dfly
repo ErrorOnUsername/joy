@@ -13,5 +13,6 @@ decl MyStruct : struct
 
 decl main : ()
 {
+    let a := "haha";
     println( "Hello, World!" );
 }

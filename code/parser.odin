@@ -420,7 +420,12 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 	next_token( file_data, &assign_tk )
 
 	if decl.type == nil || ( decl.type != nil && assign_tk.kind == .Assign ) {
+		if decl.type == nil {
+			file_data.read_idx = assign_tk.span.start;
+		}
+
 		decl.default_value = parse_expr( file_data )
+		if decl.default_value == nil do return nil, false
 	} else {
 		file_data.read_idx = assign_tk.span.start
 	}
@@ -455,6 +460,13 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
 
 parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -> ^Expr
 {
+	// 1. get the first operand (lhs)
+	// 2. peek the operator
+	//      - if none, return
+	// 4. get the next operand (rhs)
+	// 5. peek the next operator
+	//      - if it's a higher priority, build that as the nested expr
+
 	lhs := parse_operand( file_data, can_create_struct_literal )
 	if lhs == nil do return nil
 
@@ -480,6 +492,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 		if peek_op != .Invalid && bin_op_priority( peek_op ) > bin_op_priority( op ) {
 			new_lhs := rhs
 			new_rhs := parse_operand( file_data, false )
+			if new_rhs == nil do return nil
 
 			new_span, ok := join_span( &new_lhs.span, &new_rhs.span )
 			if !ok do return nil
@@ -506,15 +519,6 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 
 		next_non_newline_tk( file_data, &op_tk )
 	}
-
-	log_error( "impl expr parsing" )
-
-	// 1. get the first operand (lhs)
-	// 2. peek the operator
-	//      - if none, return
-	// 4. get the next operand (rhs)
-	// 5. peek the next operator
-	//      - if it's a higher priority, build that as the nested expr
 
 	return lhs
 }
@@ -559,8 +563,13 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 	#partial switch tail_tk.kind {
 		case .LParen:
-			log_spanned_error( &tail_tk.span, "impl procedure calls" )
-			return nil
+			call_expr := new_node( ProcCallExpr, tail_tk.span )
+			call_expr.name = lead_tk.str
+
+			params_ok := parse_proc_call_param_pack( file_data, call_expr )
+			if !params_ok do return nil
+
+			return call_expr
 		case .LCurly:
 			if can_create_struct_literal {
 				log_spanned_error( &tail_tk.span, "impl struct literals" )
@@ -574,6 +583,36 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 	ident.name = lead_tk.str
 
 	return ident
+}
+
+parse_proc_call_param_pack :: proc( file_data: ^FileData, call_expr: ^ProcCallExpr ) -> ( ok := true )
+{
+	tk: Token
+	next_token( file_data, &tk )
+
+	if tk.kind != .RParen {
+		file_data.read_idx = tk.span.start
+	}
+
+	for tk.kind != .RParen {
+		expr := parse_expr( file_data, true )
+		if expr == nil {
+			ok = false
+			break
+		}
+
+		append( &call_expr.params, expr )
+
+		next_token( file_data, &tk )
+
+		if tk.kind != .RParen && tk.kind != .Comma {
+			log_spanned_error( &tk.span, "Expected ',' or ')' after procedure call parameter" )
+			ok = false
+			break
+		}
+	}
+
+	return
 }
 
 next_non_newline_tk :: proc( file_data: ^FileData, tk: ^Token )
@@ -898,7 +937,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 	defer strings.builder_destroy( &sb )
 
 	data_size       := uint( len( data.data ) )
-	start           := data.read_idx
+	start           := data.read_idx - 1
 	found_end_quote := false
 
 	for !found_end_quote && data.read_idx < data_size {
@@ -943,7 +982,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 		ok = false
 	} else {
 		token.kind = .String
-		token.str  = strings.to_string( sb )
+		token.str, _  = strings.clone( strings.to_string( sb ) )
 	}
 
 	return

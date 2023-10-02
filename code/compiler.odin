@@ -86,8 +86,6 @@ threading_proc :: proc( task: thread.Task )
 		mem.dynamic_pool_init( &tl_ast_pool )
 		tl_ast_allocator = mem.dynamic_pool_allocator( &tl_ast_pool )
 
-		context.allocator = tl_ast_allocator
-
 		thread_data_initialized = true
 	}
 

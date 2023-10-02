@@ -216,6 +216,13 @@ bin_op_priority :: proc( op: BinaryOperator ) -> i8
 	return -1
 }
 
+ProcCallExpr :: struct
+{
+	using expr: Expr,
+	name:       string,
+	params:     [dynamic]^Expr,
+}
+
 
 AnyStmnt :: union 
 {
@@ -240,6 +247,7 @@ AnyExpr :: union
 	^Ident,
 	^StringLiteralExpr,
 	^BinOpExpr,
+	^ProcCallExpr,
 }
 
 Expr :: struct
@@ -266,7 +274,7 @@ Node :: struct
 
 new_node :: proc( $T: typeid, span: Span ) -> ^T
 {
-	new_node, _     := mem.new( T )
+	new_node, _     := mem.new( T, tl_ast_allocator )
 	new_node.span    = span
 	base: ^Node      = new_node
 	_                = base
