@@ -257,7 +257,6 @@ tokenize_file :: proc( data: ^FileData ) -> bool
 
 	for tk.kind != .Invalid {
 		append( &data.tokens, tk )
-		log_warningf( "tk: {}", tk )
 
 		if tk.kind == .EndOfFile do break
 
@@ -326,63 +325,29 @@ lex_next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 	return
 }
 
-get_string_literal :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
+get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 {
+	token.kind = .String
+	token.span = { data.id, data.read_idx, data.read_idx + 1 }
+
 	data.read_idx += 1
 
-	sb := strings.builder_make()
-	defer strings.builder_destroy( &sb )
-
-	data_size       := uint( len( data.data ) )
-	start           := data.read_idx - 1
-	found_end_quote := false
-
-	for !found_end_quote && data.read_idx < data_size {
-		c := data.data[data.read_idx]
-		if c == '\\' {
-			esc_c := data.data[data.read_idx + 1]
-
-			switch esc_c {
-				case 'r':
-					strings.write_byte( &sb, '\r' )
-				case 'n':
-					strings.write_byte( &sb, '\n' )
-				case 'e':
-					strings.write_byte( &sb, '\x1b' )
-				case 't':
-					strings.write_byte( &sb, '\t' )
-				case 'x':
-					log_error( "implement hexadecimal string escapes (i.e. '\\x1b')" )
-					ok = false
-					return
-				case:
-					strings.write_byte( &sb, esc_c )
-			}
-
-			data.read_idx += 2
-			continue
-		}
-
-		if c == '"' {
-			found_end_quote = true
-		} else {
-			strings.write_byte( &sb, c )
-		}
-
+	ch := data.data[data.read_idx]
+	for ch != '\n' && ch != '"' {
 		data.read_idx += 1
+		token.span.end += 1
+		ch = data.data[data.read_idx]
 	}
 
-	token.span = { data.id, start, data.read_idx - 1 }
-
-	if !found_end_quote {
-		log_error( "Unterminated string literal" )
-		ok = false
-	} else {
-		token.kind = .String
-		token.str, _  = strings.clone( strings.to_string( sb ) )
+	if ch == '\n' {
+		log_spanned_error( &token.span, "Unterminated string literal!" )
+		return false
 	}
 
-	return
+	data.read_idx += 1
+	token.span.end += 1
+
+	return true
 }
 
 keyword_map := map[string]TokenKind {
