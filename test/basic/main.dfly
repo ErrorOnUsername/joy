@@ -1,4 +1,3 @@
-
 decl MyEnum : enum
 {
     VariantA;
