@@ -83,6 +83,11 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 				decl_ptr := parse_decl( file_data )
 
 				ok = decl_ptr != nil
+
+				if ok {
+					// TODO: Grab mutex
+					append( &mod.owning_pkg.shared_scope.stmnts, decl_ptr )
+				}
 			case .Let:
 				log_error( "impl globals" )
 				ok = false
@@ -294,6 +299,13 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 			}
 
 			return var
+		case .LCurly:
+			scope := parse_scope( file_data )
+
+			block := new_node( BlockStmnt, start_tk.span )
+			block.scope = scope
+
+			return block
 		case:
 			file_data.tk_idx -= 1
 
@@ -315,24 +327,31 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 parse_scope :: proc( file_data: ^FileData ) -> ^Scope
 {
-	tk := next_tk( file_data )
+	tk := next_non_newline_tk( file_data )
 	if tk.kind != .LCurly do return nil
 
+	scope := new_node( Scope, tk.span )
+
+	tk = next_non_newline_tk( file_data )
 	for tk.kind != .RCurly {
+		file_data.tk_idx -= 1 // yikes...
+
 		stmnt := parse_stmnt( file_data )
 		if stmnt == nil do return nil
 
-		tk = next_non_newline_tk( file_data )
-		if tk.kind == .LCurly {
-			sub_scope := parse_scope( file_data )
-			if sub_scope == nil do return nil
-		} else {
-			file_data.tk_idx -= 1
+		block, ok := stmnt.derived_stmnt.(^BlockStmnt)
+		if ok {
+			block.scope.parent = scope
 		}
+
+		append( &scope.stmnts, stmnt )
+
+		tk = next_non_newline_tk( file_data )
 	}
 
-	log_error( "impl parse_scope" )
-	return nil
+	file_data.tk_idx += 1
+
+	return scope
 }
 
 parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )

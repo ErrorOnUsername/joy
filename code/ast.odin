@@ -113,6 +113,12 @@ ExprStmnt :: struct
 	expr:        ^Expr,
 }
 
+BlockStmnt :: struct
+{
+	using stmnt: Stmnt,
+	scope:       ^Scope,
+}
+
 
 
 //
@@ -193,7 +199,7 @@ bin_op_priority :: proc( op: BinaryOperator ) -> i8
 			return 10
 
 		case .LessThanOrEq, .LessThan,
-			 .GreaterThanOrEq, .GreaterThan:
+		     .GreaterThanOrEq, .GreaterThan:
 			return 9
 
 		case .Equal, .NotEqual:
@@ -224,7 +230,7 @@ ProcCallExpr :: struct
 }
 
 
-AnyStmnt :: union 
+AnyStmnt :: union
 {
 	^ImportStmnt,
 	^StructDecl,
@@ -234,6 +240,7 @@ AnyStmnt :: union
 	^ForeignLibraryDecl,
 	^VarDecl,
 	^ExprStmnt,
+	^BlockStmnt,
 }
 
 Stmnt :: struct
