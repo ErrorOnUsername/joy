@@ -15,6 +15,9 @@ FileData :: struct
 	data:     string,
 	read_idx: uint,
 
+	tokens: [dynamic]Token,
+	tk_idx: uint,
+
 	pkg: ^Package,
 }
 

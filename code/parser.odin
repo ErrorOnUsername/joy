@@ -67,15 +67,15 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 	token: Token
 	token.kind = .Invalid
 
-	parse_ok := parse_top_level_stmnts( data, mod_ptr )
+	parse_ok := tokenize_file( data )
+	parse_ok  = parse_ok && parse_top_level_stmnts( data, mod_ptr )
 
 	return .Continue if parse_ok else .Error
 }
 
 parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := true )
 {
-	first_tk: Token
-	next_non_newline_tk( file_data, &first_tk )
+	first_tk := next_non_newline_tk( file_data )
 
 	for ok && first_tk.kind != .EndOfFile {
 		#partial switch first_tk.kind {
@@ -91,7 +91,7 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 				ok = false
 		}
 
-		next_non_newline_tk( file_data, &first_tk )
+		first_tk = next_non_newline_tk( file_data )
 	}
 
 	return
@@ -99,30 +99,23 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 
 parse_decl :: proc( file_data: ^FileData ) -> ^Stmnt
 {
-	name_tk: Token
-	next_token( file_data, &name_tk )
+	name_tk := next_tk( file_data )
 
 	if name_tk.kind != .Ident {
 		log_spanned_error( &name_tk.span, "Expected identifier for declaration name, but got something else" )
 	}
 
-	colon_tk: Token
-	next_token( file_data, &colon_tk )
+	colon_tk := next_tk( file_data )
 
 	if colon_tk.kind == .Colon {
-		distiction_tk: Token
-		next_token( file_data, &distiction_tk )
-
-		file_data.read_idx = name_tk.span.start
+		distiction_tk := next_tk( file_data )
 
 		#partial switch distiction_tk.kind {
-			case .Struct: return parse_struct_decl( file_data )
-			case .Enum:   return parse_enum_decl( file_data )
-			case .Union:  return parse_union_decl( file_data )
-			case .LParen: return parse_proc_decl( file_data )
+			case .Struct: return parse_struct_decl( file_data, name_tk )
+			case .Enum:   return parse_enum_decl( file_data, name_tk )
+			case .Union:  return parse_union_decl( file_data, name_tk )
+			case .LParen: return parse_proc_decl( file_data, name_tk )
 		}
-	} else {
-		file_data.read_idx = name_tk.span.start
 	}
 
 	// If we made it here it was supposed to be a constant declaration
@@ -131,22 +124,9 @@ parse_decl :: proc( file_data: ^FileData ) -> ^Stmnt
 	return nil
 }
 
-parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
+parse_struct_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^StructDecl
 {
-	name_tk: Token
-	next_token( file_data, &name_tk )
-	if name_tk.kind != .Ident do return nil
-
-	colon_tk: Token
-	next_token( file_data, &colon_tk )
-	if colon_tk.kind != .Colon do return nil
-
-	struct_tk: Token
-	next_token( file_data, &struct_tk )
-	if struct_tk.kind != .Struct do return nil
-
-	l_curly_tk: Token
-	next_non_newline_tk( file_data, &l_curly_tk )
+	l_curly_tk := next_non_newline_tk( file_data )
 	if l_curly_tk.kind != .LCurly {
 		log_spanned_error( &l_curly_tk.span, "Expected '{' to begin struct body" );
 	}
@@ -159,10 +139,9 @@ parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
 	for members_ok && member != nil {
 		append( &decl.members, member )
 
-		semicolon_tk: Token
-		next_token( file_data, &semicolon_tk )
+		semicolon_tk := next_tk( file_data )
 		if semicolon_tk.kind == .RCurly {
-			file_data.read_idx = semicolon_tk.span.start
+			file_data.tk_idx -= 1
 			break
 		} else if semicolon_tk.kind != .Semicolon {
 			log_spanned_error( &semicolon_tk.span, "Expected ';' to terminate structure member" )
@@ -177,8 +156,7 @@ parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
 		return nil
 	}
 
-	r_curly_tk: Token
-	next_non_newline_tk( file_data, &r_curly_tk )
+	r_curly_tk := next_non_newline_tk( file_data )
 	if r_curly_tk.kind != .RCurly {
 		log_spanned_error( &r_curly_tk.span, "Expected '}' to terminate struct declaration" )
 		return nil
@@ -192,22 +170,9 @@ parse_struct_decl :: proc( file_data: ^FileData ) -> ^StructDecl
 	return decl
 }
 
-parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
+parse_enum_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^EnumDecl
 {
-	name_tk: Token
-	next_token( file_data, &name_tk )
-	if name_tk.kind != .Ident do return nil
-
-	colon_tk: Token
-	next_token( file_data, &colon_tk )
-	if colon_tk.kind != .Colon do return nil
-
-	enum_tk: Token
-	next_token( file_data, &enum_tk )
-	if enum_tk.kind != .Enum do return nil
-
-	l_curly_tk: Token
-	next_non_newline_tk( file_data, &l_curly_tk )
+	l_curly_tk := next_non_newline_tk( file_data )
 	if l_curly_tk.kind != .LCurly {
 		log_spanned_error( &l_curly_tk.span, "Expected '{' to begin enum body" )
 		return nil
@@ -218,8 +183,7 @@ parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
 
 
 	// TODO: Variant values
-	variant_tk: Token
-	next_non_newline_tk( file_data, &variant_tk )
+	variant_tk := next_non_newline_tk( file_data )
 
 	for variant_tk.kind != .RCurly {
 		if variant_tk.kind != .Ident {
@@ -230,7 +194,7 @@ parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
 		variant := new_node( EnumVariant, variant_tk.span )
 		variant.name = variant_tk.str
 
-		next_token( file_data, &variant_tk )
+		variant_tk = next_tk( file_data )
 		if variant_tk.kind != .Semicolon {
 			log_spanned_error( &variant_tk.span, "Expected ';' to terminate enum variant" )
 			return nil
@@ -238,32 +202,20 @@ parse_enum_decl :: proc( file_data: ^FileData ) -> ^EnumDecl
 
 		append( &decl.variants, variant )
 
-		next_non_newline_tk( file_data, &variant_tk )
+		variant_tk = next_non_newline_tk( file_data )
 	}
 
 	return decl
 }
 
-parse_union_decl :: proc( file_data: ^FileData ) -> ^UnionDecl
+parse_union_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^UnionDecl
 {
 	log_error( "impl unions" )
 	return nil
 }
 
-parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
+parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^ProcDecl
 {
-	name_tk: Token
-	next_token( file_data, &name_tk )
-	if name_tk.kind != .Ident do return nil
-
-	colon_tk: Token
-	next_token( file_data, &colon_tk )
-	if colon_tk.kind != .Colon do return nil
-
-	l_paren_tk: Token
-	next_token( file_data, &l_paren_tk )
-	if l_paren_tk.kind != .LParen do return nil
-
 	decl := new_node( ProcDecl, name_tk.span )
 	decl.name    = name_tk.str
 	decl.linkage = .Internal
@@ -274,11 +226,10 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
 	for params_ok && param != nil {
 		append( &decl.params, param )
 
-		comma_tk: Token
-		next_token( file_data, &comma_tk )
+		comma_tk := next_tk( file_data )
 
 		if comma_tk.kind == .RParen {
-			file_data.read_idx = comma_tk.span.start
+			file_data.tk_idx -= 1
 			break
 		} else if comma_tk.kind != .Comma {
 			log_spanned_error( &comma_tk.span, "Expected ',' to separate procedure parameters")
@@ -292,29 +243,27 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
 		return nil
 	}
 
-	r_paren_tk: Token
-	next_token( file_data, &r_paren_tk )
+	r_paren_tk := next_tk( file_data )
 
 	if r_paren_tk.kind != .RParen {
 		log_spanned_error( &r_paren_tk.span, "Expected ')' to terminate parameter list" )
 		return nil
 	}
 
-	ret_arrow: Token
-	next_token( file_data, &ret_arrow )
+	ret_arrow := next_tk( file_data )
 	if ret_arrow.kind == .SmolArrow {
+		return nil
 	} else {
-		file_data.read_idx = ret_arrow.span.start
+		file_data.tk_idx -= 1
 	}
 
-	l_curly_tk: Token
-	next_non_newline_tk( file_data, &l_curly_tk )
+	l_curly_tk := next_non_newline_tk( file_data )
 	if l_curly_tk.kind != .LCurly {
 		log_spanned_error( &l_curly_tk.span, "Expected '{' to start funtion body" )
 		return nil
 	}
 
-	file_data.read_idx = l_curly_tk.span.start
+	file_data.tk_idx -= 1
 
 	decl.body = parse_scope( file_data )
 	if decl.body == nil do return nil
@@ -326,8 +275,7 @@ parse_proc_decl :: proc( file_data: ^FileData ) -> ^ProcDecl
 
 parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 {
-	start_tk: Token
-	next_non_newline_tk( file_data, &start_tk )
+	start_tk := next_non_newline_tk( file_data )
 
 	#partial switch start_tk.kind {
 		case .Decl: return parse_decl( file_data )
@@ -339,8 +287,7 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 				return nil
 			}
 
-			sc_tk: Token
-			next_token( file_data, &sc_tk )
+			sc_tk := next_tk( file_data )
 			if sc_tk.kind != .Semicolon {
 				log_spanned_error( &sc_tk.span, "Expected terminating ';' after let statement" )
 				return nil
@@ -348,7 +295,7 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 			return var
 		case:
-			file_data.read_idx = start_tk.span.start
+			file_data.tk_idx -= 1
 
 			expr  := parse_expr( file_data )
 			if expr == nil do return nil
@@ -356,8 +303,7 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 			stmnt := new_node( ExprStmnt, expr.span )
 			stmnt.expr = expr
 
-			sc_tk: Token
-			next_token( file_data, &sc_tk )
+			sc_tk := next_tk( file_data )
 			if sc_tk.kind != .Semicolon {
 				log_spanned_error( &sc_tk.span, "Expected terminating ';' after expression statement" )
 				return nil
@@ -369,20 +315,19 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 parse_scope :: proc( file_data: ^FileData ) -> ^Scope
 {
-	tk: Token
-	next_token( file_data, &tk )
+	tk := next_tk( file_data )
 	if tk.kind != .LCurly do return nil
 
 	for tk.kind != .RCurly {
 		stmnt := parse_stmnt( file_data )
 		if stmnt == nil do return nil
 
-		next_non_newline_tk( file_data, &tk )
+		tk = next_non_newline_tk( file_data )
 		if tk.kind == .LCurly {
 			sub_scope := parse_scope( file_data )
 			if sub_scope == nil do return nil
 		} else {
-			file_data.read_idx = tk.span.start
+			file_data.tk_idx -= 1
 		}
 	}
 
@@ -392,11 +337,10 @@ parse_scope :: proc( file_data: ^FileData ) -> ^Scope
 
 parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 {
-	name_tk: Token
-	next_non_newline_tk( file_data, &name_tk )
+	name_tk := next_non_newline_tk( file_data )
 
 	if name_tk.kind != .Ident {
-		file_data.read_idx = name_tk.span.start
+		file_data.tk_idx -= 1
 		return nil, true
 	}
 
@@ -404,8 +348,7 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 	decl.name = name_tk.str
 
 
-	colon_tk: Token
-	next_token( file_data, &colon_tk )
+	colon_tk := next_tk( file_data )
 
 	if colon_tk.kind == .Colon {
 		decl.type = parse_type( file_data )
@@ -416,18 +359,17 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 		return nil, false
 	}
 
-	assign_tk: Token
-	next_token( file_data, &assign_tk )
+	assign_tk := next_tk( file_data )
 
 	if decl.type == nil || ( decl.type != nil && assign_tk.kind == .Assign ) {
 		if decl.type == nil {
-			file_data.read_idx = assign_tk.span.start;
+			file_data.tk_idx -= 1
 		}
 
 		decl.default_value = parse_expr( file_data )
 		if decl.default_value == nil do return nil, false
 	} else {
-		file_data.read_idx = assign_tk.span.start
+		file_data.tk_idx -= 1
 	}
 
 	return decl, true
@@ -435,8 +377,7 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 
 parse_type :: proc( file_data: ^FileData ) -> ^Type
 {
-	lead_tk: Token
-	next_token( file_data, &lead_tk )
+	lead_tk := next_tk( file_data )
 
 	#partial switch lead_tk.kind {
 		case .U8, .I8, .U16, .I16, .U32, .I32, .U64, .I64, .F32, .F64:
@@ -470,24 +411,22 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 	lhs := parse_operand( file_data, can_create_struct_literal )
 	if lhs == nil do return nil
 
-	op_tk: Token
-	next_non_newline_tk( file_data, &op_tk )
+	op_tk := next_non_newline_tk( file_data )
 
-	op := tk_to_bin_op( &op_tk )
+	op := tk_to_bin_op( op_tk )
 
 	for {
 		if op == .Invalid {
-			file_data.read_idx = op_tk.span.start
+			file_data.tk_idx -= 1
 			break
 		}
 
 		rhs := parse_operand( file_data, false )
 		if rhs == nil do return nil
 
-		peek_op_tk: Token
-		next_non_newline_tk( file_data, &peek_op_tk )
+		peek_op_tk := next_non_newline_tk( file_data )
 
-		peek_op := tk_to_bin_op( &peek_op_tk )
+		peek_op := tk_to_bin_op( peek_op_tk )
 
 		if peek_op != .Invalid && bin_op_priority( peek_op ) > bin_op_priority( op ) {
 			new_lhs := rhs
@@ -504,7 +443,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 
 			rhs = rhs_bop
 		} else {
-			file_data.read_idx = peek_op_tk.span.start
+			file_data.tk_idx -= 1
 		}
 
 		span, ok := join_span( &lhs.span, &rhs.span )
@@ -517,7 +456,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 
 		lhs = bop
 
-		next_non_newline_tk( file_data, &op_tk )
+		op_tk = next_non_newline_tk( file_data )
 	}
 
 	return lhs
@@ -525,8 +464,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 
 parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -> ^Expr
 {
-	lead_tk: Token
-	next_non_newline_tk( file_data, &lead_tk )
+	lead_tk := next_non_newline_tk( file_data )
 
 	#partial switch lead_tk.kind {
 		case .Dot:
@@ -558,8 +496,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 		log_spanned_error( &lead_tk.span, "Unexpected token in operand" )
 	}
 
-	tail_tk: Token
-	next_token( file_data, &tail_tk )
+	tail_tk := next_tk( file_data )
 
 	#partial switch tail_tk.kind {
 		case .LParen:
@@ -577,7 +514,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			}
 	}
 
-	file_data.read_idx = tail_tk.span.start
+	file_data.tk_idx -= 1
 
 	ident := new_node( Ident, lead_tk.span )
 	ident.name = lead_tk.str
@@ -587,11 +524,10 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 parse_proc_call_param_pack :: proc( file_data: ^FileData, call_expr: ^ProcCallExpr ) -> ( ok := true )
 {
-	tk: Token
-	next_token( file_data, &tk )
+	tk := next_tk( file_data )
 
 	if tk.kind != .RParen {
-		file_data.read_idx = tk.span.start
+		file_data.tk_idx -= 1
 	}
 
 	for tk.kind != .RParen {
@@ -603,7 +539,7 @@ parse_proc_call_param_pack :: proc( file_data: ^FileData, call_expr: ^ProcCallEx
 
 		append( &call_expr.params, expr )
 
-		next_token( file_data, &tk )
+		tk = next_tk( file_data )
 
 		if tk.kind != .RParen && tk.kind != .Comma {
 			log_spanned_error( &tk.span, "Expected ',' or ')' after procedure call parameter" )
@@ -615,550 +551,22 @@ parse_proc_call_param_pack :: proc( file_data: ^FileData, call_expr: ^ProcCallEx
 	return
 }
 
-next_non_newline_tk :: proc( file_data: ^FileData, tk: ^Token )
+next_tk :: proc( file_data: ^FileData ) -> ^Token
 {
-	next_token( file_data, tk )
+	tk := &file_data.tokens[file_data.tk_idx]
+	file_data.tk_idx += 1
+
+	return tk
+}
+
+next_non_newline_tk :: proc( file_data: ^FileData ) -> ^Token
+{
+	tk := next_tk( file_data )
 
 	for tk.kind == .EndOfLine {
-		next_token( file_data, tk )
-	}
-}
-
-
-StateNode :: struct
-{
-	char:    u8,
-	tk_kind: TokenKind,
-	next:    []StateNode,
-}
-
-TokenParseStateTree :: struct
-{
-	nodes: []StateNode,
-}
-
-parse_state_tree := TokenParseStateTree {
-	{
-		{
-			char    = ':',
-			tk_kind = .Colon,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .ColonAssign,
-					next    = {},
-				},
-			},
-		},
-		{ ';', .Semicolon, {} },
-		{ ',', .Comma, {} },
-		{ '.', .Dot, {} },
-		{ '(', .LParen, {} },
-		{ ')', .RParen, {} },
-		{ '{', .LCurly, {} },
-		{ '}', .RCurly, {} },
-		{ '[', .LSquare, {} },
-		{ ']', .RSquare, {} },
-		{
-			char    = '=',
-			tk_kind = .Assign,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .Equal,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '!',
-			tk_kind = .Bang,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .NotEqual,
-					next    = {},
-				},
-			},
-		},
-		{ '~', .Tilde, {}, },
-		{
-			char    = '&',
-			tk_kind = .Ampersand,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .AmpersandAssign,
-					next    = {},
-				},
-				{
-					char    = '&',
-					tk_kind = .DoubleAmpersand,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '|',
-			tk_kind = .Pipe,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .PipeAssign,
-					next    = {},
-				},
-				{
-					char    = '|',
-					tk_kind = .DoublePipe,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '^',
-			tk_kind = .Caret,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .CaretAssign,
-					next    = {},
-				},
-				{
-					char    = '^',
-					tk_kind = .DoubleCaret,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '<',
-			tk_kind = .LAngle,
-			next    = {
-				{
-					char    = '<',
-					tk_kind = .LShift,
-					next    = {}, // TODO: Arithmetic shift?
-				},
-				{
-					char    = '=',
-					tk_kind = .LessThanOrEqual,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '>',
-			tk_kind = .RAngle,
-			next    = {
-				{
-					char    = '>',
-					tk_kind = .RShift,
-					next    = {}, // TODO: Arithmetic shift?
-				},
-				{
-					char    = '=',
-					tk_kind = .GreaterThanOrEqual,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '+',
-			tk_kind = .Plus,
-			next    = {
-				{
-					char    = '+',
-					tk_kind = .PlusPlus,
-					next    = {},
-				},
-				{
-					char    = '=',
-					tk_kind = .PlusAssign,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '-',
-			tk_kind = .Minus,
-			next    = {
-				{
-					char    = '-',
-					tk_kind = .MinusMinus,
-					next    = {},
-				},
-				{
-					char    = '=',
-					tk_kind = .MinusAssign,
-					next    = {},
-				},
-				{
-					char    = '>',
-					tk_kind = .SmolArrow,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '*',
-			tk_kind = .Star,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .StarAssign,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '/',
-			tk_kind = .Slash,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .SlashAssign,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '%',
-			tk_kind = .Percent,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .PercentAssign,
-					next    = {},
-				},
-			},
-		},
-	},
-}
-
-try_lex_from_parse_tree_node :: proc( data: ^FileData, token: ^Token, nodes: []StateNode ) -> bool
-{
-	token.kind       = .Invalid
-	token.span.file  = data.id
-	token.span.start = data.read_idx
-	token.span.end   = data.read_idx + 1
-
-	ch := data.data[data.read_idx]
-
-	current_node_list := nodes
-	idx               := 0
-
-	for {
-		if len( current_node_list ) == 0 || idx == len( current_node_list ) do break
-
-		node := &current_node_list[idx]
-
-		if node.char == ch {
-			token.kind     = node.tk_kind
-			token.span.end = data.read_idx + 1
-
-			data.read_idx += 1
-			ch = data.data[data.read_idx]
-
-			current_node_list = node.next
-			idx               = 0
-
-			continue
-		}
-
-		idx += 1
+		tk = next_tk( file_data )
 	}
 
-	return token.kind != .Invalid
+	return tk
 }
 
-next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
-{
-	token^ = { }
-
-	if data.read_idx >= len( data.data ) {
-		end := len( data.data )
-
-		token.kind = .EndOfFile
-		token.span = { data.id, uint( end - 1 ), uint( end ) }
-		return
-	}
-
-	for data.data[data.read_idx] == ' ' || data.data[data.read_idx] == '\t' {
-		data.read_idx += 1
-	}
-
-	full_data_len := uint( len( data.data ) )
-
-	parse_tree_res_ok := try_lex_from_parse_tree_node( data, token, parse_state_tree.nodes )
-
-	if !parse_tree_res_ok {
-		start_ch := data.data[data.read_idx]
-
-		switch start_ch {
-			case '\r':
-				if data.data[data.read_idx + 1] != '\n' {
-					log_errorf( "Carriage return not followed by newline??? Got {:q} instead", rune( data.data[data.read_idx + 1] ) )
-					token.kind = .Invalid
-					ok = false
-				} else {
-					token.kind = .EndOfLine
-				}
-
-				token.span = { data.id, data.read_idx, data.read_idx + 2 }
-				data.read_idx += 2
-			case '\n':
-				data.read_idx += 1
-
-				token.kind = .EndOfLine
-				token.span = { data.id, data.read_idx - 1, data.read_idx }
-			case '"':
-				ok = get_string_literal( data, token )
-			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				token.span = { data.id, data.read_idx, data.read_idx + 1 }
-				log_error( "implement number literal parsing" )
-				ok = false
-			case:
-				ok = get_ident_or_keword( data, token )
-		}
-	}
-
-	if token.kind != .Invalid && len( token.str ) == 0 {
-		token.str = data.data[token.span.start:token.span.end]
-	}
-
-	return
-}
-
-get_string_literal :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
-{
-	data.read_idx += 1
-
-	sb := strings.builder_make()
-	defer strings.builder_destroy( &sb )
-
-	data_size       := uint( len( data.data ) )
-	start           := data.read_idx - 1
-	found_end_quote := false
-
-	for !found_end_quote && data.read_idx < data_size {
-		c := data.data[data.read_idx]
-		if c == '\\' {
-			esc_c := data.data[data.read_idx + 1]
-
-			switch esc_c {
-				case 'r':
-					strings.write_byte( &sb, '\r' )
-				case 'n':
-					strings.write_byte( &sb, '\n' )
-				case 'e':
-					strings.write_byte( &sb, '\x1b' )
-				case 't':
-					strings.write_byte( &sb, '\t' )
-				case 'x':
-					log_error( "implement hexadecimal string escapes (i.e. '\\x1b')" )
-					ok = false
-					return
-				case:
-					strings.write_byte( &sb, esc_c )
-			}
-
-			data.read_idx += 2
-			continue
-		}
-
-		if c == '"' {
-			found_end_quote = true
-		} else {
-			strings.write_byte( &sb, c )
-		}
-
-		data.read_idx += 1
-	}
-
-	token.span = { data.id, start, data.read_idx - 1 }
-
-	if !found_end_quote {
-		log_error( "Unterminated string literal" )
-		ok = false
-	} else {
-		token.kind = .String
-		token.str, _  = strings.clone( strings.to_string( sb ) )
-	}
-
-	return
-}
-
-keyword_map := map[string]TokenKind {
-	"decl"   = .Decl,
-	"let"    = .Let,
-	"struct" = .Struct,
-	"enum"   = .Enum,
-	"union"  = .Union,
-	"u8"     = .U8,
-	"i8"     = .I8,
-	"u16"    = .U16,
-	"i16"    = .I16,
-	"u32"    = .U32,
-	"i32"    = .I32,
-	"u64"    = .U64,
-	"i64"    = .I64,
-	"f32"    = .F32,
-	"f64"    = .F64,
-}
-
-get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
-{
-	start := data.read_idx
-	for is_valid_ident_char( data.data[data.read_idx] )
-	{
-		data.read_idx += 1
-	}
-
-	ident_slice := data.data[start:data.read_idx]
-
-	token.span = { data.id, start, data.read_idx }
-
-	if ident_slice in keyword_map {
-		token.kind = keyword_map[ident_slice]
-	} else {
-		token.kind = .Ident
-		token.str  = ident_slice
-	}
-
-	return
-}
-
-is_valid_ident_char :: proc( c: u8 ) -> bool
-{
-	return ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) || c == '_'
-}
-
-tk_to_bin_op :: proc( tk: ^Token ) -> BinaryOperator
-{
-	#partial switch tk.kind {
-		// TODO: Impl
-	}
-
-	return .Invalid
-}
-
-join_span :: proc( l_span: ^Span, r_span: ^Span ) -> ( ret: Span, ok := true )
-{
-	ret = {}
-
-	if l_span.file != r_span.file {
-		ok = false
-		log_errorf( "left span '{}' and right span '{}' are not in the same file!", l_span, r_span )
-		return
-	}
-
-	if l_span.start > r_span.end {
-		ok = false
-		log_errorf( "left span '{}' comes after right span '{}'!", l_span, r_span )
-		return
-	}
-
-	ret.file  = l_span.file
-	ret.start = l_span.start
-	ret.end   = r_span.end
-
-	return
-}
-
-
-Span :: struct
-{
-	file:  FileID,
-	start: uint,
-	end:   uint,
-}
-
-Token :: struct
-{
-	kind: TokenKind,
-	span: Span,
-	str:  string,
-}
-
-TokenKind :: enum
-{
-	Invalid,
-
-	EndOfLine,
-	EndOfFile,
-
-	Decl,
-	Let,
-
-	Struct,
-	Enum,
-	Union,
-
-	Ident,
-	String,
-	Number,
-
-	Assign,
-	Equal,
-
-	Semicolon,
-	Comma,
-	Dot,
-	Tilde,
-
-	Colon,
-	ColonAssign,
-
-	Plus,
-	PlusPlus,
-	PlusAssign,
-	Minus,
-	MinusMinus,
-	MinusAssign,
-	Star,
-	StarAssign,
-	Slash,
-	SlashAssign,
-	Percent,
-	PercentAssign,
-
-	SmolArrow,
-
-	LParen,
-	RParen,
-	LCurly,
-	RCurly,
-	LSquare,
-	RSquare,
-
-	LAngle,
-	LessThanOrEqual,
-	LShift,
-	RAngle,
-	GreaterThanOrEqual,
-	RShift,
-
-	Bang,
-	NotEqual,
-
-	Ampersand,
-	DoubleAmpersand,
-	AmpersandAssign,
-	Pipe,
-	DoublePipe,
-	PipeAssign,
-	Caret,
-	DoubleCaret,
-	CaretAssign,
-
-	U8,
-	I8,
-	U16,
-	I16,
-	U32,
-	I32,
-	U64,
-	I64,
-	F32,
-	F64,
-}
