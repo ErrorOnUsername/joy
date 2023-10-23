@@ -306,6 +306,10 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 			block.scope = scope
 
 			return block
+		case .If:    return parse_if_stmnt( file_data )
+		case .For:   return parse_for_loop( file_data )
+		case .While: return parse_while_loop( file_data )
+		case .Loop:  return parse_loop_stmnt( file_data )
 		case:
 			file_data.tk_idx -= 1
 
@@ -323,6 +327,30 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 			return stmnt
 	}
+}
+
+parse_if_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
+{
+	log_error( "impl parse_if_stmnt" )
+	return nil
+}
+
+parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
+{
+	log_error( "impl parse_for_loop" )
+	return nil
+}
+
+parse_while_loop :: proc( file_data: ^FileData ) -> ^Stmnt
+{
+	log_error( "impl parse_while_loop" )
+	return nil
+}
+
+parse_loop_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
+{
+	log_error( "impl parse_loop_stmnt" )
+	return nil
 }
 
 parse_scope :: proc( file_data: ^FileData ) -> ^Scope
