@@ -52,9 +52,13 @@ PrimitiveKind :: enum
 	I32,
 	U64,
 	I64,
-
+	USize,
+	ISize,
 	F32,
 	F64,
+	String,
+	CString,
+	RawPtr,
 }
 
 type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
@@ -76,10 +80,20 @@ type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
 			return .U64
 		case .I64:
 			return .I64
+		case .USize:
+			return .USize
+		case .ISize:
+			return .ISize
 		case .F32:
 			return .F32
 		case .F64:
 			return .F64
+		case .String:
+			return .String
+		case .CString:
+			return .CString
+		case .RawPtr:
+			return .RawPtr
 	}
 
 	fmt.panicf( "Unknown primitive: {}", tk )

@@ -24,10 +24,10 @@ syn keyword df_todo            contained NOTE TODO FIXME BUG
 "
 " Numbers
 "
-syn match df_dec_number display "\v<\d%('?\d)*"
-syn match df_bin_number display "\v<0b[01]%('?[01])*"
-syn match df_oct_number display "\v<0o\o%('?\o)*"
-syn match df_hex_number display "\v<0x\x%('?\x)*"
+syn match df_dec_number display "\v<\d%(_?\d)*"
+syn match df_bin_number display "\v<0b[01]%(_?[01])*"
+syn match df_oct_number display "\v<0o\o%(_?\o)*"
+syn match df_hex_number display "\v<0x\x%(_?\x)*"
 
 hi def link df_dec_number      df_number
 hi def link df_bin_number      df_number

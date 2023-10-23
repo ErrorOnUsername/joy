@@ -399,7 +399,7 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
 	lead_tk := next_tk( file_data )
 
 	#partial switch lead_tk.kind {
-		case .U8, .I8, .U16, .I16, .U32, .I32, .U64, .I64, .F32, .F64:
+		case .U8, .I8, .U16, .I16, .U32, .I32, .U64, .I64, .USize, .ISize, .F32, .F64, .String, .CString, .RawPtr:
 			prim := new_type( PrimitiveType )
 			prim.kind = type_prim_kind_from_tk( lead_tk.kind )
 
@@ -504,7 +504,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 		case .Number:
 			log_spanned_error( &lead_tk.span, "impl number exprs" )
 			return nil
-		case .String:
+		case .StringLiteral:
 			node := new_node( StringLiteralExpr, lead_tk.span )
 			node.str = lead_tk.str
 

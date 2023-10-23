@@ -8,10 +8,14 @@ decl MyStruct : struct
 {
     member_0: i32;
     member_1: f32;
+	member_2: cstring;
+	member_3: string;
+	member_4: usize;
 }
 
-decl main : ()
+decl main : ( a: rawptr )
 {
     let a := "haha";
+    let b: isize = 10;
     println( "Hello, World!" );
 }

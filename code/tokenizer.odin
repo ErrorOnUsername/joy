@@ -310,9 +310,7 @@ lex_next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 			case '"':
 				ok = get_string_literal( data, token )
 			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				token.span = { data.id, data.read_idx, data.read_idx + 1 }
-				log_error( "implement number literal parsing" )
-				ok = false
+				ok = get_number_literal( data, token )
 			case:
 				ok = get_ident_or_keword( data, token )
 		}
@@ -325,9 +323,90 @@ lex_next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 	return
 }
 
+is_digit_char :: proc( char: u8 ) -> bool
+{
+	return ( char >= '0' && char <= '9' ) || ( char >= 'a' && char <= 'f' ) || ( char >= 'A' && char <= 'F' )
+}
+
+is_valid_number_char :: proc( char: u8 ) -> bool
+{
+	return is_digit_char( char ) || char == '.' || char == '_'
+}
+
+get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
+{
+	token.kind = .Number
+	token.span = { data.id, data.read_idx, data.read_idx + 1 }
+
+	found_dot := false
+	ch := data.data[data.read_idx]
+
+	radix := 10
+
+	if ch == '0' {
+		data.read_idx  += 1
+		token.span.end += 1
+
+		base_ch := data.data[data.read_idx]
+
+		switch base_ch {
+			case 'b': radix = 2; data.read_idx += 1; token.span.end += 1
+			case 'o': radix = 8; data.read_idx += 1; token.span.end += 1
+			case 'x': radix = 16; data.read_idx += 1; token.span.end += 1
+			case:
+		}
+
+		ch = data.data[data.read_idx]
+
+		if radix == 10 && is_digit_char( ch ) {
+			log_spanned_error( &token.span, "Leading zero in number literal" )
+			return false
+		}
+
+		if radix != 10 && !is_digit_char( ch ) {
+			log_spanned_error( &token.span, "Base prefix not followed by number value" )
+			return false
+		}
+	}
+
+	for ch != '\n' && is_valid_number_char( ch ) {
+		if ch == '.' {
+			if radix != 10 {
+				token.span.start = data.read_idx
+				log_spanned_error( &token.span, "Cannot specify a fractional component in non-decimal number systems" )
+				return false
+			}
+
+			if found_dot {
+				token.span.end -= 1
+				return true
+			}
+
+			found_dot = true
+		}
+
+		if ch == '_' {
+			if !( is_digit_char( data.data[data.read_idx - 1] ) && is_digit_char( data.data[data.read_idx + 1] ) ) {
+				token.span.start = data.read_idx
+				log_spanned_error( &token.span, "Digit seperator char must be between two digits" )
+				return false
+			}
+		}
+
+
+		token.span.end += 1
+		data.read_idx += 1
+		ch = data.data[data.read_idx]
+	}
+
+	token.span.end -= 1
+
+	return true
+}
+
 get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 {
-	token.kind = .String
+	token.kind = .StringLiteral
 	token.span = { data.id, data.read_idx, data.read_idx + 1 }
 
 	data.read_idx += 1
@@ -351,21 +430,31 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 }
 
 keyword_map := map[string]TokenKind {
-	"decl"   = .Decl,
-	"let"    = .Let,
-	"struct" = .Struct,
-	"enum"   = .Enum,
-	"union"  = .Union,
-	"u8"     = .U8,
-	"i8"     = .I8,
-	"u16"    = .U16,
-	"i16"    = .I16,
-	"u32"    = .U32,
-	"i32"    = .I32,
-	"u64"    = .U64,
-	"i64"    = .I64,
-	"f32"    = .F32,
-	"f64"    = .F64,
+	"decl"    = .Decl,
+	"let"     = .Let,
+	"struct"  = .Struct,
+	"enum"    = .Enum,
+	"union"   = .Union,
+	"if"      = .If,
+	"else"    = .Else,
+	"for"     = .For,
+	"while"   = .While,
+	"loop"    = .Loop,
+	"u8"      = .U8,
+	"i8"      = .I8,
+	"u16"     = .U16,
+	"i16"     = .I16,
+	"u32"     = .U32,
+	"i32"     = .I32,
+	"u64"     = .U64,
+	"i64"     = .I64,
+	"usize"   = .USize,
+	"isize"   = .ISize,
+	"f32"     = .F32,
+	"f64"     = .F64,
+	"string"  = .String,
+	"cstring" = .CString,
+	"rawptr"  = .RawPtr,
 }
 
 get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
@@ -457,7 +546,7 @@ TokenKind :: enum
 	Union,
 
 	Ident,
-	String,
+	StringLiteral,
 	Number,
 
 	Assign,
@@ -513,6 +602,12 @@ TokenKind :: enum
 	DoubleCaret,
 	CaretAssign,
 
+	If,
+	Else,
+	For,
+	While,
+	Loop,
+
 	U8,
 	I8,
 	U16,
@@ -521,7 +616,12 @@ TokenKind :: enum
 	I32,
 	U64,
 	I64,
+	USize,
+	ISize,
 	F32,
 	F64,
+	String,
+	CString,
+	RawPtr,
 }
 
