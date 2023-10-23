@@ -502,8 +502,10 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &lead_tk.span, "impl negate" )
 			return nil
 		case .Number:
-			log_spanned_error( &lead_tk.span, "impl number exprs" )
-			return nil
+			node := new_node( StringLiteralExpr, lead_tk.span )
+			node.str = lead_tk.str
+
+			return node
 		case .StringLiteral:
 			node := new_node( StringLiteralExpr, lead_tk.span )
 			node.str = lead_tk.str
