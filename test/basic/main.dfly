@@ -24,7 +24,7 @@ decl main : ( a: rawptr )
         b = 10;
     } else {
         b -= 1;
-    ]
+    }
 
     let fact := 2;
     for i in [0..b) {

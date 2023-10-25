@@ -363,11 +363,14 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 	file_data.tk_idx -= 1
 
 	if maybe_if_tk.kind == .If {
+		file_data.tk_idx += 1 // :'(
+
 		else_stmnt := parse_if_stmnt( file_data )
 		if else_stmnt == nil do return nil
 
 		if_stmnt.else_stmnt = else_stmnt
 	} else if maybe_if_tk.kind == .LCurly {
+
 		else_scope := parse_scope( file_data )
 		if else_scope == nil do return nil
 
@@ -375,6 +378,7 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 		if !join_ok do return nil
 
 		else_stmnt := new_node( IfStmnt, else_span )
+		else_stmnt.then_block = else_scope
 
 		if_stmnt.else_stmnt = else_stmnt
 	}
@@ -423,8 +427,6 @@ parse_scope :: proc( file_data: ^FileData ) -> ^Scope
 
 		tk = next_non_newline_tk( file_data )
 	}
-
-	file_data.tk_idx += 1
 
 	return scope
 }
@@ -551,6 +553,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -
 		lhs = bop
 
 		op_tk = next_non_newline_tk( file_data )
+		op    = tk_to_bin_op( op_tk )
 	}
 
 	return lhs
@@ -577,7 +580,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &lead_tk.span, "impl negate" )
 			return nil
 		case .Number:
-			node := new_node( StringLiteralExpr, lead_tk.span )
+			node := new_node( NumberLiteralExpr, lead_tk.span )
 			node.str = lead_tk.str
 
 			return node

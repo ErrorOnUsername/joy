@@ -487,7 +487,35 @@ is_valid_ident_char :: proc( c: u8 ) -> bool
 tk_to_bin_op :: proc( tk: ^Token ) -> BinaryOperator
 {
 	#partial switch tk.kind {
-		// TODO: Impl
+		case .Assign:             return .Assign
+		case .Equal:              return .Equal
+		case .Dot:                return .MemberAccess
+		case .Plus:               return .Add
+		case .PlusAssign:         return .AddAssign
+		case .Minus:              return .Subtract
+		case .MinusAssign:        return .SubtractAssign
+		case .Star:               return .Multiply
+		case .StarAssign:         return .MultiplyAssign
+		case .Slash:              return .Divide
+		case .SlashAssign:        return .DivideAssign
+		case .Percent:            return .Modulo
+		case .PercentAssign:      return .ModuloAssign
+		case .LAngle:             return .LessThan
+		case .LessThanOrEqual:    return .LessThanOrEq
+		case .LShift:             return .BitwiseLShift
+		case .RAngle:             return .GreaterThan
+		case .GreaterThanOrEqual: return .GreaterThanOrEq
+		case .RShift:             return .BitwiseRShift
+		case .NotEqual:           return .NotEqual
+		case .Ampersand:          return .BitwiseAnd
+		case .DoubleAmpersand:    return .LogicalAnd
+		case .AmpersandAssign:    return .AndAssign
+		case .Pipe:               return .BitwiseOr
+		case .DoublePipe:         return .LogicalOr
+		case .PipeAssign:         return .OrAssign
+		case .Caret:              return .BitwiseXOr
+		case .DoubleCaret:        return .LogicalXOr
+		case .CaretAssign:        return .XOrAssign
 	}
 
 	return .Invalid

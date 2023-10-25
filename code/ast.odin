@@ -177,6 +177,9 @@ BinaryOperator :: enum
 	BitwiseOr,
 	BitwiseXOr,
 
+	BitwiseLShift,
+	BitwiseRShift,
+
 	Assign,
 
 	AddAssign,
@@ -203,12 +206,15 @@ bin_op_priority :: proc( op: BinaryOperator ) -> i8
 		case .Invalid: return -1
 
 		case .MemberAccess:
-			return 12
+			return 13
 
 		case .Multiply, .Divide, .Modulo:
-			return 11
+			return 12
 
 		case .Add, .Subtract:
+			return 11
+
+		case .BitwiseLShift, .BitwiseRShift:
 			return 10
 
 		case .LessThanOrEq, .LessThan,
