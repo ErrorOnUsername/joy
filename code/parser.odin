@@ -310,6 +310,26 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 		case .For:   return parse_for_loop( file_data )
 		case .While: return parse_while_loop( file_data )
 		case .Loop:  return parse_loop_stmnt( file_data )
+		case .Continue:
+			continue_stmnt := new_node( ContinueStmnt, start_tk.span )
+
+			sc_tk := next_tk( file_data )
+			if sc_tk.kind != .Semicolon {
+				log_spanned_error( &sc_tk.span, "Expected terminating ';' after continue statement" )
+				return nil
+			}
+
+			return continue_stmnt
+		case .Break:
+			break_stmnt := new_node( BreakStmnt, start_tk.span )
+
+			sc_tk := next_tk( file_data )
+			if sc_tk.kind != .Semicolon {
+				log_spanned_error( &sc_tk.span, "Expected terminating ';' after break statement" )
+				return nil
+			}
+
+			return break_stmnt
 		case:
 			file_data.tk_idx -= 1
 
@@ -428,14 +448,47 @@ parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 
 parse_while_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 {
-	log_error( "impl parse_while_loop" )
-	return nil
+	if file_data.tokens[file_data.tk_idx - 1].kind != .While do return nil
+
+	while_stmnt := new_node( WhileLoop, file_data.tokens[file_data.tk_idx - 1].span )
+
+	cond_expr := parse_expr( file_data )
+	if cond_expr == nil do return nil
+
+	while_stmnt.cond = cond_expr
+
+	scope_start_tk := &file_data.tokens[file_data.tk_idx]
+	if scope_start_tk.kind != .LCurly {
+		log_spanned_error( &scope_start_tk.span, "Expected '{' to begin while loop body" )
+		return nil
+	}
+
+	body := parse_scope( file_data )
+	if body == nil do return nil
+
+	while_stmnt.body = body
+
+	return while_stmnt
 }
 
 parse_loop_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 {
-	log_error( "impl parse_loop_stmnt" )
-	return nil
+	if file_data.tokens[file_data.tk_idx - 1].kind != .Loop do return nil
+
+	loop_stmnt := new_node( InfiniteLoop, file_data.tokens[file_data.tk_idx - 1].span )
+
+	scope_start_tk := file_data.tokens[file_data.tk_idx]
+	if scope_start_tk.kind != .LCurly {
+		log_spanned_error( &scope_start_tk.span, "Expected '{' to begin infinite loop body" )
+		return nil
+	}
+
+	body := parse_scope( file_data )
+	if body == nil do return nil
+
+	loop_stmnt.body = body
+
+	return loop_stmnt
 }
 
 parse_scope :: proc( file_data: ^FileData ) -> ^Scope

@@ -32,7 +32,7 @@ decl main : ( a: rawptr )
     }
 
     while fact > 0 {
-        fact--;
+        fact -= 1;
     }
 
     loop { break; }

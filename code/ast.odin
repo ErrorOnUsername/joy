@@ -119,6 +119,16 @@ BlockStmnt :: struct
 	scope:       ^Scope,
 }
 
+ContinueStmnt :: struct
+{
+	using stmnt: Stmnt,
+}
+
+BreakStmnt :: struct
+{
+	using stmnt: Stmnt,
+}
+
 IfStmnt :: struct
 {
 	using stmnt: Stmnt,
@@ -132,6 +142,19 @@ ForLoop :: struct
 	iter_ident: ^Ident,
 	range:      ^Expr,
 	body:       ^Scope,
+}
+
+WhileLoop :: struct
+{
+	using stmnt: Stmnt,
+	cond:        ^Expr,
+	body:        ^Scope,
+}
+
+InfiniteLoop :: struct
+{
+	using stmnt: Stmnt,
+	body:        ^Scope,
 }
 
 
@@ -280,8 +303,12 @@ AnyStmnt :: union
 	^VarDecl,
 	^ExprStmnt,
 	^BlockStmnt,
+	^ContinueStmnt,
+	^BreakStmnt,
 	^IfStmnt,
 	^ForLoop,
+	^WhileLoop,
+	^InfiniteLoop,
 }
 
 Stmnt :: struct
