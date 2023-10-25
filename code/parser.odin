@@ -370,7 +370,6 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 
 		if_stmnt.else_stmnt = else_stmnt
 	} else if maybe_if_tk.kind == .LCurly {
-
 		else_scope := parse_scope( file_data )
 		if else_scope == nil do return nil
 
@@ -388,8 +387,43 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 
 parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 {
-	log_error( "impl parse_for_loop" )
-	return nil
+	if file_data.tokens[file_data.tk_idx - 1].kind != .For do return nil
+
+	for_stmnt := new_node( ForLoop, file_data.tokens[file_data.tk_idx - 1].span )
+
+	iter_name_ident := parse_operand( file_data, false )
+	ident, is_ident := iter_name_ident.derived_expr.(^Ident)
+
+	if !is_ident {
+		log_spanned_error( &iter_name_ident.span, "Expected identifier for iterator name" )
+		return nil
+	}
+
+	for_stmnt.iter_ident = ident
+
+	in_tk := next_tk( file_data )
+	if in_tk.kind != .In {
+		log_spanned_error( &in_tk.span, "Expected 'in' after iterator name")
+		return nil
+	}
+
+	range := parse_expr( file_data )
+	if range == nil do return nil
+
+	for_stmnt.range = range
+
+	scope_start_tk := &file_data.tokens[file_data.tk_idx]
+	if scope_start_tk.kind != .LCurly {
+		log_spanned_error( &scope_start_tk.span, "Expected '{' to begin for loop body" )
+		return nil
+	}
+
+	body := parse_scope( file_data )
+	if body == nil do return nil
+
+	for_stmnt.body = body
+
+	return for_stmnt
 }
 
 parse_while_loop :: proc( file_data: ^FileData ) -> ^Stmnt
@@ -564,6 +598,67 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 	lead_tk := next_non_newline_tk( file_data )
 
 	#partial switch lead_tk.kind {
+		case .LParen:
+			expr := parse_expr( file_data ) // Should we allow struct literals here? not sure... don't think so tho
+			if expr == nil do return nil
+
+			maybe_b_op, is_b_op := expr.derived_expr.(^BinOpExpr)
+			if is_b_op && maybe_b_op.op == .Range {
+				range_expr := new_node( RangeExpr, lead_tk.span )
+				range_expr.left_bound_inclusive = false
+				range_expr.range_expr           = maybe_b_op
+
+				end_bound_tk := next_tk( file_data )
+				if end_bound_tk.kind == .RParen {
+					range_expr.right_bound_inclusive = false
+				} else if end_bound_tk.kind == .RSquare {
+					range_expr.right_bound_inclusive = true
+				} else {
+					log_spanned_error( &end_bound_tk.span, "Expected terminating ')' or ']' to describe range bound inclusivity")
+					return nil
+				}
+
+				range_expr.span.end = end_bound_tk.span.end
+
+				return range_expr
+			}
+
+			end_bound_tk := next_tk( file_data )
+			if end_bound_tk.kind != .RParen {
+				log_spanned_error( &end_bound_tk.span, "Expected ')' to terminate parenthetical expression" )
+				return nil
+			}
+
+			return expr
+		case .LSquare:
+			range_expr := new_node( RangeExpr, lead_tk.span )
+			range_expr.left_bound_inclusive = true
+
+			expr := parse_expr( file_data )
+			if expr == nil do return nil
+
+			b_op, is_b_op := expr.derived_expr.(^BinOpExpr)
+
+			if !is_b_op || b_op.op != .Range {
+				log_spanned_errorf( &expr.span, "Expected a range expression: {}", BinaryOperator.Invalid if b_op == nil else b_op.op )
+				return nil
+			}
+
+			range_expr.range_expr = b_op
+
+			end_bound_tk := next_tk( file_data )
+			if end_bound_tk.kind == .RParen {
+				range_expr.right_bound_inclusive = false
+			} else if end_bound_tk.kind == .RSquare {
+				range_expr.right_bound_inclusive = true
+			} else {
+				log_spanned_error( &end_bound_tk.span, "Expected terminating ')' or ']' to describe range bound inclusivity" )
+				return nil
+			}
+
+			range_expr.span.end = end_bound_tk.span.end
+
+			return range_expr
 		case .Dot:
 			log_spanned_error( &lead_tk.span, "impl auto type '.' prefix" )
 			return nil

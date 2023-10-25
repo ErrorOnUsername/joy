@@ -29,7 +29,17 @@ parse_state_tree := TokenParseStateTree {
 		},
 		{ ';', .Semicolon, {} },
 		{ ',', .Comma, {} },
-		{ '.', .Dot, {} },
+		{
+			char    = '.',
+			tk_kind = .Dot,
+			next    = {
+				{
+					char    = '.',
+					tk_kind = .DotDot,
+					next    = { },
+				},
+			},
+		},
 		{ '(', .LParen, {} },
 		{ ')', .RParen, {} },
 		{ '{', .LCurly, {} },
@@ -371,6 +381,12 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 
 	for ch != '\n' && is_valid_number_char( ch ) {
 		if ch == '.' {
+			if !is_digit_char( data.data[data.read_idx + 1] ) {
+				// Special case for '..'
+				token.span.end -= 1
+				return true
+			}
+
 			if radix != 10 {
 				token.span.start = data.read_idx
 				log_spanned_error( &token.span, "Cannot specify a fractional component in non-decimal number systems" )
@@ -435,6 +451,7 @@ keyword_map := map[string]TokenKind {
 	"struct"  = .Struct,
 	"enum"    = .Enum,
 	"union"   = .Union,
+	"in"      = .In,
 	"if"      = .If,
 	"else"    = .Else,
 	"for"     = .For,
@@ -490,6 +507,7 @@ tk_to_bin_op :: proc( tk: ^Token ) -> BinaryOperator
 		case .Assign:             return .Assign
 		case .Equal:              return .Equal
 		case .Dot:                return .MemberAccess
+		case .DotDot:             return .Range
 		case .Plus:               return .Add
 		case .PlusAssign:         return .AddAssign
 		case .Minus:              return .Subtract
@@ -583,6 +601,7 @@ TokenKind :: enum
 	Semicolon,
 	Comma,
 	Dot,
+	DotDot,
 	Tilde,
 
 	Colon,
@@ -629,6 +648,8 @@ TokenKind :: enum
 	Caret,
 	DoubleCaret,
 	CaretAssign,
+
+	In,
 
 	If,
 	Else,
