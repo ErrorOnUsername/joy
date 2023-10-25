@@ -119,6 +119,13 @@ BlockStmnt :: struct
 	scope:       ^Scope,
 }
 
+IfStmnt :: struct
+{
+	using stmnt: Stmnt,
+	then_block:  ^Scope,
+	else_stmnt:  ^IfStmnt,
+}
+
 
 
 //
@@ -247,6 +254,7 @@ AnyStmnt :: union
 	^VarDecl,
 	^ExprStmnt,
 	^BlockStmnt,
+	^IfStmnt,
 }
 
 Stmnt :: struct

@@ -329,10 +329,57 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 	}
 }
 
-parse_if_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
+parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 {
-	log_error( "impl parse_if_stmnt" )
-	return nil
+	if_tk := &file_data.tokens[file_data.tk_idx - 1]
+	if if_tk.kind != .If do return nil
+
+	if_stmnt := new_node( IfStmnt, if_tk.span )
+
+	cond_expr := parse_expr( file_data )
+	if cond_expr == nil do return nil
+
+	l_curly_tk := next_non_newline_tk( file_data )
+	file_data.tk_idx -= 1
+	if l_curly_tk.kind != .LCurly {
+		log_spanned_error( &l_curly_tk.span, "Expected '{' after if condition" )
+		return nil
+	}
+
+	then_block := parse_scope( file_data )
+	if then_block == nil do return nil
+
+	if_stmnt.span.end   = then_block.span.end
+	if_stmnt.then_block = then_block
+
+
+	maybe_else_tk := next_non_newline_tk( file_data )
+	if maybe_else_tk.kind != .Else {
+		file_data.tk_idx -= 1
+		return if_stmnt
+	}
+
+	maybe_if_tk := next_non_newline_tk( file_data )
+	file_data.tk_idx -= 1
+
+	if maybe_if_tk.kind == .If {
+		else_stmnt := parse_if_stmnt( file_data )
+		if else_stmnt == nil do return nil
+
+		if_stmnt.else_stmnt = else_stmnt
+	} else if maybe_if_tk.kind == .LCurly {
+		else_scope := parse_scope( file_data )
+		if else_scope == nil do return nil
+
+		else_span, join_ok := join_span( &maybe_if_tk.span, &file_data.tokens[file_data.tk_idx].span )
+		if !join_ok do return nil
+
+		else_stmnt := new_node( IfStmnt, else_span )
+
+		if_stmnt.else_stmnt = else_stmnt
+	}
+
+	return if_stmnt
 }
 
 parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
