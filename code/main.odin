@@ -6,6 +6,12 @@ import "core:os"
 
 main :: proc()
 {
+	if !parse_args() || g_cl_state.mode == .Help {
+		return
+	}
+
+	assert( g_cl_state.mode == .Build || g_cl_state.mode == .BuildAndRun )
+
 	compiler_init()
 	defer compiler_deinit()
 
