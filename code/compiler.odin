@@ -11,6 +11,8 @@ PumpAction :: enum
 {
 	ParsePackage,
 	ParseFile,
+	TypecheckPackage,
+	TypecheckModule,
 }
 
 PumpResult :: enum
@@ -105,6 +107,10 @@ compiler_pump :: proc( action: PumpAction, file_id: FileID ) -> PumpResult
 			return pump_parse_package( file_id )
 		case .ParseFile:
 			return pump_parse_file( file_id )
+		case .TypecheckPackage:
+			return pump_check_package( file_id )
+		case .TypecheckModule:
+			return pump_check_module( file_id )
 	}
 
 	return .Continue

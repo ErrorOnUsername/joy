@@ -14,22 +14,22 @@ Platform :: enum
 
 Package :: struct
 {
-	shared_scope: ^Scope,
-	modules:      [dynamic]^Module,
+	modules: [dynamic]^Module,
 }
 
 Module :: struct
 {
+	file_id:        FileID,
 	owning_pkg:     ^Package,
 	platform_flags: PlatformFlags,
-	private_scope:  ^Scope,
+	file_scope:     ^Scope,
 	imports:        [dynamic]^ImportStmnt,
 }
 
 Scope :: struct
 {
 	using node: Node,
-	stmnts:      [dynamic]^Stmnt,
+	stmnts:     [dynamic]^Stmnt,
 	parent:     ^Scope,
 }
 

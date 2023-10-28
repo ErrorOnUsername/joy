@@ -19,6 +19,7 @@ FileData :: struct
 	tk_idx: uint,
 
 	pkg: ^Package,
+	mod: ^Module,
 }
 
 file_id_map:   map[string]FileID

@@ -21,7 +21,6 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
 	}
 
 	pkg, _ := new( Package )
-	pkg.shared_scope = new_node( Scope, { file_id, 0, 0 } )
 
 	file_data.pkg = pkg
 
@@ -59,8 +58,11 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 	fmt.println( data.data )
 
 	mod_ptr, _ := mem.new( Module, tl_ast_allocator )
-	mod_ptr.owning_pkg    = data.pkg
-	mod_ptr.private_scope = new_node( Scope, { file_id, 0, 0 } )
+	mod_ptr.owning_pkg = data.pkg
+	mod_ptr.file_scope = new_node( Scope, { file_id, 0, 0 } )
+	mod_ptr.file_id    = file_id
+
+	data.mod = mod_ptr
 
 	append( &mod_ptr.owning_pkg.modules, mod_ptr )
 
@@ -85,8 +87,7 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 				ok = decl_ptr != nil
 
 				if ok {
-					// TODO: Grab mutex
-					append( &mod.owning_pkg.shared_scope.stmnts, decl_ptr )
+					append( &mod.file_scope.stmnts, decl_ptr )
 				}
 			case .Let:
 				log_error( "impl globals" )
@@ -272,8 +273,6 @@ parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^ProcDecl
 
 	decl.body = parse_scope( file_data )
 	if decl.body == nil do return nil
-
-	decl.body.parent = file_data.pkg.shared_scope
 
 	return decl
 }
