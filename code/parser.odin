@@ -82,7 +82,7 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 	for ok && first_tk.kind != .EndOfFile {
 		#partial switch first_tk.kind {
 			case .Decl:
-				decl_ptr := parse_decl( file_data )
+				decl_ptr := parse_decl( file_data, mod.file_scope )
 
 				ok = decl_ptr != nil
 
@@ -103,7 +103,7 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 	return
 }
 
-parse_decl :: proc( file_data: ^FileData ) -> ^Stmnt
+parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
 	name_tk := next_tk( file_data )
 
@@ -120,7 +120,7 @@ parse_decl :: proc( file_data: ^FileData ) -> ^Stmnt
 			case .Struct: return parse_struct_decl( file_data, name_tk )
 			case .Enum:   return parse_enum_decl( file_data, name_tk )
 			case .Union:  return parse_union_decl( file_data, name_tk )
-			case .LParen: return parse_proc_decl( file_data, name_tk )
+			case .LParen: return parse_proc_decl( file_data, name_tk, scope )
 		}
 	}
 
@@ -220,7 +220,7 @@ parse_union_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^UnionDecl
 	return nil
 }
 
-parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^ProcDecl
+parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token, scope: ^Scope ) -> ^ProcDecl
 {
 	decl := new_node( ProcDecl, name_tk.span )
 	decl.name    = name_tk.str
@@ -271,18 +271,18 @@ parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^ProcDecl
 
 	file_data.tk_idx -= 1
 
-	decl.body = parse_scope( file_data )
+	decl.body = parse_scope( file_data, scope )
 	if decl.body == nil do return nil
 
 	return decl
 }
 
-parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
+parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
 	start_tk := next_non_newline_tk( file_data )
 
 	#partial switch start_tk.kind {
-		case .Decl: return parse_decl( file_data )
+		case .Decl: return parse_decl( file_data, scope )
 		case .Let:
 			var, ok := parse_var_decl( file_data )
 			if !ok {
@@ -299,16 +299,16 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 
 			return var
 		case .LCurly:
-			scope := parse_scope( file_data )
+			scope := parse_scope( file_data, scope )
 
 			block := new_node( BlockStmnt, start_tk.span )
 			block.scope = scope
 
 			return block
-		case .If:    return parse_if_stmnt( file_data )
-		case .For:   return parse_for_loop( file_data )
-		case .While: return parse_while_loop( file_data )
-		case .Loop:  return parse_loop_stmnt( file_data )
+		case .If:    return parse_if_stmnt( file_data, scope )
+		case .For:   return parse_for_loop( file_data, scope )
+		case .While: return parse_while_loop( file_data, scope )
+		case .Loop:  return parse_loop_stmnt( file_data, scope )
 		case .Continue:
 			continue_stmnt := new_node( ContinueStmnt, start_tk.span )
 
@@ -348,7 +348,7 @@ parse_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 	}
 }
 
-parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
+parse_if_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfStmnt
 {
 	if_tk := &file_data.tokens[file_data.tk_idx - 1]
 	if if_tk.kind != .If do return nil
@@ -365,7 +365,7 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 		return nil
 	}
 
-	then_block := parse_scope( file_data )
+	then_block := parse_scope( file_data, scope )
 	if then_block == nil do return nil
 
 	if_stmnt.span.end   = then_block.span.end
@@ -384,12 +384,12 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 	if maybe_if_tk.kind == .If {
 		file_data.tk_idx += 1 // :'(
 
-		else_stmnt := parse_if_stmnt( file_data )
+		else_stmnt := parse_if_stmnt( file_data, scope )
 		if else_stmnt == nil do return nil
 
 		if_stmnt.else_stmnt = else_stmnt
 	} else if maybe_if_tk.kind == .LCurly {
-		else_scope := parse_scope( file_data )
+		else_scope := parse_scope( file_data, scope )
 		if else_scope == nil do return nil
 
 		else_span, join_ok := join_span( &maybe_if_tk.span, &file_data.tokens[file_data.tk_idx].span )
@@ -404,7 +404,7 @@ parse_if_stmnt :: proc( file_data: ^FileData ) -> ^IfStmnt
 	return if_stmnt
 }
 
-parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
+parse_for_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
 	if file_data.tokens[file_data.tk_idx - 1].kind != .For do return nil
 
@@ -437,7 +437,7 @@ parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 		return nil
 	}
 
-	body := parse_scope( file_data )
+	body := parse_scope( file_data, scope )
 	if body == nil do return nil
 
 	for_stmnt.body = body
@@ -445,7 +445,7 @@ parse_for_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 	return for_stmnt
 }
 
-parse_while_loop :: proc( file_data: ^FileData ) -> ^Stmnt
+parse_while_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
 	if file_data.tokens[file_data.tk_idx - 1].kind != .While do return nil
 
@@ -462,7 +462,7 @@ parse_while_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 		return nil
 	}
 
-	body := parse_scope( file_data )
+	body := parse_scope( file_data, scope )
 	if body == nil do return nil
 
 	while_stmnt.body = body
@@ -470,7 +470,7 @@ parse_while_loop :: proc( file_data: ^FileData ) -> ^Stmnt
 	return while_stmnt
 }
 
-parse_loop_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
+parse_loop_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
 	if file_data.tokens[file_data.tk_idx - 1].kind != .Loop do return nil
 
@@ -482,7 +482,7 @@ parse_loop_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 		return nil
 	}
 
-	body := parse_scope( file_data )
+	body := parse_scope( file_data, scope )
 	if body == nil do return nil
 
 	loop_stmnt.body = body
@@ -490,18 +490,19 @@ parse_loop_stmnt :: proc( file_data: ^FileData ) -> ^Stmnt
 	return loop_stmnt
 }
 
-parse_scope :: proc( file_data: ^FileData ) -> ^Scope
+parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 {
 	tk := next_non_newline_tk( file_data )
 	if tk.kind != .LCurly do return nil
 
 	scope := new_node( Scope, tk.span )
+	scope.parent = parent_scope
 
 	tk = next_non_newline_tk( file_data )
 	for tk.kind != .RCurly {
 		file_data.tk_idx -= 1 // yikes...
 
-		stmnt := parse_stmnt( file_data )
+		stmnt := parse_stmnt( file_data, scope )
 		if stmnt == nil do return nil
 
 		block, ok := stmnt.derived_stmnt.(^BlockStmnt)
