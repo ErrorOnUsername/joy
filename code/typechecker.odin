@@ -114,62 +114,124 @@ check_stmnt :: proc( stmnt: ^Stmnt, ctx: ^CheckerContext ) -> bool
     return true
 }
 
-check_struct_decl :: proc( decl: ^StructDecl, ctx: ^CheckerContext ) -> bool {
+check_struct_decl :: proc( decl: ^StructDecl, ctx: ^CheckerContext ) -> bool
+{
+	for i := 0; i < len( decl.members ); i += 1 {
+		for j := 0; j < i; j += 1 {
+			if decl.members[j].name == decl.members[i].name {
+				log_spanned_error( &decl.members[i].span, "Duplicate struct member name" )
+				return false
+			}
+		}
+
+		member := decl.members[i]
+		if member.type != nil {
+			found_type := lookup_type( member.type, ctx )
+			if !found_type {
+				log_spanned_errorf( &member.span, "Unkown type: '{}'", member.type )
+			}
+
+			member_ok := check_expr( member.default_value, ctx )
+			if !member_ok do return false
+
+			types_match := is_op_valid_for_types( .Assign, member.type, member.default_value.type )
+			if !types_match {
+				log_spanned_errorf( &member.span, "cannot assign value of type '{}' to identifier of type '{}'", member.default_value.type, member.type )
+				return false
+			}
+		} else {
+			assert( member.default_value != nil, ":= var has no default value??" )
+
+			check_expr( member.default_value, ctx )
+			member.type = member.default_value.type
+		}
+	}
+
     log_error( "impl check_struct_decl" )
     return false
 }
 
-check_enum_decl :: proc( decl: ^EnumDecl, ctx: ^CheckerContext ) -> bool {
-    log_error( "impl check_enum_decl" )
-    return false
+check_enum_decl :: proc( decl: ^EnumDecl, ctx: ^CheckerContext ) -> bool
+{
+	if decl.type != nil {
+		log_spanned_error( &decl.span, "impl enums with specific types" )
+		return false
+	}
+
+	usize_ty := new_type( PrimitiveType )
+	usize_ty.kind = .USize
+
+	decl.type = usize_ty
+
+	// TODO: Make sure the enum fits in the size of the type
+	for i := 0; i < len( decl.variants ); i += 1 {
+		for j := 0; j < i; j += 1 {
+			if decl.variants[j].name == decl.variants[i].name {
+				log_spanned_error( &decl.variants[i].span, "Duplcate enum variant" )
+				return false
+			}
+		}
+	}
+
+    return true
 }
 
-check_union_decl :: proc( decl: ^UnionDecl, ctx: ^CheckerContext ) -> bool {
+check_union_decl :: proc( decl: ^UnionDecl, ctx: ^CheckerContext ) -> bool
+{
     log_error( "impl check_union_decl" )
     return false
 }
 
-check_proc_decl :: proc( decl: ^ProcDecl, ctx: ^CheckerContext ) -> bool {
+check_proc_decl :: proc( decl: ^ProcDecl, ctx: ^CheckerContext ) -> bool
+{
     log_error( "impl check_proc_decl" )
     return false
 }
 
-check_var_decl :: proc( decl: ^VarDecl, ctx: ^CheckerContext ) -> bool {
+check_var_decl :: proc( decl: ^VarDecl, ctx: ^CheckerContext ) -> bool
+{
     log_error( "impl check_var_decl" )
     return false
 }
 
-check_expr :: proc( expr: ^Expr, ctx: ^CheckerContext) -> bool {
+check_expr :: proc( expr: ^Expr, ctx: ^CheckerContext) -> bool
+{
     log_error( "impl check_expr" )
     return false
 }
 
-check_continue_stmnt :: proc( stmnt: ^ContinueStmnt, ctx: ^CheckerContext ) -> bool {
+check_continue_stmnt :: proc( stmnt: ^ContinueStmnt, ctx: ^CheckerContext ) -> bool
+{
 	log_error( "impl check_continue_stmnt" )
 	return false
 }
 
-check_break_stmnt :: proc( stmnt: ^BreakStmnt, ctx: ^CheckerContext ) -> bool {
+check_break_stmnt :: proc( stmnt: ^BreakStmnt, ctx: ^CheckerContext ) -> bool
+{
 	log_error( "impl check_continue_stmnt" )
 	return false
 }
 
-check_if_stmnt :: proc( stmnt: ^IfStmnt, ctx: ^CheckerContext ) -> bool {
+check_if_stmnt :: proc( stmnt: ^IfStmnt, ctx: ^CheckerContext ) -> bool
+{
 	log_error( "impl check_continue_stmnt" )
 	return false
 }
 
-check_for_loop :: proc( loop: ^ForLoop, ctx: ^CheckerContext ) -> bool {
+check_for_loop :: proc( loop: ^ForLoop, ctx: ^CheckerContext ) -> bool
+{
 	log_error( "impl check_for_loop" )
 	return false
 }
 
-check_while_loop :: proc( loop: ^WhileLoop, ctx: ^CheckerContext ) -> bool {
+check_while_loop :: proc( loop: ^WhileLoop, ctx: ^CheckerContext ) -> bool
+{
 	log_error( "impl check_while_loop" )
 	return false
 }
 
-check_inf_loop :: proc( loop: ^InfiniteLoop, ctx: ^CheckerContext ) -> bool {
+check_inf_loop :: proc( loop: ^InfiniteLoop, ctx: ^CheckerContext ) -> bool
+{
 	log_error( "impl check_inf_loop" )
 	return false
 }

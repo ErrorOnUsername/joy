@@ -7,6 +7,7 @@ decl MyEnum : enum
 decl MyStruct : struct
 {
     member_0: i32;
+    member_0: usize;
     member_1: f32;
     member_2: cstring;
     member_3: string;
