@@ -119,24 +119,6 @@ lookup_type :: proc( ty: ^Type, ctx: ^CheckerContext ) -> bool
 	return false
 }
 
-is_op_valid_for_types :: proc( op: BinaryOperator, lhs_type: ^Type, rhs_type: ^Type ) -> bool
-{
-	if ( lhs_type == nil || rhs_type == nil )
-	{
-		return false
-	}
-
-	lhs_prim, lhs_ok := lhs_type.derived.(^PrimitiveType)
-	rhs_prim, rhs_ok := rhs_type.derived.(^PrimitiveType)
-	if lhs_ok && rhs_ok {
-		if !can_primitive_auto_cast( lhs_prim.kind, rhs_prim.kind ) {
-			return false
-		}
-	}
-
-	switch lhs
-}
-
 check_struct_decl :: proc( decl: ^StructDecl, ctx: ^CheckerContext ) -> bool
 {
 	for i := 0; i < len( decl.members ); i += 1 {
@@ -145,28 +127,6 @@ check_struct_decl :: proc( decl: ^StructDecl, ctx: ^CheckerContext ) -> bool
 				log_spanned_error( &decl.members[i].span, "Duplicate struct member name" )
 				return false
 			}
-		}
-
-		member := decl.members[i]
-		if member.type != nil {
-			found_type := lookup_type( member.type, ctx )
-			if !found_type {
-				log_spanned_errorf( &member.span, "Unkown type: '{}'", member.type )
-			}
-
-			member_ok := check_expr( member.default_value, ctx )
-			if !member_ok do return false
-
-			types_match := is_op_valid_for_types( .Assign, member.type, member.default_value.type )
-			if !types_match {
-				log_spanned_errorf( &member.span, "cannot assign value of type '{}' to identifier of type '{}'", member.default_value.type, member.type )
-				return false
-			}
-		} else {
-			assert( member.default_value != nil, ":= var has no default value??" )
-
-			check_expr( member.default_value, ctx )
-			member.type = member.default_value.type
 		}
 	}
 
