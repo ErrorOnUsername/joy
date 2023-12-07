@@ -1,220 +1,82 @@
 package main
 
 
-CheckerContext :: struct
+checker_initialize_symbol_tables :: proc( pkgs: []^Package ) -> bool
 {
-	current_scope: ^Scope,
-	current_proc:  ^ProcDecl,
-	current_loop:  ^Stmnt,
-	current_stmnt: int,
+    for pkg in pkgs {
+        for mod in pkg.modules {
+            ok := checker_initialize_symbol_tables_for_scope( mod.file_scope )
+            if !ok do return false
+        }
+    }
+
+    return true
 }
 
 
-pump_check_package :: proc( file_id: FileID ) -> PumpResult
+checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 {
-	file_data := fm_get_data( file_id )
+    s.symbols = make( map[string]Node )
 
-	if !file_data.is_dir {
-		log_errorf( "Package '{}' is not a directory", file_data.rel_path )
-		return .Error
-	}
+    for stmnt in s.stmnts {
+        switch st in stmnt.derived_stmnt {
+            case ^StructDecl:
+                if st.name in s.symbols {
+                    log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
+                    return false
+                }
 
-	if file_data.pkg == nil {
-		log_errorf( "Tried to typecheck a package '{}' that has not been parsed", file_data.rel_path )
-		return .Error
-	}
+                s.symbols[st.name] = st
+            case ^EnumDecl:
+                if st.name in s.symbols {
+                    log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
+                    return false
+                }
 
-	pkg := file_data.pkg
+                s.symbols[st.name] = st
+            case ^UnionDecl:
+                if st.name in s.symbols {
+                    log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
+                    return false
+                }
 
-	ctx: CheckerContext
+                s.symbols[st.name] = st
+            case ^ProcDecl:
+                if st.name in s.symbols {
+                    log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
+                    return false
+                }
 
-	for mod in &pkg.modules {
-		compiler_enqueue_work( .TypecheckModule, mod.file_id )
-	}
+                s.symbols[st.name] = st
 
-	return .Continue
-}
+                body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+                if !body_ok do return false
+            case ^VarDecl: // igonred until real checking starts...
+            case ^ExprStmnt: // igonred until real checking starts...
+            case ^BlockStmnt:
+                block_ok := checker_initialize_symbol_tables_for_scope( st.scope )
+                if !block_ok do return false
+            case ^ContinueStmnt: // igonred until real checking starts...
+            case ^BreakStmnt: // igonred until real checking starts...
+            case ^IfStmnt:
+                curr_if := st
+                for curr_if != nil {
+                    body_ok := checker_initialize_symbol_tables_for_scope( curr_if.then_block )
+                    if !body_ok do return false
 
+                    curr_if = curr_if.else_stmnt
+                }
+            case ^ForLoop:
+                body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+                if !body_ok do return false
+            case ^WhileLoop:
+                body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+                if !body_ok do return false
+            case ^InfiniteLoop:
+                body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+                if !body_ok do return false
+        }
+    }
 
-pump_check_module :: proc( file_id: FileID ) -> PumpResult
-{
-	file_data := fm_get_data( file_id )
-
-	if file_data.is_dir {
-		log_errorf( "Module '{}' is not a file", file_data.rel_path )
-		return .Error
-	}
-
-	mod := file_data.mod
-	if mod == nil {
-		log_errorf( "Tried to typecheck a module '{}' that has not been parsed yet", file_data.rel_path )
-	}
-
-	ctx: CheckerContext
-
-	scope_ok := check_scope( mod.file_scope, &ctx )
-	if !scope_ok do return .Error
-
-	return .Continue
-}
-
-
-check_scope :: proc( scope: ^Scope, ctx: ^CheckerContext ) -> bool
-{
-	ctx.current_scope = scope
-
-	for i := 0; i < len( scope.stmnts ); i += 1 {
-		ctx.current_stmnt = i
-
-		if !check_stmnt( scope.stmnts[i], ctx ) {
-			return false
-		}
-	}
-
-	return true
-}
-
-check_stmnt :: proc( stmnt: ^Stmnt, ctx: ^CheckerContext ) -> bool
-{
-	switch s in stmnt.derived_stmnt {
-		case ^ImportStmnt:
-			log_error( "impl imports" )
-			return false
-		case ^StructDecl:
-			if !check_struct_decl( s, ctx ) do return false
-		case ^EnumDecl:
-			if !check_enum_decl( s, ctx ) do return false
-		case ^UnionDecl:
-			if !check_union_decl( s, ctx ) do return false
-		case ^ProcDecl:
-			if !check_proc_decl( s, ctx ) do return false
-		case ^ForeignLibraryDecl:
-			log_error( "impl foreign libraries" )
-			return false
-		case ^VarDecl:
-			if !check_var_decl( s, ctx ) do return false
-		case ^ExprStmnt:
-			if !check_expr( s.expr, ctx ) do return false
-		case ^BlockStmnt:
-			if !check_scope( s.scope, ctx ) do return false
-		case ^ContinueStmnt:
-			if !check_continue_stmnt( s, ctx ) do return false
-		case ^BreakStmnt:
-			if !check_break_stmnt( s, ctx ) do return false
-		case ^IfStmnt:
-			if !check_if_stmnt( s, ctx ) do return false
-		case ^ForLoop:
-			if !check_for_loop( s, ctx ) do return false
-		case ^WhileLoop:
-			if !check_while_loop( s, ctx ) do return false
-		case ^InfiniteLoop:
-			if !check_inf_loop( s, ctx ) do return false
-	}
-
-	return true
-}
-
-lookup_type :: proc( ty: ^Type, ctx: ^CheckerContext ) -> bool
-{
-	return false
-}
-
-check_struct_decl :: proc( decl: ^StructDecl, ctx: ^CheckerContext ) -> bool
-{
-	for i := 0; i < len( decl.members ); i += 1 {
-		for j := 0; j < i; j += 1 {
-			if decl.members[j].name == decl.members[i].name {
-				log_spanned_error( &decl.members[i].span, "Duplicate struct member name" )
-				return false
-			}
-		}
-	}
-
-	log_error( "impl check_struct_decl" )
-	return false
-}
-
-check_enum_decl :: proc( decl: ^EnumDecl, ctx: ^CheckerContext ) -> bool
-{
-	if decl.type != nil {
-		log_spanned_error( &decl.span, "impl enums with specific types" )
-		return false
-	}
-
-	usize_ty := new_type( PrimitiveType )
-	usize_ty.kind = .USize
-
-	decl.type = usize_ty
-
-	// TODO: Make sure the enum fits in the size of the type
-	for i := 0; i < len( decl.variants ); i += 1 {
-		for j := 0; j < i; j += 1 {
-			if decl.variants[j].name == decl.variants[i].name {
-				log_spanned_error( &decl.variants[i].span, "Duplcate enum variant" )
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-check_union_decl :: proc( decl: ^UnionDecl, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_union_decl" )
-	return false
-}
-
-check_proc_decl :: proc( decl: ^ProcDecl, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_proc_decl" )
-	return false
-}
-
-check_var_decl :: proc( decl: ^VarDecl, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_var_decl" )
-	return false
-}
-
-check_expr :: proc( expr: ^Expr, ctx: ^CheckerContext) -> bool
-{
-	log_error( "impl check_expr" )
-	return false
-}
-
-check_continue_stmnt :: proc( stmnt: ^ContinueStmnt, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_continue_stmnt" )
-	return false
-}
-
-check_break_stmnt :: proc( stmnt: ^BreakStmnt, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_continue_stmnt" )
-	return false
-}
-
-check_if_stmnt :: proc( stmnt: ^IfStmnt, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_continue_stmnt" )
-	return false
-}
-
-check_for_loop :: proc( loop: ^ForLoop, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_for_loop" )
-	return false
-}
-
-check_while_loop :: proc( loop: ^WhileLoop, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_while_loop" )
-	return false
-}
-
-check_inf_loop :: proc( loop: ^InfiniteLoop, ctx: ^CheckerContext ) -> bool
-{
-	log_error( "impl check_inf_loop" )
-	return false
+    return true
 }

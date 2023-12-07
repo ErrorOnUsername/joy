@@ -11,8 +11,6 @@ PumpAction :: enum
 {
 	ParsePackage,
 	ParseFile,
-	TypecheckPackage,
-	TypecheckModule,
 }
 
 PumpResult :: enum
@@ -37,11 +35,14 @@ job_pool: thread.Pool
 
 
 @(thread_local)
+@(private="file")
 tl_ast_pool: mem.Dynamic_Pool
+
 @(thread_local)
 tl_ast_allocator: mem.Allocator
 
 @(thread_local)
+@(private="file")
 thread_data_initialized: bool
 
 
@@ -107,10 +108,6 @@ compiler_pump :: proc( action: PumpAction, file_id: FileID ) -> PumpResult
 			return pump_parse_package( file_id )
 		case .ParseFile:
 			return pump_parse_file( file_id )
-		case .TypecheckPackage:
-			return pump_check_package( file_id )
-		case .TypecheckModule:
-			return pump_check_module( file_id )
 	}
 
 	return .Continue

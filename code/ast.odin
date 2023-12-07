@@ -23,12 +23,15 @@ Module :: struct
 	owning_pkg:     ^Package,
 	platform_flags: PlatformFlags,
 	file_scope:     ^Scope,
-	imports:        [dynamic]^ImportStmnt,
 }
+
+
+SymbolTable :: map[string]Node
 
 Scope :: struct
 {
 	using node: Node,
+	symbols:    SymbolTable,
 	stmnts:     [dynamic]^Stmnt,
 	parent:     ^Scope,
 }
@@ -88,24 +91,10 @@ VarDecl :: struct
 	default_value: ^Expr,
 }
 
-ForeignLibraryDecl :: struct
-{
-	using stmnt:       Stmnt,
-	name:              string,
-	is_system_library: bool,
-	library_path:      string,
-}
-
-
 
 //
 // Statements
 //
-
-ImportStmnt :: struct
-{
-	using stmnt: Stmnt,
-}
 
 ExprStmnt :: struct
 {
@@ -294,12 +283,10 @@ ProcCallExpr :: struct
 
 AnyStmnt :: union
 {
-	^ImportStmnt,
 	^StructDecl,
 	^EnumDecl,
 	^UnionDecl,
 	^ProcDecl,
-	^ForeignLibraryDecl,
 	^VarDecl,
 	^ExprStmnt,
 	^BlockStmnt,

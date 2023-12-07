@@ -30,9 +30,6 @@ main :: proc()
 		return
 	}
 
-	// TODO: Do tree cycle check and sort...
-	compiler_enqueue_work( .TypecheckPackage, id )
-
 	tasks_failed = compiler_finish_work()
 	if tasks_failed != 0 {
 		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
