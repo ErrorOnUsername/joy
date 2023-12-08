@@ -30,16 +30,17 @@ main :: proc()
 		return
 	}
 
-	tasks_failed = compiler_finish_work()
-	if tasks_failed != 0 {
-		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
-		fmt.println( "Compilation failed" )
+	root_package_data := fm_get_data( id )
+	pkg := root_package_data.pkg
+
+	packages_to_check, pkgs_ok := checker_build_package_list( pkg )
+	if !pkgs_ok {
 		return
 	}
 
 
-	root_package_data := fm_get_data( id )
-	pkg := root_package_data.pkg
+	checker_initialize_symbol_tables( packages_to_check )
+
 
 	fmt.println( pkg )
 

@@ -14,6 +14,8 @@ Platform :: enum
 
 Package :: struct
 {
+	name: string,
+	imports: [dynamic]^Package,
 	modules: [dynamic]^Module,
 }
 

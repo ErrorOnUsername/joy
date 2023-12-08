@@ -1,10 +1,95 @@
 package main
 
+import "core:strings"
+import "core:fmt"
 
-checker_initialize_symbol_tables :: proc( pkgs: []^Package ) -> bool
+
+checker_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Package ) -> ( found_cycle := false, cycle_report := "<none>" )
+{
+    for parent_pkg in cycle_checker^ {
+        if parent_pkg == pkg {
+            found_cycle = true
+            
+            sb: strings.Builder
+            defer strings.builder_destroy( &sb )
+
+            fmt.sbprint( &sb, "[ " )
+            for i := 0; i < len( cycle_checker ); i += 1 {
+                p := cycle_checker[i]
+
+                if i < len( cycle_checker ) - 1 {
+                    fmt.sbprintf( &sb, "{} -> ", pkg.name )
+                } else {
+                    fmt.sbprintf( &sb, "{}", pkg.name )
+                }
+            }
+            fmt.sbprint( &sb, " ]" )
+
+            cycle_report = strings.clone( strings.to_string( sb ) )
+            return
+        }
+    }
+
+    append( cycle_checker, pkg )
+
+    for p in pkg.imports {
+        p_found_cycle, rep := checker_cycle_check_rec( p, cycle_checker )
+        if p_found_cycle do return p_found_cycle, rep
+    }
+
+    pop( cycle_checker )
+
+    return
+}
+
+checker_does_import_graph_contiain_cycles :: proc( root_pkg: ^Package ) -> ( found_cycle: bool, cycle_report: string )
+{
+    cycle_checker := make( [dynamic]^Package )
+    defer delete( cycle_checker )
+
+    found_cycle, cycle_report = checker_cycle_check_rec( root_pkg, &cycle_checker )
+    if found_cycle do return found_cycle, cycle_report
+
+    return
+}
+
+
+checker_build_graph_dag_topo :: proc( prio: ^int, list: ^[dynamic]PriorityItem( ^Package ), pkg: ^Package )
+{
+    for parent in pkg.imports {
+        if prio^ != 0 {
+            prio^ -= 1
+        }
+
+        checker_build_graph_dag_topo( prio, list, parent )
+    }
+
+    append( list, PriorityItem( ^Package ) { prio^, pkg } )
+
+    prio^ += 1
+}
+
+
+checker_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Package ), bool )
+{
+    contains_cycles, first_cycle := checker_does_import_graph_contiain_cycles( root_pkg )
+    if contains_cycles {
+        log_errorf( "Package import graph contains cycles: {}", first_cycle )
+        return nil, false
+    }
+
+    prio := 0
+    list := make( [dynamic]PriorityItem( ^Package ) )
+    checker_build_graph_dag_topo( &prio, &list, root_pkg )
+
+    return list[:], true
+}
+
+
+checker_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
 {
     for pkg in pkgs {
-        for mod in pkg.modules {
+        for mod in pkg.item.modules {
             ok := checker_initialize_symbol_tables_for_scope( mod.file_scope )
             if !ok do return false
         }

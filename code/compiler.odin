@@ -26,6 +26,12 @@ WorkerData :: struct
 	result:  PumpResult,
 }
 
+PriorityItem :: struct( T: typeid )
+{
+	priority: int,
+	item: T,
+}
+
 
 failed_task_count := 0
 job_data_raw_pool := [32768]byte { }
