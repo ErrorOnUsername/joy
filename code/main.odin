@@ -38,8 +38,26 @@ main :: proc()
 		return
 	}
 
-
 	checker_initialize_symbol_tables( packages_to_check )
+	checker_collect_proc_signatures( packages_to_check )
+
+	working_prio := 0
+	for prio_pkg in &packages_to_check {
+		if prio_pkg.priority != working_prio {
+			tasks_failed = compiler_finish_work()
+			if tasks_failed > 0 do break
+		}
+
+		for mod in prio_pkg.item.modules {
+			compiler_enqueue_work( .CheckModule, mod.file_id )
+		}
+	}
+
+	tasks_failed = compiler_finish_work()
+	if tasks_failed != 0 {
+		fmt.printf( "Typechecking phase failed! ({} tasks reported errors)\n", tasks_failed )
+		return
+	}
 
 
 	fmt.println( pkg )

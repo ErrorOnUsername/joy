@@ -42,6 +42,7 @@ checker_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Packag
     return
 }
 
+
 checker_does_import_graph_contiain_cycles :: proc( root_pkg: ^Package ) -> ( found_cycle: bool, cycle_report: string )
 {
     cycle_checker := make( [dynamic]^Package )
@@ -164,4 +165,58 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
     }
 
     return true
+}
+
+
+checker_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) )
+{
+    for pkg in pkgs {
+        for mod in pkg.item.modules {
+            checker_collect_proc_sigs_in_scope( mod.file_scope )
+        }
+    }
+}
+
+
+checker_collect_proc_sigs_in_scope :: proc( s: ^Scope )
+{
+    for stmnt in s.stmnts {
+        #partial switch st in stmnt.derived_stmnt {
+            case ^ProcDecl:
+        }
+    }
+}
+
+
+CheckerContext :: struct
+{
+}
+
+
+pump_checker_check_module :: proc( file_id: FileID ) -> PumpResult
+{
+    mod_data := fm_get_data( file_id )
+    if mod_data.is_dir {
+        log_errorf( "Tried to check module '{}' but it is actually a package", mod_data.rel_path )
+        return .Error
+    }
+
+    if mod_data.mod == nil {
+        log_errorf( "Tried to typecheck module '{}' that hasn't been parsed yet", mod_data.rel_path )
+        return .Error
+    }
+
+    ctx: CheckerContext
+
+    ok := checker_check_scope( &ctx, mod_data.mod.file_scope )
+    if !ok do return .Error
+
+    return .Continue
+}
+
+
+checker_check_scope :: proc( ctx: ^CheckerContext, s: ^Scope ) -> bool
+{
+    log_error( "impl checker_check_scope" )
+    return false
 }

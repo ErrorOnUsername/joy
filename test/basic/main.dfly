@@ -17,7 +17,7 @@ decl MyStruct : struct
 decl main : ( a: rawptr )
 {
     let a := "haha";
-    let b: isize = 10;
+    let b := 10;
 
     if b == 10 {
         b *= 10;
