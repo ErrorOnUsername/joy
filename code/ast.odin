@@ -48,6 +48,7 @@ StructDecl :: struct
 {
 	using stmnt: Stmnt,
 	name:        string,
+	memb_lookup: SymbolTable,
 	members:     [dynamic]^VarDecl,
 }
 
@@ -61,6 +62,7 @@ EnumDecl :: struct
 {
 	using stmnt: Stmnt,
 	name:        string,
+	vari_lookup: SymbolTable,
 	variants:    [dynamic]^EnumVariant,
 }
 

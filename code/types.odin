@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:math/bits"
 import "core:mem"
 
 
@@ -103,4 +104,54 @@ PrimitiveType :: struct
 {
 	using type: Type,
 	kind:       PrimitiveKind,
+}
+
+
+primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
+{
+	switch kind {
+		case .U8,  .I8,  .U16, .I16,
+		     .U32, .I32, .U64, .I64,
+		     .USize, .ISize:
+			return true
+		case .F32, .F64, .String, .CString, .RawPtr:
+			return false
+	}
+
+	return false
+}
+
+
+ty_is_int :: proc( t: ^Type ) -> bool
+{
+	switch ty in t.derived {
+		case ^StructType, ^EnumType, ^UnionType:
+			return false
+		case ^PrimitiveType:
+			return primitive_kind_is_int( ty.kind )
+	}
+
+	return false
+}
+
+
+ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
+{
+	assert( primitive_kind_is_int( t.kind ) )
+
+	switch t.kind {
+		case .U8: return i <= bits.U8_MAX
+		case .I8: return i <= bits.I8_MAX
+		case .U16: return i <= bits.U16_MAX
+		case .I16: return i <= bits.I16_MAX
+		case .U32: return i <= bits.U32_MAX
+		case .I32: return i <= bits.I32_MAX
+		case .U64: return u64( i ) <= bits.U64_MAX
+		case .I64: return i64( i ) <= bits.I64_MAX
+		case .USize: return true
+		case .ISize: return true
+		case .F32, .F64, .String, .CString, .RawPtr: return false
+	}
+
+	return false
 }

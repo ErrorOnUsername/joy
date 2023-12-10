@@ -102,7 +102,7 @@ checker_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> 
 
 checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 {
-    s.symbols = make( map[string]Node )
+    s.symbols = make( SymbolTable )
 
     for stmnt in s.stmnts {
         switch st in stmnt.derived_stmnt {
@@ -113,6 +113,16 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
                 }
 
                 s.symbols[st.name] = st
+
+                st.memb_lookup = make( SymbolTable )
+                for m in st.members {
+                    if m.name in st.memb_lookup {
+                        log_spanned_errorf( &m.span, "Redefinition of struct member '{}'", m.name )
+                        return false
+                    }
+
+                    st.memb_lookup[m.name] = m
+                }
             case ^EnumDecl:
                 if st.name in s.symbols {
                     log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -120,6 +130,16 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
                 }
 
                 s.symbols[st.name] = st
+
+                st.vari_lookup = make( SymbolTable )
+                for v in st.variants {
+                    if v.name in st.vari_lookup {
+                        log_spanned_errorf( &v.span, "Redefinition of enum variant '{}'", v.name )
+                        return false
+                    }
+
+                    st.vari_lookup[v.name] = v
+                }
             case ^UnionDecl:
                 if st.name in s.symbols {
                     log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -168,28 +188,51 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 }
 
 
-checker_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) )
+checker_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
 {
     for pkg in pkgs {
         for mod in pkg.item.modules {
-            checker_collect_proc_sigs_in_scope( mod.file_scope )
+            res := checker_collect_proc_sigs_in_scope( mod.file_scope )
+            if !res do return false
         }
     }
+
+    return true
 }
 
 
-checker_collect_proc_sigs_in_scope :: proc( s: ^Scope )
+checker_collect_proc_sigs_in_scope :: proc( s: ^Scope ) -> bool
 {
     for stmnt in s.stmnts {
         #partial switch st in stmnt.derived_stmnt {
             case ^ProcDecl:
+                for p in st.params {
+                    if p.type == nil || p.default_value != nil {
+                        log_spanned_error( &p.default_value.span, "impl default arg checking in proc collection" )
+                        return false
+                    }
+
+                    ty := lookup_type( s, p.type )
+                    if ty == nil {
+                        log_spanned_error( &p.span, "procedure parameter uses unknown type" )
+                        return false
+                    }
+
+                    p.type = ty // This could leak memory... fix that lol
+                }
         }
     }
+
+    return true
 }
 
 
 CheckerContext :: struct
 {
+    mod: ^Module,
+    curr_proc: ^ProcDecl,
+    curr_scope: ^Scope,
+    curr_loop: ^Stmnt,
 }
 
 
@@ -207,6 +250,7 @@ pump_checker_check_module :: proc( file_id: FileID ) -> PumpResult
     }
 
     ctx: CheckerContext
+    ctx.mod = mod_data.mod
 
     ok := checker_check_scope( &ctx, mod_data.mod.file_scope )
     if !ok do return .Error
@@ -215,8 +259,192 @@ pump_checker_check_module :: proc( file_id: FileID ) -> PumpResult
 }
 
 
-checker_check_scope :: proc( ctx: ^CheckerContext, s: ^Scope ) -> bool
+checker_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 {
-    log_error( "impl checker_check_scope" )
+    prev_scope := ctx.curr_scope
+    defer ctx.curr_scope = prev_scope
+
+    ctx.curr_scope = sc
+
+    for stmnt in sc.stmnts {
+        ok := true
+        switch st in stmnt.derived_stmnt {
+            case ^StructDecl:    ok = checker_check_struct_decl( ctx, st )
+            case ^EnumDecl:      ok = checker_check_enum_decl( ctx, st )
+            case ^UnionDecl:     ok = checker_check_union_decl( ctx, st )
+            case ^ProcDecl:      ok = checker_check_proc_decl( ctx, st )
+            case ^VarDecl:       ok = checker_check_var_decl( ctx, st )
+            case ^ExprStmnt:     ok = checker_check_expr_stmnt( ctx, st )
+            case ^BlockStmnt:    ok = checker_check_block_stmnt( ctx, st )
+            case ^ContinueStmnt: ok = checker_check_continue_stmnt( ctx, st )
+            case ^BreakStmnt:    ok = checker_check_break_stmnt( ctx, st )
+            case ^IfStmnt:       ok = checker_check_if_stmnt( ctx, st )
+            case ^ForLoop:       ok = checker_check_for_loop( ctx, st )
+            case ^WhileLoop:     ok = checker_check_while_loop( ctx, st )
+            case ^InfiniteLoop:  ok = checker_check_inf_loop( ctx, st )
+        }
+
+        if !ok do return false
+    }
+
+    return true
+}
+
+
+checker_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
+{
+    for mem in d.members {
+        if mem.default_value != nil {
+            log_spanned_error( &mem.span, "impl checking structs with default values" )
+            return false
+        }
+
+        ty := lookup_type( ctx.curr_scope, mem.type )
+        if ty == nil {
+            log_spanned_error( &mem.span, "struct member uses unknown type" )
+            return false
+        }
+
+        mem.type = ty
+    }
+
+    return true
+}
+
+
+checker_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
+{
+    if d.type == nil {
+        ty := new_type( PrimitiveType )
+        ty.kind = .USize // should this be an isize?
+
+        d.type = ty
+    }
+
+    is_int_ty := ty_is_int( d.type )
+    if !is_int_ty {
+        log_spanned_error( &d.span, "enum base type must be an integer" )
+    }
+
+    vari_count := len( d.variants )
+    does_var_count_fit := ty_does_int_fit_in_type( d.type.derived.(^PrimitiveType), vari_count )
+    if !does_var_count_fit {
+        log_spanned_error( &d.span, "enum variants don't fit in base type" )
+        return false
+    }
+
+    return true
+}
+
+
+checker_check_union_decl :: proc( ctx: ^CheckerContext, d: ^UnionDecl ) -> bool
+{
+    log_error( "impl check_union_decl" )
     return false
+}
+
+
+checker_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
+{
+    prev_proc := ctx.curr_proc
+    defer ctx.curr_proc = prev_proc
+
+    ctx.curr_proc = d
+
+    for p in d.params {
+        if p.name in d.body.symbols {
+            log_spanned_errorf( &p.span, "procedure has duplicate definitions of parameter: '{}'", p.name );
+            return false
+        }
+
+        d.body.symbols[p.name] = p
+    }
+
+    if d.body != nil {
+        body_ok := checker_check_scope( ctx, d.body )
+        if !body_ok do return false
+    }
+
+    return true
+}
+
+
+checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
+{
+    log_error( "impl check_var_decl" )
+    return false
+}
+
+
+checker_check_expr_stmnt :: proc( ctx: ^CheckerContext, s: ^ExprStmnt ) -> bool
+{
+    log_error( "impl check_expr_stmnt" )
+    return false
+}
+
+
+checker_check_block_stmnt :: proc( ctx: ^CheckerContext, s: ^BlockStmnt ) -> bool
+{
+    log_error( "impl check_block_stmnt" )
+    return false
+}
+
+
+checker_check_continue_stmnt :: proc( ctx: ^CheckerContext, s: ^ContinueStmnt ) -> bool
+{
+    log_error( "impl check_continue_stmnt" )
+    return false
+}
+
+
+checker_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
+{
+    log_error( "impl check_break_stmnt" )
+    return false
+}
+
+
+checker_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
+{
+    log_error( "impl check_if_stmnt" )
+    return false
+}
+
+
+checker_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
+{
+    log_error( "impl check_for_loop" )
+    return false
+}
+
+
+checker_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
+{
+    log_error( "impl check_while_loop" )
+    return false
+}
+
+
+checker_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
+{
+    log_error( "impl check_inf_loop" )
+    return false
+}
+
+
+lookup_type :: proc( s: ^Scope, t: ^Type ) -> ^Type
+{
+    _ = s
+
+    switch ty in t.derived {
+        case ^EnumType, ^UnionType, ^StructType:
+            // The presence of these means they've already been
+            // looked up, so just return the pointer
+            return t
+        case ^PrimitiveType:
+            // These need no lookup since they exist always, everywhere
+            return t
+    }
+
+    return nil
 }

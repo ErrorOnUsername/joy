@@ -6,7 +6,6 @@ decl MyEnum : enum
 
 decl MyStruct : struct
 {
-    member_0: i32;
     member_0: usize;
     member_1: f32;
     member_2: cstring;
@@ -14,7 +13,7 @@ decl MyStruct : struct
     member_4: usize;
 }
 
-decl main : ( a: rawptr )
+decl main : ()
 {
     let a := "haha";
     let b := 10;

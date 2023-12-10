@@ -55,7 +55,7 @@ main :: proc()
 
 	tasks_failed = compiler_finish_work()
 	if tasks_failed != 0 {
-		fmt.printf( "Typechecking phase failed! ({} tasks reported errors)\n", tasks_failed )
+		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
 		return
 	}
 
