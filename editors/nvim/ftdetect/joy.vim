@@ -1,1 +1,1 @@
-au BufRead,BufNewFile *.j set filetype=joy
+au BufRead,BufNewFile *.joy set filetype=joy
