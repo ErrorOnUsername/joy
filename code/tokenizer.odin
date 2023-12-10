@@ -475,6 +475,7 @@ keyword_map := map[string]TokenKind {
 	"string"   = .String,
 	"cstring"  = .CString,
 	"rawptr"   = .RawPtr,
+	"range"    = .Range,
 }
 
 get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
@@ -678,5 +679,6 @@ TokenKind :: enum
 	String,
 	CString,
 	RawPtr,
+	Range,
 }
 

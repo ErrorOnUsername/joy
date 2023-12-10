@@ -451,22 +451,59 @@ checker_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 
 checker_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
 {
-    log_error( "impl check_for_loop" )
-    return false
+    prev_loop := ctx.curr_loop
+    defer ctx.curr_loop = prev_loop
+
+    ctx.curr_loop = l
+
+    range_expr_ok := checker_check_expr( ctx, l.range )
+    if !range_expr_ok do return false
+
+    if l.range.type != ty_builtin_range {
+        log_spanned_error( &l.range.span, "range expression of for loop does not resolve to type 'range'" )
+        return false
+    }
+
+    body_ok := checker_check_scope( ctx, l.body )
+    if !body_ok do return false
+
+    return true
 }
 
 
 checker_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 {
-    log_error( "impl check_while_loop" )
-    return false
+    prev_loop := ctx.curr_loop
+    defer ctx.curr_loop = prev_loop
+
+    ctx.curr_loop = l
+
+    cond_ok := checker_check_expr( ctx, l.cond )
+    if !cond_ok do return false
+
+    if l.cond.type != ty_builtin_bool {
+        log_spanned_error( &l.cond.span, "condition expression does not evaluate to 'bool'" )
+        return false
+    }
+
+    body_ok := checker_check_scope( ctx, l.body )
+    if !body_ok do return false
+
+    return true
 }
 
 
 checker_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 {
-    log_error( "impl check_inf_loop" )
-    return false
+    prev_loop := ctx.curr_loop
+    defer ctx.curr_loop = prev_loop
+
+    ctx.curr_loop = l
+
+    body_ok := checker_check_scope( ctx, l.body )
+    if !body_ok do return false
+
+    return true
 }
 
 

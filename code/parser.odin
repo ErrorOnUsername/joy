@@ -580,6 +580,7 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
 		case .String:  return ty_builtin_string
 		case .CString: return ty_builtin_cstring
 		case .RawPtr:  return ty_builtin_rawptr
+		case .Range:   return ty_builtin_range
 		case .Star:
 			log_error( "impl pointer parsing" )
 			return nil

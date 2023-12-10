@@ -65,6 +65,7 @@ PrimitiveKind :: enum
 	String,
 	CString,
 	RawPtr,
+	Range,
 }
 
 type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
@@ -102,6 +103,8 @@ type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
 			return .CString
 		case .RawPtr:
 			return .RawPtr
+		case .Range:
+			return .Range
 	}
 
 	fmt.panicf( "Unknown primitive: {}", tk )
@@ -123,7 +126,7 @@ primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 		     .U32, .I32, .U64, .I64,
 		     .USize, .ISize:
 			return true
-		case .F32, .F64, .String, .CString, .RawPtr:
+		case .F32, .F64, .String, .CString, .RawPtr, .Range:
 			return false
 	}
 
@@ -160,7 +163,7 @@ ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
 		case .I64:   return i64( i ) <= bits.I64_MAX
 		case .USize: return true
 		case .ISize: return true
-		case .F32, .F64, .String, .CString, .RawPtr: return false
+		case .F32, .F64, .String, .CString, .RawPtr, .Range: return false
 	}
 
 	return false
@@ -214,6 +217,7 @@ ty_builtin_f64: ^Type
 ty_builtin_string: ^Type
 ty_builtin_cstring: ^Type
 ty_builtin_rawptr: ^Type
+ty_builtin_range: ^Type
 
 
 init_default_types :: proc()
@@ -283,4 +287,8 @@ init_default_types :: proc()
     ty = new_type( PrimitiveType )
     ty.kind = .RawPtr
     ty_builtin_rawptr = ty
+
+	ty = new_type( PrimitiveType )
+	ty.kind = .Range
+	ty_builtin_range = ty
 }
