@@ -24,22 +24,26 @@ AnyType :: union
 
 Type :: struct
 {
+	owning_mod: ^Module,
 	derived: AnyType,
 }
 
 StructType :: struct
 {
 	using type: Type,
+	name: string,
 }
 
 EnumType :: struct
 {
 	using type: Type,
+	name: string,
 }
 
 UnionType :: struct
 {
 	using type: Type,
+	name: string,
 }
 
 
@@ -151,6 +155,37 @@ ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
 		case .USize: return true
 		case .ISize: return true
 		case .F32, .F64, .String, .CString, .RawPtr: return false
+	}
+
+	return false
+}
+
+
+ty_are_eq :: proc( l_ty: ^Type, r_ty: ^Type ) -> bool
+{
+	if l_ty.owning_mod != r_ty.owning_mod do return false
+
+	switch l in l_ty.derived {
+		case ^StructType:
+			r, r_ok := r_ty.derived.(^StructType)
+			if !r_ok do return false
+
+			return l.name == r.name
+		case ^EnumType:
+			r, r_ok := r_ty.derived.(^EnumType)
+			if !r_ok do return false
+
+			return l.name == r.name
+		case ^UnionType:
+			r, r_ok := r_ty.derived.(^UnionType)
+			if !r_ok do return false
+
+			return l.name == r.name
+		case ^PrimitiveType:
+			r, r_ok := r_ty.derived.(^PrimitiveType)
+			if !r_ok do return false
+
+			return l.kind == r.kind
 	}
 
 	return false

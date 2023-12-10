@@ -371,8 +371,36 @@ checker_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 
 checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 {
-    log_error( "impl check_var_decl" )
-    return false
+    sc := ctx.curr_scope
+    if d.name in sc.symbols {
+        log_spanned_errorf( &d.span, "redefinition of identifier '{}'", d.name )
+        return false
+    }
+
+    if d.type != nil {
+        ty := lookup_type( sc, d.type )
+        if ty == nil {
+            log_spanned_error( &d.span, "varable declared with unknown type" )
+            return false
+        }
+
+        d.type = ty
+    }
+
+    if d.default_value != nil {
+        val_ok := checker_check_expr( ctx, d.default_value )
+        if !val_ok do return false
+
+        if d.type == nil {
+            d.type = d.default_value.type
+        } else if !ty_are_eq( d.type, d.default_value.type ) {
+            log_spanned_error( &d.span, "mismatched types! expression's type doesn't match declaration's type" )
+            return false
+        }
+    }
+
+    sc.symbols[d.name] = d
+    return true
 }
 
 
@@ -428,6 +456,13 @@ checker_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 checker_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 {
     log_error( "impl check_inf_loop" )
+    return false
+}
+
+
+checker_check_expr :: proc( ctx: ^CheckerContext, e: ^Expr ) -> bool
+{
+    log_error( "impl check_expr" )
     return false
 }
 
