@@ -125,6 +125,7 @@ BreakStmnt :: struct
 IfStmnt :: struct
 {
 	using stmnt: Stmnt,
+	cond:        ^Expr,
 	then_block:  ^Scope,
 	else_stmnt:  ^IfStmnt,
 }

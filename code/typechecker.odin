@@ -315,10 +315,7 @@ checker_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> boo
 checker_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 {
     if d.type == nil {
-        ty := new_type( PrimitiveType )
-        ty.kind = .USize // should this be an isize?
-
-        d.type = ty
+        d.type = ty_builtin_usize
     }
 
     is_int_ty := ty_is_int( d.type )
@@ -406,35 +403,48 @@ checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 
 checker_check_expr_stmnt :: proc( ctx: ^CheckerContext, s: ^ExprStmnt ) -> bool
 {
-    log_error( "impl check_expr_stmnt" )
-    return false
+    expr_ok := checker_check_expr( ctx, s.expr )
+    return expr_ok
 }
 
 
 checker_check_block_stmnt :: proc( ctx: ^CheckerContext, s: ^BlockStmnt ) -> bool
 {
-    log_error( "impl check_block_stmnt" )
-    return false
+    block_ok := checker_check_scope( ctx, s.scope )
+    return block_ok
 }
 
 
 checker_check_continue_stmnt :: proc( ctx: ^CheckerContext, s: ^ContinueStmnt ) -> bool
 {
-    log_error( "impl check_continue_stmnt" )
-    return false
+    return ctx.curr_loop != nil
 }
 
 
 checker_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
 {
-    log_error( "impl check_break_stmnt" )
-    return false
+    return ctx.curr_loop != nil
 }
 
 
 checker_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 {
-    log_error( "impl check_if_stmnt" )
+    cond_ok := checker_check_expr( ctx, s.cond )
+    if !cond_ok do return false
+
+    if s.cond.type != ty_builtin_bool {
+        log_spanned_error( &s.cond.span, "condition expression does not evaluate to 'bool'" )
+        return false
+    }
+
+    then_block_ok := checker_check_scope( ctx, s.then_block )
+    if !then_block_ok do return false
+
+    if s.else_stmnt != nil {
+        else_chain_ok := checker_check_if_stmnt( ctx, s.else_stmnt )
+        if !else_chain_ok do return false
+    }
+
     return false
 }
 
@@ -483,3 +493,4 @@ lookup_type :: proc( s: ^Scope, t: ^Type ) -> ^Type
 
     return nil
 }
+

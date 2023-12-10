@@ -358,6 +358,8 @@ parse_if_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfStmnt
 	cond_expr := parse_expr( file_data )
 	if cond_expr == nil do return nil
 
+	if_stmnt.cond = cond_expr
+
 	l_curly_tk := next_non_newline_tk( file_data )
 	file_data.tk_idx -= 1
 	if l_curly_tk.kind != .LCurly {
@@ -563,11 +565,21 @@ parse_type :: proc( file_data: ^FileData ) -> ^Type
 	lead_tk := next_tk( file_data )
 
 	#partial switch lead_tk.kind {
-		case .U8, .I8, .U16, .I16, .U32, .I32, .U64, .I64, .USize, .ISize, .F32, .F64, .String, .CString, .RawPtr:
-			prim := new_type( PrimitiveType )
-			prim.kind = type_prim_kind_from_tk( lead_tk.kind )
-
-			return prim
+		case .U8:      return ty_builtin_u8
+		case .I8:      return ty_builtin_i8
+		case .U16:     return ty_builtin_u16
+		case .I16:     return ty_builtin_i16
+		case .U32:     return ty_builtin_u32
+		case .I32:     return ty_builtin_i32
+		case .U64:     return ty_builtin_u64
+		case .I64:     return ty_builtin_i64
+		case .USize:   return ty_builtin_usize
+		case .ISize:   return ty_builtin_isize
+		case .F32:     return ty_builtin_f32
+		case .F64:     return ty_builtin_f64
+		case .String:  return ty_builtin_string
+		case .CString: return ty_builtin_cstring
+		case .RawPtr:  return ty_builtin_rawptr
 		case .Star:
 			log_error( "impl pointer parsing" )
 			return nil

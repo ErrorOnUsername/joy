@@ -459,6 +459,7 @@ keyword_map := map[string]TokenKind {
 	"for"      = .For,
 	"while"    = .While,
 	"loop"     = .Loop,
+	"bool"     = .Bool,
 	"u8"       = .U8,
 	"i8"       = .I8,
 	"u16"      = .U16,
@@ -661,6 +662,7 @@ TokenKind :: enum
 	While,
 	Loop,
 
+	Bool,
 	U8,
 	I8,
 	U16,

@@ -15,6 +15,8 @@ main :: proc()
 	compiler_init()
 	defer compiler_deinit()
 
+	init_default_types()
+
 	id, ok := fm_open( "test/basic" )
 	if !ok {
 		fmt.eprintln( "Could not load file" )
