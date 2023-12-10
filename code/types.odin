@@ -66,6 +66,8 @@ PrimitiveKind :: enum
 	CString,
 	RawPtr,
 	Range,
+	UntypedInt,
+	UntypedString,
 }
 
 type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
@@ -128,6 +130,10 @@ primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 			return true
 		case .F32, .F64, .String, .CString, .RawPtr, .Range:
 			return false
+		case .UntypedInt:
+			return true
+		case .UntypedString:
+			return false
 	}
 
 	return false
@@ -164,6 +170,7 @@ ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
 		case .USize: return true
 		case .ISize: return true
 		case .F32, .F64, .String, .CString, .RawPtr, .Range: return false
+		case .UntypedInt, .UntypedString: return false // Does that make sense?
 	}
 
 	return false
@@ -218,6 +225,8 @@ ty_builtin_string: ^Type
 ty_builtin_cstring: ^Type
 ty_builtin_rawptr: ^Type
 ty_builtin_range: ^Type
+ty_builtin_untyped_int: ^Type
+ty_builtin_untyped_string: ^Type
 
 
 init_default_types :: proc()
@@ -291,4 +300,12 @@ init_default_types :: proc()
 	ty = new_type( PrimitiveType )
 	ty.kind = .Range
 	ty_builtin_range = ty
+
+	ty = new_type( PrimitiveType )
+	ty.kind = .UntypedInt
+	ty_builtin_untyped_int = ty
+
+	ty = new_type( PrimitiveType )
+	ty.kind = .UntypedString
+	ty_builtin_untyped_string = ty
 }

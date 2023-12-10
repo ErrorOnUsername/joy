@@ -389,7 +389,13 @@ checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
         if !val_ok do return false
 
         if d.type == nil {
-            d.type = d.default_value.type
+            if d.default_value.type == ty_builtin_untyped_string {
+                d.type = ty_builtin_string
+            } else if d.default_value.type == ty_builtin_untyped_int {
+                d.type = ty_builtin_isize // TODO: verify int fits in isize
+            } else {
+                d.type = d.default_value.type
+            }
         } else if !ty_are_eq( d.type, d.default_value.type ) {
             log_spanned_error( &d.span, "mismatched types! expression's type doesn't match declaration's type" )
             return false
@@ -524,22 +530,30 @@ checker_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 
 checker_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
 {
-    log_error( "impl check_ident" )
-    return false
+    n := lookup_identifier( ctx.curr_scope, i )
+    if n == nil {
+        log_spanned_error( &i.span, "use of undeclared identifier" )
+        return false
+    }
+
+    i.type = n.type
+    i.ref = n
+
+    return true
 }
 
 
 checker_check_string_lit :: proc( ctx: ^CheckerContext, s: ^StringLiteralExpr ) -> bool
 {
-    log_error( "impl check_string_lit" )
-    return false
+    s.type = ty_builtin_untyped_string
+    return true
 }
 
 
-checker_check_number_lit :: proc( ctx: ^CheckerContext, s: ^NumberLiteralExpr ) -> bool
+checker_check_number_lit :: proc( ctx: ^CheckerContext, n: ^NumberLiteralExpr ) -> bool
 {
-    log_error( "impl check_number_lit" )
-    return false
+    n.type = ty_builtin_untyped_int
+    return true
 }
 
 

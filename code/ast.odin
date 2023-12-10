@@ -161,6 +161,7 @@ Ident :: struct
 {
 	using expr: Expr,
 	name:       string,
+	ref:        ^Node,
 }
 
 StringLiteralExpr :: struct
