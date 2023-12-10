@@ -28,7 +28,7 @@ Module :: struct
 }
 
 
-SymbolTable :: map[string]Node
+SymbolTable :: map[string]^Node
 
 Scope :: struct
 {

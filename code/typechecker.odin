@@ -507,10 +507,75 @@ checker_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 }
 
 
-checker_check_expr :: proc( ctx: ^CheckerContext, e: ^Expr ) -> bool
+checker_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 {
-    log_error( "impl check_expr" )
+    switch e in ex.derived_expr {
+        case ^Ident:             return checker_check_ident( ctx, e )
+        case ^StringLiteralExpr: return checker_check_string_lit( ctx, e )
+        case ^NumberLiteralExpr: return checker_check_number_lit( ctx, e )
+        case ^RangeExpr:         return checker_check_range_expr( ctx, e )
+        case ^BinOpExpr:         return checker_check_bin_op_expr( ctx, e )
+        case ^ProcCallExpr:      return checker_check_proc_call( ctx, e )
+    }
+
+    return true
+}
+
+
+checker_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
+{
+    log_error( "impl check_ident" )
     return false
+}
+
+
+checker_check_string_lit :: proc( ctx: ^CheckerContext, s: ^StringLiteralExpr ) -> bool
+{
+    log_error( "impl check_string_lit" )
+    return false
+}
+
+
+checker_check_number_lit :: proc( ctx: ^CheckerContext, s: ^NumberLiteralExpr ) -> bool
+{
+    log_error( "impl check_number_lit" )
+    return false
+}
+
+
+checker_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
+{
+    log_error( "impl check_range_expr" )
+    return false
+}
+
+
+checker_check_bin_op_expr :: proc( ctx: ^CheckerContext, b: ^BinOpExpr ) -> bool
+{
+    log_error( "impl check_bin_op_expr" )
+    return false
+}
+
+
+checker_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bool
+{
+    log_error( "impl check_proc_call" )
+    return false
+}
+
+
+lookup_identifier :: proc( sc: ^Scope, i: ^Ident ) -> ^Node
+{
+    s := sc
+    for s != nil {
+        if i.name in s.symbols {
+            return s.symbols[i.name]
+        }
+
+        s = s.parent
+    }
+
+    return nil
 }
 
 
