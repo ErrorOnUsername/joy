@@ -1,6 +1,6 @@
 " Vim syntax file
 " Language: Joy
-" Lastest Revision: 10-22-2023
+" Lastest Revision: 12-10-2023
 
 if exists("b:current_syntax")
 	finish
@@ -108,7 +108,7 @@ hi def link j_string_delim    String
 hi def link j_char_literal    String
 hi def link j_char_delim      String
 
-let b:current_syntax = "dragonfly"
+let b:current_syntax = "joy"
 
 let &cpo = s:cpo_save
 unlet s:cpo_save
