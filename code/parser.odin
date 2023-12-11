@@ -715,7 +715,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 			maybe_dd_tk := next_tk( file_data )
 
-			if maybe_dd_tk.kind == .DotDot {
+			if maybe_dd_tk.kind != .DotDot {
 				log_spanned_errorf( &expr.span, "Expected range operator '..', got: {}", maybe_dd_tk.kind )
 				return nil
 			}
