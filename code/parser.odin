@@ -663,16 +663,24 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 {
 	lead_tk := next_non_newline_tk( file_data )
 
+	prefix_expr: ^Expr
+
 	#partial switch lead_tk.kind {
 		case .LParen:
 			expr := parse_expr( file_data ) // Should we allow struct literals here? not sure... don't think so tho
 			if expr == nil do return nil
 
-			maybe_b_op, is_b_op := expr.derived_expr.(^BinOpExpr)
-			if is_b_op && maybe_b_op.op == .Range {
+			maybe_dd_tk := next_tk( file_data )
+
+			if maybe_dd_tk.kind == .DotDot {
 				range_expr := new_node( RangeExpr, lead_tk.span )
 				range_expr.left_bound_inclusive = false
-				range_expr.range_expr           = maybe_b_op
+				range_expr.lhs                  = expr
+
+				right_bound := parse_expr( file_data )
+				if right_bound == nil do return nil
+
+				range_expr.rhs = right_bound
 
 				end_bound_tk := next_tk( file_data )
 				if end_bound_tk.kind == .RParen {
@@ -703,14 +711,19 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			expr := parse_expr( file_data )
 			if expr == nil do return nil
 
-			b_op, is_b_op := expr.derived_expr.(^BinOpExpr)
+			range_expr.lhs = expr
 
-			if !is_b_op || b_op.op != .Range {
-				log_spanned_errorf( &expr.span, "Expected a range expression: {}", BinaryOperator.Invalid if b_op == nil else b_op.op )
+			maybe_dd_tk := next_tk( file_data )
+
+			if maybe_dd_tk.kind == .DotDot {
+				log_spanned_errorf( &expr.span, "Expected range operator '..', got: {}", maybe_dd_tk.kind )
 				return nil
 			}
 
-			range_expr.range_expr = b_op
+			right_bound := parse_expr( file_data )
+			if right_bound == nil do return nil
+
+			range_expr.rhs = right_bound
 
 			end_bound_tk := next_tk( file_data )
 			if end_bound_tk.kind == .RParen {
@@ -767,6 +780,16 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			if !params_ok do return nil
 
 			return call_expr
+		case .Dot:
+			field := parse_operand( file_data, true )
+			if field == nil do return nil
+
+			full_span, s_ok := join_span( &prefix_expr.span, &field.span )
+			if !s_ok do return nil
+
+			field_access := new_node( FieldAccessExpr, full_span )
+			field_access.owner = prefix_expr
+			field_access.field = field
 		case .LCurly:
 			if can_create_struct_literal {
 				log_spanned_error( &tail_tk.span, "impl struct literals" )

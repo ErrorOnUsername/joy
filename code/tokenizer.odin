@@ -510,8 +510,6 @@ tk_to_bin_op :: proc( tk: ^Token ) -> BinaryOperator
 	#partial switch tk.kind {
 		case .Assign:             return .Assign
 		case .Equal:              return .Equal
-		case .Dot:                return .MemberAccess
-		case .DotDot:             return .Range
 		case .Plus:               return .Add
 		case .PlusAssign:         return .AddAssign
 		case .Minus:              return .Subtract

@@ -181,15 +181,22 @@ RangeExpr :: struct
 {
 	using expr: Expr,
 	left_bound_inclusive:  bool,
+	lhs:                   ^Expr,
 	right_bound_inclusive: bool,
-	range_expr:            ^BinOpExpr,
+	rhs:                   ^Expr,
 }
+
+FieldAccessExpr :: struct
+{
+	using expr: Expr,
+	owner:      ^Expr,
+	field:      ^Expr,
+}
+
 
 BinaryOperator :: enum
 {
 	Invalid,
-
-	MemberAccess,
 
 	Add,
 	Subtract,
@@ -214,8 +221,6 @@ BinaryOperator :: enum
 
 	BitwiseLShift,
 	BitwiseRShift,
-
-	Range,
 
 	Assign,
 
@@ -242,33 +247,28 @@ bin_op_priority :: proc( op: BinaryOperator ) -> i8
 	switch op {
 		case .Invalid: return -1
 
-		case .MemberAccess:
-			return 14
-
 		case .Multiply, .Divide, .Modulo:
-			return 13
-
-		case .Add, .Subtract:
 			return 12
 
-		case .BitwiseLShift, .BitwiseRShift:
+		case .Add, .Subtract:
 			return 11
+
+		case .BitwiseLShift, .BitwiseRShift:
+			return 10
 
 		case .LessThanOrEq, .LessThan,
 		     .GreaterThanOrEq, .GreaterThan:
-			return 10
-
-		case .Equal, .NotEqual:
 			return 9
 
-		case .BitwiseAnd: return 8
-		case .BitwiseOr:  return 7
-		case .BitwiseXOr: return 6
-		case .LogicalAnd: return 5
-		case .LogicalOr:  return 4
-		case .LogicalXOr: return 3
+		case .Equal, .NotEqual:
+			return 8
 
-		case .Range: return 2
+		case .BitwiseAnd: return 7
+		case .BitwiseOr:  return 6
+		case .BitwiseXOr: return 5
+		case .LogicalAnd: return 4
+		case .LogicalOr:  return 3
+		case .LogicalXOr: return 2
 
 		case .Assign, .AddAssign,
 			 .SubtractAssign, .MultiplyAssign,
@@ -320,6 +320,7 @@ AnyExpr :: union
 	^RangeExpr,
 	^BinOpExpr,
 	^ProcCallExpr,
+	^FieldAccessExpr,
 }
 
 Expr :: struct

@@ -531,6 +531,7 @@ checker_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
         case ^RangeExpr:         return checker_check_range_expr( ctx, e )
         case ^BinOpExpr:         return checker_check_bin_op_expr( ctx, e )
         case ^ProcCallExpr:      return checker_check_proc_call( ctx, e )
+        case ^FieldAccessExpr:   return checker_check_field_access( ctx, e )
     }
 
     return true
@@ -568,7 +569,21 @@ checker_check_number_lit :: proc( ctx: ^CheckerContext, n: ^NumberLiteralExpr ) 
 
 checker_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 {
-    range_expr_ok := checker_check_expr( ctx, r.range_expr )
+    left_ok := checker_check_expr( ctx, r.lhs )
+    if !left_ok do return false
+
+    if r.lhs.type != ty_builtin_isize {
+        log_spanned_error( &r.lhs.span, "range start expression does not evaluate to 'isize'" )
+        return false
+    }
+
+    right_ok := checker_check_expr( ctx, r.rhs )
+    if !right_ok do return false
+
+    if r.rhs.type != ty_builtin_isize {
+        log_spanned_error( &r.rhs.span, "range end expression does not evaluate to 'isize'" )
+        return false
+    }
 
     r.type = ty_builtin_range
 
@@ -586,6 +601,13 @@ checker_check_bin_op_expr :: proc( ctx: ^CheckerContext, b: ^BinOpExpr ) -> bool
 checker_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bool
 {
     log_error( "impl check_proc_call" )
+    return false
+}
+
+
+checker_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> bool
+{
+    log_error( "impl check_field_access" )
     return false
 }
 
