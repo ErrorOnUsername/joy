@@ -28,7 +28,7 @@ Module :: struct
 }
 
 
-SymbolTable :: map[string]^Node
+SymbolTable :: map[string]^Stmnt
 
 Scope :: struct
 {
@@ -54,8 +54,9 @@ StructDecl :: struct
 
 EnumVariant :: struct
 {
-	using node: Node,
-	name:       string,
+	using stmnt: Stmnt,
+	owning_enum: ^EnumDecl,
+	name:        string,
 }
 
 EnumDecl :: struct
@@ -161,7 +162,7 @@ Ident :: struct
 {
 	using expr: Expr,
 	name:       string,
-	ref:        ^Node,
+	ref:        ^Stmnt,
 }
 
 StringLiteralExpr :: struct
@@ -291,6 +292,7 @@ AnyStmnt :: union
 {
 	^StructDecl,
 	^EnumDecl,
+	^EnumVariant,
 	^UnionDecl,
 	^ProcDecl,
 	^VarDecl,
@@ -331,7 +333,6 @@ AnyNode :: union
 	^Scope,
 	^Stmnt,
 	^Expr,
-	^EnumVariant,
 }
 
 Node :: struct

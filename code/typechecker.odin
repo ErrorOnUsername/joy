@@ -123,6 +123,7 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 
                     st.memb_lookup[m.name] = m
                 }
+            case ^EnumVariant:
             case ^EnumDecl:
                 if st.name in s.symbols {
                     log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -271,6 +272,7 @@ checker_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
         switch st in stmnt.derived_stmnt {
             case ^StructDecl:    ok = checker_check_struct_decl( ctx, st )
             case ^EnumDecl:      ok = checker_check_enum_decl( ctx, st )
+            case ^EnumVariant:   ok = checker_check_enum_variant( ctx, st )
             case ^UnionDecl:     ok = checker_check_union_decl( ctx, st )
             case ^ProcDecl:      ok = checker_check_proc_decl( ctx, st )
             case ^VarDecl:       ok = checker_check_var_decl( ctx, st )
@@ -330,6 +332,13 @@ checker_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
         return false
     }
 
+    return true
+}
+
+
+checker_check_enum_variant :: proc( ctx: ^CheckerContext, v: ^EnumVariant ) -> bool
+{
+    v.type = v.owning_enum.type
     return true
 }
 
@@ -530,7 +539,7 @@ checker_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 
 checker_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
 {
-    n := lookup_identifier( ctx.curr_scope, i )
+    n := lookup_identifier( ctx, i )
     if n == nil {
         log_spanned_error( &i.span, "use of undeclared identifier" )
         return false
@@ -559,8 +568,11 @@ checker_check_number_lit :: proc( ctx: ^CheckerContext, n: ^NumberLiteralExpr ) 
 
 checker_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 {
-    log_error( "impl check_range_expr" )
-    return false
+    range_expr_ok := checker_check_expr( ctx, r.range_expr )
+
+    r.type = ty_builtin_range
+
+    return true
 }
 
 
@@ -578,9 +590,9 @@ checker_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bo
 }
 
 
-lookup_identifier :: proc( sc: ^Scope, i: ^Ident ) -> ^Node
+lookup_identifier :: proc( ctx: ^CheckerContext, i: ^Ident ) -> ^Stmnt
 {
-    s := sc
+   s := ctx.curr_scope
     for s != nil {
         if i.name in s.symbols {
             return s.symbols[i.name]
