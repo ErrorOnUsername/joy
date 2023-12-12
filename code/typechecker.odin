@@ -234,6 +234,7 @@ CheckerContext :: struct
 	curr_proc: ^ProcDecl,
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
+	curr_field_lookup: ^Stmnt,
 }
 
 
