@@ -4,7 +4,7 @@ import "core:strings"
 import "core:fmt"
 
 
-checker_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Package ) -> ( found_cycle := false, cycle_report := "<none>" )
+tc_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Package ) -> ( found_cycle := false, cycle_report := "<none>" )
 {
 	for parent_pkg in cycle_checker^ {
 		if parent_pkg == pkg {
@@ -33,7 +33,7 @@ checker_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Packag
 	append( cycle_checker, pkg )
 
 	for p in pkg.imports {
-		p_found_cycle, rep := checker_cycle_check_rec( p, cycle_checker )
+		p_found_cycle, rep := tc_cycle_check_rec( p, cycle_checker )
 		if p_found_cycle do return p_found_cycle, rep
 	}
 
@@ -43,26 +43,26 @@ checker_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Packag
 }
 
 
-checker_does_import_graph_contiain_cycles :: proc( root_pkg: ^Package ) -> ( found_cycle: bool, cycle_report: string )
+tc_does_import_graph_contiain_cycles :: proc( root_pkg: ^Package ) -> ( found_cycle: bool, cycle_report: string )
 {
 	cycle_checker := make( [dynamic]^Package )
 	defer delete( cycle_checker )
 
-	found_cycle, cycle_report = checker_cycle_check_rec( root_pkg, &cycle_checker )
+	found_cycle, cycle_report = tc_cycle_check_rec( root_pkg, &cycle_checker )
 	if found_cycle do return found_cycle, cycle_report
 
 	return
 }
 
 
-checker_build_graph_dag_topo :: proc( prio: ^int, list: ^[dynamic]PriorityItem( ^Package ), pkg: ^Package )
+tc_build_graph_dag_topo :: proc( prio: ^int, list: ^[dynamic]PriorityItem( ^Package ), pkg: ^Package )
 {
 	for parent in pkg.imports {
 		if prio^ != 0 {
 			prio^ -= 1
 		}
 
-		checker_build_graph_dag_topo( prio, list, parent )
+		tc_build_graph_dag_topo( prio, list, parent )
 	}
 
 	append( list, PriorityItem( ^Package ) { prio^, pkg } )
@@ -71,9 +71,9 @@ checker_build_graph_dag_topo :: proc( prio: ^int, list: ^[dynamic]PriorityItem( 
 }
 
 
-checker_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Package ), bool )
+tc_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Package ), bool )
 {
-	contains_cycles, first_cycle := checker_does_import_graph_contiain_cycles( root_pkg )
+	contains_cycles, first_cycle := tc_does_import_graph_contiain_cycles( root_pkg )
 	if contains_cycles {
 		log_errorf( "Package import graph contains cycles: {}", first_cycle )
 		return nil, false
@@ -81,17 +81,17 @@ checker_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^P
 
 	prio := 0
 	list := make( [dynamic]PriorityItem( ^Package ) )
-	checker_build_graph_dag_topo( &prio, &list, root_pkg )
+	tc_build_graph_dag_topo( &prio, &list, root_pkg )
 
 	return list[:], true
 }
 
 
-checker_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
+tc_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
 {
 	for pkg in pkgs {
 		for mod in pkg.item.modules {
-			ok := checker_initialize_symbol_tables_for_scope( mod.file_scope )
+			ok := tc_initialize_symbol_tables_for_scope( mod.file_scope )
 			if !ok do return false
 		}
 	}
@@ -100,7 +100,7 @@ checker_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> 
 }
 
 
-checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
+tc_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 {
 	s.symbols = make( SymbolTable )
 
@@ -156,31 +156,31 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 
 				s.symbols[st.name] = st
 
-				body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
 				if !body_ok do return false
 			case ^VarDecl: // igonred until real checking starts...
 			case ^ExprStmnt: // igonred until real checking starts...
 			case ^BlockStmnt:
-				block_ok := checker_initialize_symbol_tables_for_scope( st.scope )
+				block_ok := tc_initialize_symbol_tables_for_scope( st.scope )
 				if !block_ok do return false
 			case ^ContinueStmnt: // igonred until real checking starts...
 			case ^BreakStmnt: // igonred until real checking starts...
 			case ^IfStmnt:
 				curr_if := st
 				for curr_if != nil {
-					body_ok := checker_initialize_symbol_tables_for_scope( curr_if.then_block )
+					body_ok := tc_initialize_symbol_tables_for_scope( curr_if.then_block )
 					if !body_ok do return false
 
 					curr_if = curr_if.else_stmnt
 				}
 			case ^ForLoop:
-				body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
 				if !body_ok do return false
 			case ^WhileLoop:
-				body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
 				if !body_ok do return false
 			case ^InfiniteLoop:
-				body_ok := checker_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
 				if !body_ok do return false
 		}
 	}
@@ -189,11 +189,11 @@ checker_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 }
 
 
-checker_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
+tc_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
 {
 	for pkg in pkgs {
 		for mod in pkg.item.modules {
-			res := checker_collect_proc_sigs_in_scope( mod.file_scope )
+			res := tc_collect_proc_sigs_in_scope( mod.file_scope )
 			if !res do return false
 		}
 	}
@@ -202,7 +202,7 @@ checker_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) ) -> b
 }
 
 
-checker_collect_proc_sigs_in_scope :: proc( s: ^Scope ) -> bool
+tc_collect_proc_sigs_in_scope :: proc( s: ^Scope ) -> bool
 {
 	for stmnt in s.stmnts {
 		#partial switch st in stmnt.derived_stmnt {
@@ -238,7 +238,7 @@ CheckerContext :: struct
 }
 
 
-pump_checker_check_module :: proc( file_id: FileID ) -> PumpResult
+pump_tc_check_module :: proc( file_id: FileID ) -> PumpResult
 {
 	mod_data := fm_get_data( file_id )
 	if mod_data.is_dir {
@@ -254,14 +254,14 @@ pump_checker_check_module :: proc( file_id: FileID ) -> PumpResult
 	ctx: CheckerContext
 	ctx.mod = mod_data.mod
 
-	ok := checker_check_scope( &ctx, mod_data.mod.file_scope )
+	ok := tc_check_scope( &ctx, mod_data.mod.file_scope )
 	if !ok do return .Error
 
 	return .Continue
 }
 
 
-checker_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
+tc_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 {
 	prev_scope := ctx.curr_scope
 	defer ctx.curr_scope = prev_scope
@@ -271,20 +271,20 @@ checker_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 	for stmnt in sc.stmnts {
 		ok := true
 		switch st in stmnt.derived_stmnt {
-			case ^StructDecl:    ok = checker_check_struct_decl( ctx, st )
-			case ^EnumDecl:      ok = checker_check_enum_decl( ctx, st )
-			case ^EnumVariant:   ok = checker_check_enum_variant( ctx, st )
-			case ^UnionDecl:     ok = checker_check_union_decl( ctx, st )
-			case ^ProcDecl:      ok = checker_check_proc_decl( ctx, st )
-			case ^VarDecl:       ok = checker_check_var_decl( ctx, st )
-			case ^ExprStmnt:     ok = checker_check_expr_stmnt( ctx, st )
-			case ^BlockStmnt:    ok = checker_check_block_stmnt( ctx, st )
-			case ^ContinueStmnt: ok = checker_check_continue_stmnt( ctx, st )
-			case ^BreakStmnt:    ok = checker_check_break_stmnt( ctx, st )
-			case ^IfStmnt:       ok = checker_check_if_stmnt( ctx, st )
-			case ^ForLoop:       ok = checker_check_for_loop( ctx, st )
-			case ^WhileLoop:     ok = checker_check_while_loop( ctx, st )
-			case ^InfiniteLoop:  ok = checker_check_inf_loop( ctx, st )
+			case ^StructDecl:    ok = tc_check_struct_decl( ctx, st )
+			case ^EnumDecl:      ok = tc_check_enum_decl( ctx, st )
+			case ^EnumVariant:   ok = tc_check_enum_variant( ctx, st )
+			case ^UnionDecl:     ok = tc_check_union_decl( ctx, st )
+			case ^ProcDecl:      ok = tc_check_proc_decl( ctx, st )
+			case ^VarDecl:       ok = tc_check_var_decl( ctx, st )
+			case ^ExprStmnt:     ok = tc_check_expr_stmnt( ctx, st )
+			case ^BlockStmnt:    ok = tc_check_block_stmnt( ctx, st )
+			case ^ContinueStmnt: ok = tc_check_continue_stmnt( ctx, st )
+			case ^BreakStmnt:    ok = tc_check_break_stmnt( ctx, st )
+			case ^IfStmnt:       ok = tc_check_if_stmnt( ctx, st )
+			case ^ForLoop:       ok = tc_check_for_loop( ctx, st )
+			case ^WhileLoop:     ok = tc_check_while_loop( ctx, st )
+			case ^InfiniteLoop:  ok = tc_check_inf_loop( ctx, st )
 		}
 
 		if !ok do return false
@@ -294,7 +294,7 @@ checker_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 }
 
 
-checker_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
+tc_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
 {
 	for mem in d.members {
 		if mem.default_value != nil {
@@ -315,7 +315,7 @@ checker_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> boo
 }
 
 
-checker_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
+tc_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 {
 	if d.type == nil {
 		d.type = ty_builtin_usize
@@ -337,21 +337,21 @@ checker_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 }
 
 
-checker_check_enum_variant :: proc( ctx: ^CheckerContext, v: ^EnumVariant ) -> bool
+tc_check_enum_variant :: proc( ctx: ^CheckerContext, v: ^EnumVariant ) -> bool
 {
 	v.type = v.owning_enum.type
 	return true
 }
 
 
-checker_check_union_decl :: proc( ctx: ^CheckerContext, d: ^UnionDecl ) -> bool
+tc_check_union_decl :: proc( ctx: ^CheckerContext, d: ^UnionDecl ) -> bool
 {
 	log_error( "impl check_union_decl" )
 	return false
 }
 
 
-checker_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
+tc_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 {
 	prev_proc := ctx.curr_proc
 	defer ctx.curr_proc = prev_proc
@@ -368,7 +368,7 @@ checker_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 	}
 
 	if d.body != nil {
-		body_ok := checker_check_scope( ctx, d.body )
+		body_ok := tc_check_scope( ctx, d.body )
 		if !body_ok do return false
 	}
 
@@ -376,7 +376,7 @@ checker_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 }
 
 
-checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
+tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 {
 	sc := ctx.curr_scope
 	if d.name in sc.symbols {
@@ -395,7 +395,7 @@ checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 	}
 
 	if d.default_value != nil {
-		val_ok := checker_check_expr( ctx, d.default_value )
+		val_ok := tc_check_expr( ctx, d.default_value )
 		if !val_ok do return false
 
 		if d.type == nil {
@@ -417,35 +417,35 @@ checker_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 }
 
 
-checker_check_expr_stmnt :: proc( ctx: ^CheckerContext, s: ^ExprStmnt ) -> bool
+tc_check_expr_stmnt :: proc( ctx: ^CheckerContext, s: ^ExprStmnt ) -> bool
 {
-	expr_ok := checker_check_expr( ctx, s.expr )
+	expr_ok := tc_check_expr( ctx, s.expr )
 	return expr_ok
 }
 
 
-checker_check_block_stmnt :: proc( ctx: ^CheckerContext, s: ^BlockStmnt ) -> bool
+tc_check_block_stmnt :: proc( ctx: ^CheckerContext, s: ^BlockStmnt ) -> bool
 {
-	block_ok := checker_check_scope( ctx, s.scope )
+	block_ok := tc_check_scope( ctx, s.scope )
 	return block_ok
 }
 
 
-checker_check_continue_stmnt :: proc( ctx: ^CheckerContext, s: ^ContinueStmnt ) -> bool
+tc_check_continue_stmnt :: proc( ctx: ^CheckerContext, s: ^ContinueStmnt ) -> bool
 {
 	return ctx.curr_loop != nil
 }
 
 
-checker_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
+tc_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
 {
 	return ctx.curr_loop != nil
 }
 
 
-checker_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
+tc_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 {
-	cond_ok := checker_check_expr( ctx, s.cond )
+	cond_ok := tc_check_expr( ctx, s.cond )
 	if !cond_ok do return false
 
 	if s.cond.type != ty_builtin_bool {
@@ -453,11 +453,11 @@ checker_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 		return false
 	}
 
-	then_block_ok := checker_check_scope( ctx, s.then_block )
+	then_block_ok := tc_check_scope( ctx, s.then_block )
 	if !then_block_ok do return false
 
 	if s.else_stmnt != nil {
-		else_chain_ok := checker_check_if_stmnt( ctx, s.else_stmnt )
+		else_chain_ok := tc_check_if_stmnt( ctx, s.else_stmnt )
 		if !else_chain_ok do return false
 	}
 
@@ -465,14 +465,14 @@ checker_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 }
 
 
-checker_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
+tc_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
 {
 	prev_loop := ctx.curr_loop
 	defer ctx.curr_loop = prev_loop
 
 	ctx.curr_loop = l
 
-	range_expr_ok := checker_check_expr( ctx, l.range )
+	range_expr_ok := tc_check_expr( ctx, l.range )
 	if !range_expr_ok do return false
 
 	if l.range.type != ty_builtin_range {
@@ -480,21 +480,21 @@ checker_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
 		return false
 	}
 
-	body_ok := checker_check_scope( ctx, l.body )
+	body_ok := tc_check_scope( ctx, l.body )
 	if !body_ok do return false
 
 	return true
 }
 
 
-checker_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
+tc_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 {
 	prev_loop := ctx.curr_loop
 	defer ctx.curr_loop = prev_loop
 
 	ctx.curr_loop = l
 
-	cond_ok := checker_check_expr( ctx, l.cond )
+	cond_ok := tc_check_expr( ctx, l.cond )
 	if !cond_ok do return false
 
 	if l.cond.type != ty_builtin_bool {
@@ -502,44 +502,44 @@ checker_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 		return false
 	}
 
-	body_ok := checker_check_scope( ctx, l.body )
+	body_ok := tc_check_scope( ctx, l.body )
 	if !body_ok do return false
 
 	return true
 }
 
 
-checker_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
+tc_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 {
 	prev_loop := ctx.curr_loop
 	defer ctx.curr_loop = prev_loop
 
 	ctx.curr_loop = l
 
-	body_ok := checker_check_scope( ctx, l.body )
+	body_ok := tc_check_scope( ctx, l.body )
 	if !body_ok do return false
 
 	return true
 }
 
 
-checker_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
+tc_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 {
 	switch e in ex.derived_expr {
-		case ^Ident:             return checker_check_ident( ctx, e )
-		case ^StringLiteralExpr: return checker_check_string_lit( ctx, e )
-		case ^NumberLiteralExpr: return checker_check_number_lit( ctx, e )
-		case ^RangeExpr:         return checker_check_range_expr( ctx, e )
-		case ^BinOpExpr:         return checker_check_bin_op_expr( ctx, e )
-		case ^ProcCallExpr:      return checker_check_proc_call( ctx, e )
-		case ^FieldAccessExpr:   return checker_check_field_access( ctx, e )
+		case ^Ident:             return tc_check_ident( ctx, e )
+		case ^StringLiteralExpr: return tc_check_string_lit( ctx, e )
+		case ^NumberLiteralExpr: return tc_check_number_lit( ctx, e )
+		case ^RangeExpr:         return tc_check_range_expr( ctx, e )
+		case ^BinOpExpr:         return tc_check_bin_op_expr( ctx, e )
+		case ^ProcCallExpr:      return tc_check_proc_call( ctx, e )
+		case ^FieldAccessExpr:   return tc_check_field_access( ctx, e )
 	}
 
 	return true
 }
 
 
-checker_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
+tc_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
 {
 	n := lookup_identifier( ctx, i )
 	if n == nil {
@@ -554,23 +554,23 @@ checker_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
 }
 
 
-checker_check_string_lit :: proc( ctx: ^CheckerContext, s: ^StringLiteralExpr ) -> bool
+tc_check_string_lit :: proc( ctx: ^CheckerContext, s: ^StringLiteralExpr ) -> bool
 {
 	s.type = ty_builtin_untyped_string
 	return true
 }
 
 
-checker_check_number_lit :: proc( ctx: ^CheckerContext, n: ^NumberLiteralExpr ) -> bool
+tc_check_number_lit :: proc( ctx: ^CheckerContext, n: ^NumberLiteralExpr ) -> bool
 {
 	n.type = ty_builtin_untyped_int
 	return true
 }
 
 
-checker_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
+tc_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 {
-	left_ok := checker_check_expr( ctx, r.lhs )
+	left_ok := tc_check_expr( ctx, r.lhs )
 	if !left_ok do return false
 
 	if r.lhs.type != ty_builtin_isize {
@@ -578,7 +578,7 @@ checker_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 		return false
 	}
 
-	right_ok := checker_check_expr( ctx, r.rhs )
+	right_ok := tc_check_expr( ctx, r.rhs )
 	if !right_ok do return false
 
 	if r.rhs.type != ty_builtin_isize {
@@ -592,21 +592,21 @@ checker_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 }
 
 
-checker_check_bin_op_expr :: proc( ctx: ^CheckerContext, b: ^BinOpExpr ) -> bool
+tc_check_bin_op_expr :: proc( ctx: ^CheckerContext, b: ^BinOpExpr ) -> bool
 {
 	log_error( "impl check_bin_op_expr" )
 	return false
 }
 
 
-checker_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bool
+tc_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bool
 {
 	log_error( "impl check_proc_call" )
 	return false
 }
 
 
-checker_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> bool
+tc_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> bool
 {
 	log_error( "impl check_field_access" )
 	return false

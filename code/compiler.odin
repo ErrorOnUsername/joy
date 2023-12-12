@@ -116,7 +116,7 @@ compiler_pump :: proc( action: PumpAction, file_id: FileID ) -> PumpResult
 		case .ParseFile:
 			return pump_parse_file( file_id )
 		case .CheckModule:
-			return pump_checker_check_module( file_id )
+			return pump_tc_check_module( file_id )
 	}
 
 	return .Continue

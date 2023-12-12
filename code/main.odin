@@ -35,13 +35,13 @@ main :: proc()
 	root_package_data := fm_get_data( id )
 	pkg := root_package_data.pkg
 
-	packages_to_check, pkgs_ok := checker_build_package_list( pkg )
+	packages_to_check, pkgs_ok := tc_build_package_list( pkg )
 	if !pkgs_ok {
 		return
 	}
 
-	checker_initialize_symbol_tables( packages_to_check )
-	checker_collect_proc_signatures( packages_to_check )
+	tc_initialize_symbol_tables( packages_to_check )
+	tc_collect_proc_signatures( packages_to_check )
 
 	working_prio := 0
 	for prio_pkg in &packages_to_check {
