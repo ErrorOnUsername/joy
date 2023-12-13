@@ -145,6 +145,7 @@ parse_struct_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^StructDec
 	for members_ok && member != nil {
 		append( &decl.members, member )
 
+
 		semicolon_tk := next_tk( file_data )
 		if semicolon_tk.kind == .RCurly {
 			file_data.tk_idx -= 1
@@ -520,6 +521,19 @@ parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 	return scope
 }
 
+is_ident_tk :: proc( tk: TokenKind ) -> bool
+{
+	#partial switch tk {
+		case .Bool, .U8, .I8, .U16, .I16, .U32,
+		     .I32, .U64, .I64, .USize, .ISize,
+		     .F32, .F64, .String, .CString,
+		     .RawPtr, .Range, .Ident:
+			return true
+	}
+
+	return false
+}
+
 parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 {
 	name_tk := next_non_newline_tk( file_data )
@@ -529,16 +543,16 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 		return nil, true
 	}
 
+
 	decl := new_node( VarDecl, name_tk.span )
 	decl.name = name_tk.str
-
 
 	colon_tk := next_tk( file_data )
 
 	if colon_tk.kind == .Colon {
-		decl.type = parse_type( file_data )
+		decl.type_hint = parse_expr( file_data )
 
-		if decl.type == nil do return nil, false
+		if decl.type_hint == nil do return nil, false
 	} else if colon_tk.kind != .ColonAssign {
 		log_spanned_errorf( &colon_tk.span, "Expected ':' or ':=' after identifier, but got '{}'", colon_tk.kind )
 		return nil, false
@@ -546,8 +560,8 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 
 	assign_tk := next_tk( file_data )
 
-	if decl.type == nil || ( decl.type != nil && assign_tk.kind == .Assign ) {
-		if decl.type == nil {
+	if decl.type_hint == nil || ( decl.type_hint != nil && assign_tk.kind == .Assign ) {
+		if decl.type_hint == nil {
 			file_data.tk_idx -= 1
 		}
 
@@ -560,40 +574,6 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 	return decl, true
 }
 
-parse_type :: proc( file_data: ^FileData ) -> ^Type
-{
-	lead_tk := next_tk( file_data )
-
-	#partial switch lead_tk.kind {
-		case .U8:      return ty_builtin_u8
-		case .I8:      return ty_builtin_i8
-		case .U16:     return ty_builtin_u16
-		case .I16:     return ty_builtin_i16
-		case .U32:     return ty_builtin_u32
-		case .I32:     return ty_builtin_i32
-		case .U64:     return ty_builtin_u64
-		case .I64:     return ty_builtin_i64
-		case .USize:   return ty_builtin_usize
-		case .ISize:   return ty_builtin_isize
-		case .F32:     return ty_builtin_f32
-		case .F64:     return ty_builtin_f64
-		case .String:  return ty_builtin_string
-		case .CString: return ty_builtin_cstring
-		case .RawPtr:  return ty_builtin_rawptr
-		case .Range:   return ty_builtin_range
-		case .Star:
-			log_error( "impl pointer parsing" )
-			return nil
-		case .LSquare:
-			log_error( "impl array/slice parsing" )
-			return nil
-		case .Ident:
-			log_error( "impl type name parsing" )
-			return nil
-	}
-
-	return nil
-}
 
 parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -> ^Expr
 {
@@ -705,49 +685,72 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 			return expr
 		case .LSquare:
-			range_expr := new_node( RangeExpr, lead_tk.span )
-			range_expr.left_bound_inclusive = true
 
 			expr := parse_expr( file_data )
 			if expr == nil do return nil
 
-			range_expr.lhs = expr
+			det_tk := next_tk( file_data )
 
-			maybe_dd_tk := next_tk( file_data )
+			if det_tk.kind == .DotDot {
+				range_expr := new_node( RangeExpr, lead_tk.span )
+				range_expr.left_bound_inclusive = true
 
-			if maybe_dd_tk.kind != .DotDot {
-				log_spanned_errorf( &expr.span, "Expected range operator '..', got: {}", maybe_dd_tk.kind )
-				return nil
+				range_expr.lhs = expr
+
+				right_bound := parse_expr( file_data )
+				if right_bound == nil do return nil
+
+				range_expr.rhs = right_bound
+
+				end_bound_tk := next_tk( file_data )
+				if end_bound_tk.kind == .RParen {
+					range_expr.right_bound_inclusive = false
+				} else if end_bound_tk.kind == .RSquare {
+					range_expr.right_bound_inclusive = true
+				} else {
+					log_spanned_error( &end_bound_tk.span, "Expected terminating ')' or ']' to describe range bound inclusivity" )
+					return nil
+				}
+
+				range_expr.span.end = end_bound_tk.span.end
+
+				return range_expr
+			} else if det_tk.kind == .Semicolon {
+				array_type := new_node( ArrayTypeExpr, det_tk.span )
+				array_type.base_type = expr
+
+				size := parse_expr( file_data )
+				if size == nil do return nil
+
+				array_type.size_expr = size
+
+				end_tk := next_tk( file_data )
+				if end_tk.kind != .RSquare {
+					log_spanned_error( &end_tk.span, "Expected ']' to terminate array type expression" )
+					return nil
+				}
+
+				return array_type
+			} else if det_tk.kind == .RSquare {
+				slice_type := new_node( SliceTypeExpr, det_tk.span )
+				slice_type.base_type = expr
+
+				return slice_type
 			}
 
-			right_bound := parse_expr( file_data )
-			if right_bound == nil do return nil
+			lead_tk = det_tk
+		case .Star:
+			pointer_type := new_node( PointerTypeExpr, lead_tk.span )
 
-			range_expr.rhs = right_bound
+			base_ty := parse_expr( file_data )
+			if base_ty == nil do return nil
 
-			end_bound_tk := next_tk( file_data )
-			if end_bound_tk.kind == .RParen {
-				range_expr.right_bound_inclusive = false
-			} else if end_bound_tk.kind == .RSquare {
-				range_expr.right_bound_inclusive = true
-			} else {
-				log_spanned_error( &end_bound_tk.span, "Expected terminating ')' or ']' to describe range bound inclusivity" )
-				return nil
-			}
-
-			range_expr.span.end = end_bound_tk.span.end
-
-			return range_expr
+			pointer_type.base_type = base_ty
+			return pointer_type
 		case .Dot:
 			log_spanned_error( &lead_tk.span, "impl auto type '.' prefix" )
 			return nil
-		case .PlusPlus:
-			log_spanned_error( &lead_tk.span, "impl prefix increment" )
-			return nil
-		case .MinusMinus:
-			log_spanned_error( &lead_tk.span, "impl prefix decrement" )
-			return nil
-		case .Star:
+		case .At:
 			log_spanned_error( &lead_tk.span, "impl dereference" )
 			return nil
 		case .Minus:
@@ -765,8 +768,9 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			return node
 	}
 
-	if lead_tk.kind != .Ident {
+	if !is_ident_tk( lead_tk.kind ) {
 		log_spanned_error( &lead_tk.span, "Unexpected token in operand" )
+		return nil
 	}
 
 	tail_tk := next_tk( file_data )

@@ -69,6 +69,7 @@ parse_state_tree := TokenParseStateTree {
 			},
 		},
 		{ '~', .Tilde, {}, },
+		{ '@', .At, {}, },
 		{
 			char    = '&',
 			tk_kind = .Ampersand,
@@ -154,11 +155,6 @@ parse_state_tree := TokenParseStateTree {
 			tk_kind = .Plus,
 			next    = {
 				{
-					char    = '+',
-					tk_kind = .PlusPlus,
-					next    = {},
-				},
-				{
 					char    = '=',
 					tk_kind = .PlusAssign,
 					next    = {},
@@ -169,11 +165,6 @@ parse_state_tree := TokenParseStateTree {
 			char    = '-',
 			tk_kind = .Minus,
 			next    = {
-				{
-					char    = '-',
-					tk_kind = .MinusMinus,
-					next    = {},
-				},
 				{
 					char    = '=',
 					tk_kind = .MinusAssign,
@@ -610,10 +601,8 @@ TokenKind :: enum
 	ColonAssign,
 
 	Plus,
-	PlusPlus,
 	PlusAssign,
 	Minus,
-	MinusMinus,
 	MinusAssign,
 	Star,
 	StarAssign,
@@ -641,6 +630,7 @@ TokenKind :: enum
 	Bang,
 	NotEqual,
 
+	At,
 	Ampersand,
 	DoubleAmpersand,
 	AmpersandAssign,

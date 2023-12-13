@@ -93,6 +93,7 @@ VarDecl :: struct
 {
 	using stmnt:   Stmnt,
 	name:          string,
+	type_hint:     ^Expr,
 	default_value: ^Expr,
 }
 
@@ -288,6 +289,29 @@ ProcCallExpr :: struct
 }
 
 
+PointerTypeExpr :: struct
+{
+	using expr: Expr,
+	is_mut:     bool,
+	base_type:  ^Expr,
+}
+
+
+SliceTypeExpr :: struct
+{
+	using expr: Expr,
+	base_type:  ^Expr,
+}
+
+
+ArrayTypeExpr :: struct
+{
+	using expr: Expr,
+	base_type:  ^Expr,
+	size_expr:  ^Expr,
+}
+
+
 AnyStmnt :: union
 {
 	^StructDecl,
@@ -321,6 +345,9 @@ AnyExpr :: union
 	^BinOpExpr,
 	^ProcCallExpr,
 	^FieldAccessExpr,
+	^PointerTypeExpr,
+	^SliceTypeExpr,
+	^ArrayTypeExpr,
 }
 
 Expr :: struct

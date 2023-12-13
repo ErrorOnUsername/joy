@@ -533,6 +533,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 		case ^BinOpExpr:         return tc_check_bin_op_expr( ctx, e )
 		case ^ProcCallExpr:      return tc_check_proc_call( ctx, e )
 		case ^FieldAccessExpr:   return tc_check_field_access( ctx, e )
+		case ^PointerTypeExpr:   unreachable()
+		case ^ArrayTypeExpr:     unreachable()
+		case ^SliceTypeExpr:     unreachable()
 	}
 
 	return true
@@ -608,52 +611,9 @@ tc_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bool
 
 tc_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> bool
 {
-	i, is_owner_ident := f.owner.derived_expr.(^Ident)
-
-	if !is_owner_ident {
-		log_spanned_error( &f.owner.span, "illegal use of '.' operator" )
-		return false
-	}
-
-	id_ok := tc_check_ident( ctx, i )
-	if !id_ok do return false
-
-	owner_node := i.ref
-
-	#partial switch s in owner_node.derived_stmnt {
-		case ^StructDecl:
-			log_spanned_error( &i.span, "impl static struct access" )
-			return false
-		case ^EnumDecl:
-			var_ident, var_is_ident := f.field.derived_expr.(^Ident)
-			if !var_is_ident || !( var_ident.name in s.vari_lookup ) {
-				log_spanned_error( &f.field.span, "expr does not resolve to an enum variant" )
-				return false
-			}
-
-			variant := s.vari_lookup[var_ident.name]
-			v, is_vari := variant.derived_stmnt.(^EnumVariant)
-			assert( is_vari )
-
-			f.type = v.type
-		case ^UnionDecl:
-			log_spanned_error( &i.span, "impl union access" )
-			return false
-		case ^VarDecl:
-			t := ty_get_base( s.type )
-			lookup_ok := tc_lookup_field( t, f.field )
-			if !lookup_ok do return false
-		case:
-			log_spanned_error( &i.span, "identifer does not reference a variable or type" )
-			return false
-	}
-
-	log_error( "impl check_field_access" )
+	log_error( "impl check_field_access" );
 	return false
 }
-
-
-tc_lookup_field :: proc( t: ^Type,  )
 
 
 lookup_identifier :: proc( ctx: ^CheckerContext, i: ^Ident ) -> ^Stmnt
@@ -674,17 +634,6 @@ lookup_identifier :: proc( ctx: ^CheckerContext, i: ^Ident ) -> ^Stmnt
 lookup_type :: proc( s: ^Scope, t: ^Type ) -> ^Type
 {
 	_ = s
-
-	switch ty in t.derived {
-		case ^EnumType, ^UnionType, ^StructType:
-			// The presence of these means they've already been
-			// looked up, so just return the pointer
-			return t
-		case ^PrimitiveType:
-			// These need no lookup since they exist always, everywhere
-			return t
-	}
-
 	return nil
 }
 
