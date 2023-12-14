@@ -1,5 +1,6 @@
 package main
 
+import "core:container/queue"
 import "core:strings"
 import "core:fmt"
 
@@ -87,11 +88,18 @@ tc_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Packag
 }
 
 
-tc_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
+Checker :: struct
+{
+	types: queue.Queue(^Stmnt),
+	procs: queue.Queue(^ProcDecl),
+}
+
+
+tc_initialize :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) -> bool
 {
 	for pkg in pkgs {
 		for mod in pkg.item.modules {
-			ok := tc_initialize_symbol_tables_for_scope( mod.file_scope )
+			ok := tc_initialize_in_scope( c, mod.file_scope )
 			if !ok do return false
 		}
 	}
@@ -100,7 +108,7 @@ tc_initialize_symbol_tables :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
 }
 
 
-tc_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
+tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 {
 	s.symbols = make( SymbolTable )
 
@@ -156,71 +164,32 @@ tc_initialize_symbol_tables_for_scope :: proc( s: ^Scope ) -> bool
 
 				s.symbols[st.name] = st
 
-				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_in_scope( c, st.body )
 				if !body_ok do return false
 			case ^VarDecl: // igonred until real checking starts...
 			case ^ExprStmnt: // igonred until real checking starts...
 			case ^BlockStmnt:
-				block_ok := tc_initialize_symbol_tables_for_scope( st.scope )
+				block_ok := tc_initialize_in_scope( c, st.scope )
 				if !block_ok do return false
 			case ^ContinueStmnt: // igonred until real checking starts...
 			case ^BreakStmnt: // igonred until real checking starts...
 			case ^IfStmnt:
 				curr_if := st
 				for curr_if != nil {
-					body_ok := tc_initialize_symbol_tables_for_scope( curr_if.then_block )
+					body_ok := tc_initialize_in_scope( c, st.then_block )
 					if !body_ok do return false
 
 					curr_if = curr_if.else_stmnt
 				}
 			case ^ForLoop:
-				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_in_scope( c, st.body )
 				if !body_ok do return false
 			case ^WhileLoop:
-				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_in_scope( c, st.body )
 				if !body_ok do return false
 			case ^InfiniteLoop:
-				body_ok := tc_initialize_symbol_tables_for_scope( st.body )
+				body_ok := tc_initialize_in_scope( c, st.body )
 				if !body_ok do return false
-		}
-	}
-
-	return true
-}
-
-
-tc_collect_proc_signatures :: proc( pkgs: []PriorityItem( ^Package ) ) -> bool
-{
-	for pkg in pkgs {
-		for mod in pkg.item.modules {
-			res := tc_collect_proc_sigs_in_scope( mod.file_scope )
-			if !res do return false
-		}
-	}
-
-	return true
-}
-
-
-tc_collect_proc_sigs_in_scope :: proc( s: ^Scope ) -> bool
-{
-	for stmnt in s.stmnts {
-		#partial switch st in stmnt.derived_stmnt {
-			case ^ProcDecl:
-				for p in st.params {
-					if p.type == nil || p.default_value != nil {
-						log_spanned_error( &p.default_value.span, "impl default arg checking in proc collection" )
-						return false
-					}
-
-					ty := lookup_type( s, p.type )
-					if ty == nil {
-						log_spanned_error( &p.span, "procedure parameter uses unknown type" )
-						return false
-					}
-
-					p.type = ty // This could leak memory... fix that lol
-				}
 		}
 	}
 
@@ -238,26 +207,11 @@ CheckerContext :: struct
 }
 
 
-pump_tc_check_module :: proc( file_id: FileID ) -> PumpResult
+tc_check_all :: proc( c: ^Checker ) -> bool
 {
-	mod_data := fm_get_data( file_id )
-	if mod_data.is_dir {
-		log_errorf( "Tried to check module '{}' but it is actually a package", mod_data.rel_path )
-		return .Error
-	}
-
-	if mod_data.mod == nil {
-		log_errorf( "Tried to typecheck module '{}' that hasn't been parsed yet", mod_data.rel_path )
-		return .Error
-	}
-
-	ctx: CheckerContext
-	ctx.mod = mod_data.mod
-
-	ok := tc_check_scope( &ctx, mod_data.mod.file_scope )
-	if !ok do return .Error
-
-	return .Continue
+	// Check all types first
+	log_error( "impl check_all" )
+	return false
 }
 
 

@@ -40,27 +40,20 @@ main :: proc()
 		return
 	}
 
-	tc_initialize_symbol_tables( packages_to_check )
-	tc_collect_proc_signatures( packages_to_check )
+	c: Checker
 
-	working_prio := 0
-	for prio_pkg in &packages_to_check {
-		if prio_pkg.priority != working_prio {
-			tasks_failed = compiler_finish_work()
-			if tasks_failed > 0 do break
-		}
-
-		for mod in prio_pkg.item.modules {
-			compiler_enqueue_work( .CheckModule, mod.file_id )
-		}
-	}
-
-	tasks_failed = compiler_finish_work()
-	if tasks_failed != 0 {
-		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
+	tc_init_ok := tc_initialize( &c, packages_to_check )
+	if !tc_init_ok {
+		fmt.println( "Typechecking phase failed! Gather phase couldn't complete successfully" )
+		fmt.println( "Compilation failed" )
 		return
 	}
 
+	tc_prog_ok := tc_check_all( &c )
+	if !tc_prog_ok {
+		fmt.println( "Typechecking phase failed!" )
+		return
+	}
 
 	fmt.println( pkg )
 
