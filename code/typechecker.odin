@@ -237,8 +237,20 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 pump_tc_check_decl :: proc( c: ^Checker, def: ^Stmnt ) -> PumpResult
 {
-	log_spanned_error( &def.span, "impl check_decl" )
-	return .Error
+	ok := false
+
+	ctx: CheckerContext
+
+	#partial switch d in def.derived_stmnt {
+		case ^StructDecl: ok = tc_check_struct_decl( &ctx, d )
+		case ^EnumDecl:   ok = tc_check_enum_decl( &ctx, d )
+		case ^UnionDecl:  ok = tc_check_union_decl( &ctx, d )
+		case ^ProcDecl:   ok = tc_check_proc_decl( &ctx, d )
+		case:
+			log_spanned_error( &def.span, "unexpected stmnt in pump_tc_check_decl" )
+	}
+
+	return .Continue if ok else .Error
 }
 
 
@@ -287,138 +299,57 @@ tc_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 
 tc_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
 {
-	for mem in d.members {
-		if mem.default_value != nil {
-			log_spanned_error( &mem.span, "impl checking structs with default values" )
-			return false
-		}
-
-		ty := lookup_type( ctx.curr_scope, mem.type )
-		if ty == nil {
-			log_spanned_error( &mem.span, "struct member uses unknown type" )
-			return false
-		}
-
-		mem.type = ty
-	}
-
-	return true
+	log_spanned_error( &d.span, "impl check_struct_decl" )
+	return false
 }
 
 
 tc_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 {
-	if d.type == nil {
-		d.type = ty_builtin_usize
-	}
-
-	is_int_ty := ty_is_int( d.type )
-	if !is_int_ty {
-		log_spanned_error( &d.span, "enum base type must be an integer" )
-	}
-
-	vari_count := len( d.variants )
-	does_var_count_fit := ty_does_int_fit_in_type( d.type.derived.(^PrimitiveType), vari_count )
-	if !does_var_count_fit {
-		log_spanned_error( &d.span, "enum variants don't fit in base type" )
-		return false
-	}
-
-	return true
+	log_spanned_error( &d.span, "impl check_enum_decl" )
+	return false
 }
 
 
 tc_check_enum_variant :: proc( ctx: ^CheckerContext, v: ^EnumVariant ) -> bool
 {
-	v.type = v.owning_enum.type
-	return true
+	log_spanned_error( &v.span, "impl check_enum_variant" )
+	return false
 }
 
 
 tc_check_union_decl :: proc( ctx: ^CheckerContext, d: ^UnionDecl ) -> bool
 {
-	log_error( "impl check_union_decl" )
+	log_spanned_error( &d.span, "impl check_union_decl" )
 	return false
 }
 
 
 tc_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 {
-	prev_proc := ctx.curr_proc
-	defer ctx.curr_proc = prev_proc
-
-	ctx.curr_proc = d
-
-	for p in d.params {
-		if p.name in d.body.symbols {
-			log_spanned_errorf( &p.span, "procedure has duplicate definitions of parameter: '{}'", p.name );
-			return false
-		}
-
-		d.body.symbols[p.name] = p
-	}
-
-	if d.body != nil {
-		body_ok := tc_check_scope( ctx, d.body )
-		if !body_ok do return false
-	}
-
-	return true
+	log_spanned_error( &d.span, "impl check_proc_decl" )
+	return false
 }
 
 
 tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 {
-	sc := ctx.curr_scope
-	if d.name in sc.symbols {
-		log_spanned_errorf( &d.span, "redefinition of identifier '{}'", d.name )
-		return false
-	}
-
-	if d.type != nil {
-		ty := lookup_type( sc, d.type )
-		if ty == nil {
-			log_spanned_error( &d.span, "varable declared with unknown type" )
-			return false
-		}
-
-		d.type = ty
-	}
-
-	if d.default_value != nil {
-		val_ok := tc_check_expr( ctx, d.default_value )
-		if !val_ok do return false
-
-		if d.type == nil {
-			if d.default_value.type == ty_builtin_untyped_string {
-				d.type = ty_builtin_string
-			} else if d.default_value.type == ty_builtin_untyped_int {
-				d.type = ty_builtin_isize // TODO: verify int fits in isize
-			} else {
-				d.type = d.default_value.type
-			}
-		} else if !ty_are_eq( d.type, d.default_value.type ) {
-			log_spanned_error( &d.span, "mismatched types! expression's type doesn't match declaration's type" )
-			return false
-		}
-	}
-
-	sc.symbols[d.name] = d
-	return true
+	log_spanned_error( &d.span, "impl check_var_decl" )
+	return false
 }
 
 
 tc_check_expr_stmnt :: proc( ctx: ^CheckerContext, s: ^ExprStmnt ) -> bool
 {
-	expr_ok := tc_check_expr( ctx, s.expr )
-	return expr_ok
+	log_spanned_error( &s.span, "impl check_expr_stmnt" )
+	return false
 }
 
 
 tc_check_block_stmnt :: proc( ctx: ^CheckerContext, s: ^BlockStmnt ) -> bool
 {
-	block_ok := tc_check_scope( ctx, s.scope )
-	return block_ok
+	log_spanned_error( &s.span, "impl check_block_stmnt" )
+	return false
 }
 
 
@@ -436,81 +367,29 @@ tc_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
 
 tc_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 {
-	cond_ok := tc_check_expr( ctx, s.cond )
-	if !cond_ok do return false
-
-	if s.cond.type != ty_builtin_bool {
-		log_spanned_error( &s.cond.span, "condition expression does not evaluate to 'bool'" )
-		return false
-	}
-
-	then_block_ok := tc_check_scope( ctx, s.then_block )
-	if !then_block_ok do return false
-
-	if s.else_stmnt != nil {
-		else_chain_ok := tc_check_if_stmnt( ctx, s.else_stmnt )
-		if !else_chain_ok do return false
-	}
-
+	log_spanned_error( &s.span, "impl check_if_stmnt" )
 	return false
 }
 
 
 tc_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
 {
-	prev_loop := ctx.curr_loop
-	defer ctx.curr_loop = prev_loop
-
-	ctx.curr_loop = l
-
-	range_expr_ok := tc_check_expr( ctx, l.range )
-	if !range_expr_ok do return false
-
-	if l.range.type != ty_builtin_range {
-		log_spanned_error( &l.range.span, "range expression of for loop does not resolve to type 'range'" )
-		return false
-	}
-
-	body_ok := tc_check_scope( ctx, l.body )
-	if !body_ok do return false
-
-	return true
+	log_spanned_error( &l.span, "impl check_for_loop" )
+	return false
 }
 
 
 tc_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 {
-	prev_loop := ctx.curr_loop
-	defer ctx.curr_loop = prev_loop
-
-	ctx.curr_loop = l
-
-	cond_ok := tc_check_expr( ctx, l.cond )
-	if !cond_ok do return false
-
-	if l.cond.type != ty_builtin_bool {
-		log_spanned_error( &l.cond.span, "condition expression does not evaluate to 'bool'" )
-		return false
-	}
-
-	body_ok := tc_check_scope( ctx, l.body )
-	if !body_ok do return false
-
-	return true
+	log_spanned_error( &l.span, "impl check_while_loop" )
+	return false
 }
 
 
 tc_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 {
-	prev_loop := ctx.curr_loop
-	defer ctx.curr_loop = prev_loop
-
-	ctx.curr_loop = l
-
-	body_ok := tc_check_scope( ctx, l.body )
-	if !body_ok do return false
-
-	return true
+	log_spanned_error( &l.span, "impl check_inf_loop" )
+	return false
 }
 
 
@@ -535,16 +414,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 
 tc_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
 {
-	n := lookup_identifier( ctx, i )
-	if n == nil {
-		log_spanned_error( &i.span, "use of undeclared identifier" )
-		return false
-	}
-
-	i.type = n.type
-	i.ref = n
-
-	return true
+	log_spanned_error( &i.span, "impl check_ident" )
+	return false
 }
 
 
@@ -564,25 +435,8 @@ tc_check_number_lit :: proc( ctx: ^CheckerContext, n: ^NumberLiteralExpr ) -> bo
 
 tc_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 {
-	left_ok := tc_check_expr( ctx, r.lhs )
-	if !left_ok do return false
-
-	if r.lhs.type != ty_builtin_isize {
-		log_spanned_error( &r.lhs.span, "range start expression does not evaluate to 'isize'" )
-		return false
-	}
-
-	right_ok := tc_check_expr( ctx, r.rhs )
-	if !right_ok do return false
-
-	if r.rhs.type != ty_builtin_isize {
-		log_spanned_error( &r.rhs.span, "range end expression does not evaluate to 'isize'" )
-		return false
-	}
-
-	r.type = ty_builtin_range
-
-	return true
+	log_spanned_error( &r.span, "impl check_range_expr" )
+	return false
 }
 
 
@@ -607,24 +461,17 @@ tc_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> bo
 }
 
 
-lookup_identifier :: proc( ctx: ^CheckerContext, i: ^Ident ) -> ^Stmnt
+lookup_identifier :: proc( ctx: ^CheckerContext, ident: string ) -> ^Stmnt
 {
 	s := ctx.curr_scope
 	for s != nil {
-		if i.name in s.symbols {
-			return s.symbols[i.name]
+		if ident in s.symbols {
+			return s.symbols[ident]
 		}
 
 		s = s.parent
 	}
 
-	return nil
-}
-
-
-lookup_type :: proc( s: ^Scope, t: ^Type ) -> ^Type
-{
-	_ = s
 	return nil
 }
 
