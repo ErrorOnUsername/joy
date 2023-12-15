@@ -1,6 +1,6 @@
 package main
 
-import "core:container/queue"
+import "core:sync"
 import "core:strings"
 import "core:fmt"
 
@@ -90,21 +90,51 @@ tc_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Packag
 
 Checker :: struct
 {
-	types: queue.Queue(^Stmnt),
-	procs: queue.Queue(^ProcDecl),
+	type_def_mtx: sync.Mutex,
+	type_defs:   [dynamic]^Stmnt,
+	proc_def_mtx: sync.Mutex,
+	proc_defs: [dynamic]^ProcDecl,
 }
 
 
-tc_initialize :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) -> bool
+tc_initialize :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) -> int
 {
 	for pkg in pkgs {
 		for mod in pkg.item.modules {
-			ok := tc_initialize_in_scope( c, mod.file_scope )
-			if !ok do return false
+			compiler_enqueue_work( .CollectModuleDecls, mod.file_id, c )
 		}
 	}
 
-	return true
+	failed_tasks := compiler_finish_work()
+	return failed_tasks
+}
+
+
+tc_add_type_def :: proc( c: ^Checker, def: ^Stmnt )
+{
+	sync.mutex_lock( &c.type_def_mtx )
+	defer sync.mutex_unlock( &c.type_def_mtx )
+
+	append( &c.type_defs, def )
+}
+
+
+tc_add_proc_def :: proc( c: ^Checker, def: ^ProcDecl )
+{
+	sync.mutex_lock( &c.proc_def_mtx )
+	defer sync.mutex_unlock( &c.proc_def_mtx )
+
+	append( &c.proc_defs, def )
+}
+
+
+pump_tc_collect_module :: proc( file_id: FileID, c: ^Checker ) -> PumpResult
+{
+	data := fm_get_data( file_id )
+	ok := tc_initialize_in_scope( c, data.mod.file_scope )
+	if !ok do return .Error
+
+	return .Continue
 }
 
 
@@ -131,6 +161,8 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 					st.memb_lookup[m.name] = m
 				}
+
+				tc_add_type_def( c, st )
 			case ^EnumVariant:
 			case ^EnumDecl:
 				if st.name in s.symbols {
@@ -149,6 +181,8 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 					st.vari_lookup[v.name] = v
 				}
+
+				tc_add_type_def( c, st )
 			case ^UnionDecl:
 				if st.name in s.symbols {
 					log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -156,6 +190,8 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 				}
 
 				s.symbols[st.name] = st
+
+				tc_add_type_def( c, st )
 			case ^ProcDecl:
 				if st.name in s.symbols {
 					log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -166,6 +202,8 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 				body_ok := tc_initialize_in_scope( c, st.body )
 				if !body_ok do return false
+
+				tc_add_proc_def( c, st )
 			case ^VarDecl: // igonred until real checking starts...
 			case ^ExprStmnt: // igonred until real checking starts...
 			case ^BlockStmnt:
@@ -197,6 +235,13 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 }
 
 
+pump_tc_check_decl :: proc( c: ^Checker, def: ^Stmnt ) -> PumpResult
+{
+	log_spanned_error( &def.span, "impl check_decl" )
+	return .Error
+}
+
+
 CheckerContext :: struct
 {
 	mod: ^Module,
@@ -204,14 +249,6 @@ CheckerContext :: struct
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
 	type_hint: ^Type,
-}
-
-
-tc_check_all :: proc( c: ^Checker ) -> bool
-{
-	// Check all types first
-	log_error( "impl check_all" )
-	return false
 }
 
 

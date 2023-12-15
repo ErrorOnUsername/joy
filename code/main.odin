@@ -42,16 +42,17 @@ main :: proc()
 
 	c: Checker
 
-	tc_init_ok := tc_initialize( &c, packages_to_check )
-	if !tc_init_ok {
-		fmt.println( "Typechecking phase failed! Gather phase couldn't complete successfully" )
+	tasks_failed = tc_initialize( &c, packages_to_check )
+	if tasks_failed != 0 {
+		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
 		fmt.println( "Compilation failed" )
 		return
 	}
 
-	tc_prog_ok := tc_check_all( &c )
-	if !tc_prog_ok {
-		fmt.println( "Typechecking phase failed!" )
+	tasks_failed = compiler_check_all( &c )
+	if tasks_failed != 0 {
+		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
+		fmt.println( "Compilation failed" )
 		return
 	}
 

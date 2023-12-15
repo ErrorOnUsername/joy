@@ -11,6 +11,8 @@ PumpAction :: enum
 {
 	ParsePackage,
 	ParseFile,
+	CollectModuleDecls,
+	CheckDecl,
 }
 
 PumpResult :: enum
@@ -24,6 +26,8 @@ WorkerData :: struct
 	action:  PumpAction,
 	file_id: FileID,
 	result:  PumpResult,
+	checker: ^Checker,
+	def:     ^Stmnt,
 }
 
 PriorityItem :: struct( T: typeid )
@@ -79,13 +83,44 @@ compiler_finish_work :: proc() -> int
 	return failed_task_count
 }
 
-compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID )
+compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID, c: ^Checker = nil )
 {
 	data_ptr := new( WorkerData, job_data_allocator )
 	data_ptr.action  = action
 	data_ptr.file_id = file_id
+	data_ptr.checker = c
 
 	thread.pool_add_task( &job_pool, context.allocator, threading_proc, data_ptr )
+}
+
+
+compiler_check_all :: proc( c: ^Checker ) -> int
+{
+	for ty_def in &c.type_defs {
+		data_ptr := new( WorkerData, job_data_allocator )
+		data_ptr.action  = .CheckDecl
+		data_ptr.checker = c
+		data_ptr.def     = ty_def
+
+		thread.pool_add_task( &job_pool, context.allocator, threading_proc, data_ptr )
+	}
+
+	tasks_failed := compiler_finish_work()
+	if tasks_failed != 0 do return tasks_failed
+
+	for proc_def in &c.proc_defs {
+		data_ptr := new( WorkerData, job_data_allocator )
+		data_ptr.action  = .CheckDecl
+		data_ptr.checker = c
+		data_ptr.def     = proc_def
+
+		thread.pool_add_task( &job_pool, context.allocator, threading_proc, data_ptr )
+	}
+
+	tasks_failed = compiler_finish_work()
+	if tasks_failed != 0 do return tasks_failed
+
+	return tasks_failed
 }
 
 
@@ -99,21 +134,25 @@ threading_proc :: proc( task: thread.Task )
 	}
 
 	task_data := cast(^WorkerData)task.data
-	task_data.result = compiler_pump( task_data.action, task_data.file_id )
+	task_data.result = compiler_pump( task_data )
 
 	if task_data.result == .Error {
 		intrinsics.atomic_add( &failed_task_count, 1 )
 	}
 }
 
-compiler_pump :: proc( action: PumpAction, file_id: FileID ) -> PumpResult
+compiler_pump :: proc( wd: ^WorkerData ) -> PumpResult
 {
-	switch action
+	switch wd.action
 	{
 		case .ParsePackage:
-			return pump_parse_package( file_id )
+			return pump_parse_package( wd.file_id )
 		case .ParseFile:
-			return pump_parse_file( file_id )
+			return pump_parse_file( wd.file_id )
+		case .CollectModuleDecls:
+			return pump_tc_collect_module( wd.file_id, wd.checker )
+		case .CheckDecl:
+			return pump_tc_check_decl( wd.checker, wd.def )
 	}
 
 	return .Continue

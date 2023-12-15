@@ -2,30 +2,45 @@ package main
 
 import "core:fmt"
 import "core:strings"
+import "core:sync"
 
-//
-// FIXME: This need a mutex to protect it...
-//
+log_mutex: sync.Mutex
 
 
 log_spanned_error :: proc( span: ^Span, msg: string )
 {
+	sync.mutex_lock( &log_mutex )
+	defer sync.mutex_unlock( &log_mutex )
+
+	log_error_internal( msg )
 	print_span( span )
-	log_error( msg )
 }
 
 log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
 {
+	sync.mutex_lock( &log_mutex )
+	defer sync.mutex_unlock( &log_mutex )
+
+	log_errorf_internal( msg, args )
 	print_span( span )
-	log_errorf( msg, args )
 }
 
-log_error :: proc( msg: string )
+log_error_internal :: proc( msg: string )
 {
 	fmt.eprintf( "Error: {}\n", msg )
 }
 
-log_errorf :: proc( msg: string, args: ..any )
+
+log_error :: proc( msg: string )
+{
+	sync.mutex_lock( &log_mutex )
+	defer sync.mutex_unlock( &log_mutex )
+
+	log_error_internal( msg )
+}
+
+
+log_errorf_internal :: proc( msg: string, args: ..any )
 {
 	sb: strings.Builder
 
@@ -34,18 +49,47 @@ log_errorf :: proc( msg: string, args: ..any )
 }
 
 
-log_warning :: proc( msg: string )
+log_errorf :: proc( msg: string, args: ..any )
+{
+	sync.mutex_lock( &log_mutex )
+	defer sync.mutex_unlock( &log_mutex )
+
+	log_errorf_internal( msg, args )
+}
+
+
+log_warning_internal :: proc( msg: string )
 {
 	fmt.eprintf( "Warning: {}\n", msg )
 }
 
-log_warningf :: proc( msg: string, args: ..any )
+
+log_warning :: proc( msg: string )
+{
+	sync.mutex_lock( &log_mutex )
+	defer sync.mutex_unlock( &log_mutex )
+
+	log_warning_internal( msg )
+}
+
+
+log_warningf_internal :: proc( msg: string, args: ..any )
 {
 	sb: strings.Builder
 
 	fmt.sbprintf( &sb, msg, args )
 	fmt.eprintf( "Warning: {}\n", strings.to_string( sb ) )
 }
+
+
+log_warningf :: proc( msg: string, args: ..any )
+{
+	sync.mutex_lock( &log_mutex )
+	defer sync.mutex_unlock( &log_mutex )
+
+	log_warningf_internal( msg, args )
+}
+
 
 print_span :: proc( span: ^Span )
 {
