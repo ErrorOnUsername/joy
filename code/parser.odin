@@ -145,7 +145,6 @@ parse_struct_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^StructDec
 	for members_ok && member != nil {
 		append( &decl.members, member )
 
-
 		semicolon_tk := next_tk( file_data )
 		if semicolon_tk.kind == .RCurly {
 			file_data.tk_idx -= 1
@@ -199,7 +198,8 @@ parse_enum_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^EnumDecl
 		}
 
 		variant := new_node( EnumVariant, variant_tk.span )
-		variant.name = variant_tk.str
+		variant.name        = variant_tk.str
+		variant.owning_enum = decl
 
 		variant_tk = next_tk( file_data )
 		if variant_tk.kind != .Semicolon {

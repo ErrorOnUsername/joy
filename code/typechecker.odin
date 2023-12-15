@@ -297,24 +297,60 @@ tc_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 }
 
 
+tc_check_type :: proc( ctx: ^CheckerContext, t_expr: ^Expr ) -> bool
+{
+	log_spanned_error( &t_expr.span, "impl check_type" )
+	return false
+}
+
+
 tc_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
 {
-	log_spanned_error( &d.span, "impl check_struct_decl" )
-	return false
+	for member in d.members {
+		if member.type_hint == nil {
+			log_spanned_error( &member.span, "struct members must specify a type" )
+			return false
+		}
+
+		if member.default_value != nil {
+			log_spanned_error( &member.default_value.span, "struct default values are not supported" )
+			return false
+		}
+
+		hint_ok := tc_check_type( ctx, member.type_hint )
+		if !hint_ok do return false
+
+		member.type = member.type_hint.type
+	}
+
+	return true
 }
 
 
 tc_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 {
-	log_spanned_error( &d.span, "impl check_enum_decl" )
-	return false
+	if d.type_hint == nil {
+		d.underlying = ty_builtin_usize
+	} else {
+		ty_ok := tc_check_type( ctx, d.type_hint )
+		if !ty_ok do return false
+
+		d.underlying = d.type_hint.type
+	}
+
+	for var in d.variants {
+		vari_ok := tc_check_enum_variant( ctx, var )
+		if !vari_ok do return false
+	}
+
+	return true
 }
 
 
 tc_check_enum_variant :: proc( ctx: ^CheckerContext, v: ^EnumVariant ) -> bool
 {
-	log_spanned_error( &v.span, "impl check_enum_variant" )
-	return false
+	v.type = v.owning_enum.underlying
+	return true
 }
 
 

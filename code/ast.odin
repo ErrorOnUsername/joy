@@ -63,6 +63,8 @@ EnumDecl :: struct
 {
 	using stmnt: Stmnt,
 	name:        string,
+	underlying:  ^Type,
+	type_hint:   ^Expr,
 	vari_lookup: SymbolTable,
 	variants:    [dynamic]^EnumVariant,
 }
