@@ -4,7 +4,7 @@ A language made for fun and to learn more about compilers
 
 
 ### Syntax
-(this is speculative and much isn't implemented)
+(this is speculative and `use` isn't implemented yet)
 
 ```
 use joy.io;
