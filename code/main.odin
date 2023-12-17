@@ -23,40 +23,40 @@ main :: proc()
 		return
 	}
 
-	compiler_enqueue_work( .ParsePackage, id )
+	tasks_failed := exec_phases( id )
 
-	tasks_failed := compiler_finish_work()
 	if tasks_failed != 0 {
-		fmt.printf( "Parsing phase failed! ({} task(s) reported errors)\n", tasks_failed )
-		fmt.println( "Compilation failed" )
-		return
+		fmt.printf( "Compilation Failed! ({} tasks reported errors)\n", tasks_failed )
+		os.exit( 1 )
 	}
 
-	root_package_data := fm_get_data( id )
+	fmt.println( "Compilation Successful" )
+}
+
+
+exec_phases :: proc( root_id: FileID ) -> int
+{
+	compiler_enqueue_work( .ParsePackage, root_id )
+
+	tasks_failed := compiler_finish_work()
+	if tasks_failed != 0 do return tasks_failed
+
+	root_package_data := fm_get_data( root_id )
 	pkg := root_package_data.pkg
 
 	packages_to_check, pkgs_ok := tc_build_package_list( pkg )
 	if !pkgs_ok {
-		return
+		return 1
 	}
 
 	c: Checker
 
-	tasks_failed = tc_initialize( &c, packages_to_check )
-	if tasks_failed != 0 {
-		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
-		fmt.println( "Compilation failed" )
-		return
-	}
+	tasks_failed = tc_initialize_scopes( &c, packages_to_check )
+	if tasks_failed != 0 do return tasks_failed
 
-	tasks_failed = compiler_check_all( &c )
-	if tasks_failed != 0 {
-		fmt.printf( "Typechecking phase failed! ({} task(s) reported errors)\n", tasks_failed )
-		fmt.println( "Compilation failed" )
-		return
-	}
+	tasks_failed = tc_check_package_dag( &c, packages_to_check )
+	if tasks_failed != 0 do return tasks_failed
 
-	fmt.println( pkg )
-
-	fmt.println( "Compilation successful" )
+	return 0
 }
+

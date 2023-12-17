@@ -97,11 +97,11 @@ Checker :: struct
 }
 
 
-tc_initialize :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) -> int
+tc_initialize_scopes :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) -> int
 {
 	for pkg in pkgs {
 		for mod in pkg.item.modules {
-			compiler_enqueue_work( .CollectModuleDecls, mod.file_id, c )
+			compiler_enqueue_work( .InitializeScopes, mod.file_id, c )
 		}
 	}
 
@@ -110,25 +110,7 @@ tc_initialize :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) -> int
 }
 
 
-tc_add_type_def :: proc( c: ^Checker, def: ^Stmnt )
-{
-	sync.mutex_lock( &c.type_def_mtx )
-	defer sync.mutex_unlock( &c.type_def_mtx )
-
-	append( &c.type_defs, def )
-}
-
-
-tc_add_proc_def :: proc( c: ^Checker, def: ^ProcDecl )
-{
-	sync.mutex_lock( &c.proc_def_mtx )
-	defer sync.mutex_unlock( &c.proc_def_mtx )
-
-	append( &c.proc_defs, def )
-}
-
-
-pump_tc_collect_module :: proc( file_id: FileID, c: ^Checker ) -> PumpResult
+pump_tc_init_scopes :: proc( file_id: FileID, c: ^Checker ) -> PumpResult
 {
 	data := fm_get_data( file_id )
 	ok := tc_initialize_in_scope( c, data.mod.file_scope )
@@ -161,8 +143,6 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 					st.memb_lookup[m.name] = m
 				}
-
-				tc_add_type_def( c, st )
 			case ^EnumVariant:
 			case ^EnumDecl:
 				if st.name in s.symbols {
@@ -181,8 +161,6 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 					st.vari_lookup[v.name] = v
 				}
-
-				tc_add_type_def( c, st )
 			case ^UnionDecl:
 				if st.name in s.symbols {
 					log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -190,8 +168,6 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 				}
 
 				s.symbols[st.name] = st
-
-				tc_add_type_def( c, st )
 			case ^ProcDecl:
 				if st.name in s.symbols {
 					log_spanned_errorf( &st.span, "Redefinition of identifier '{}'", st.name )
@@ -202,8 +178,6 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 				body_ok := tc_initialize_in_scope( c, st.body )
 				if !body_ok do return false
-
-				tc_add_proc_def( c, st )
 			case ^VarDecl: // igonred until real checking starts...
 			case ^ExprStmnt: // igonred until real checking starts...
 			case ^BlockStmnt:
@@ -235,22 +209,29 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 }
 
 
-pump_tc_check_decl :: proc( c: ^Checker, def: ^Stmnt ) -> PumpResult
+tc_check_package_dag :: proc( c: ^Checker, pkgs: []PriorityItem(^Package) ) -> int
 {
-	ok := false
+	tasks_failed := 0
+	curr_prio := 0
 
-	ctx: CheckerContext
+	for pkg in pkgs {
+		if pkg.priority != curr_prio {
+			tasks_failed = compiler_finish_work()
+		}
+		if tasks_failed != 0 do break
 
-	#partial switch d in def.derived_stmnt {
-		case ^StructDecl: ok = tc_check_struct_decl( &ctx, d )
-		case ^EnumDecl:   ok = tc_check_enum_decl( &ctx, d )
-		case ^UnionDecl:  ok = tc_check_union_decl( &ctx, d )
-		case ^ProcDecl:   ok = tc_check_proc_decl( &ctx, d )
-		case:
-			log_spanned_error( &def.span, "unexpected stmnt in pump_tc_check_decl" )
+		compiler_enqueue_work( .CheckPackage, 0, c, pkg.item )
 	}
+	tasks_failed = compiler_finish_work()
 
-	return .Continue if ok else .Error
+	return tasks_failed
+}
+
+
+pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
+{
+	log_error( "impl check_pkg" )
+	return .Error
 }
 
 

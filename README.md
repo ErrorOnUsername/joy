@@ -4,14 +4,14 @@ A language made for fun and to learn more about compilers
 
 
 ### Syntax
-(this is speculative and `use` isn't implemented yet)
+(this is speculative and `#import` isn't implemented yet)
 
 ```
-use joy.io;
+decl IO := #import "core:io"
 
 decl main : ()
 {
-    io.println( "Hello, World!" );
+    IO.println( "Hello, World!" );
 }
 ```
 

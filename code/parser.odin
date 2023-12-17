@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:mem"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 
 
@@ -36,6 +37,9 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
 	f_infos, errno := os.read_dir( handle, -1 )
 
 	for f_info in f_infos {
+		ext := filepath.ext( f_info.fullpath )
+		if !f_info.is_dir && ext != ".joy" do continue
+
 		sub_file_id, open_ok := fm_open( f_info.fullpath )
 		sub_file_data        := fm_get_data( sub_file_id )
 
@@ -224,8 +228,7 @@ parse_union_decl :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^UnionDecl
 parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token, scope: ^Scope ) -> ^ProcDecl
 {
 	decl := new_node( ProcDecl, name_tk.span )
-	decl.name    = name_tk.str
-	decl.linkage = .Internal
+	decl.name = name_tk.str
 
 	param, params_ok := parse_var_decl( file_data )
 	found_r_paren := false

@@ -4,14 +4,6 @@ import "core:intrinsics"
 import "core:mem"
 
 
-PlatformFlags :: bit_set[Platform]
-Platform :: enum
-{
-	Windows,
-	Darwin,
-	Linux,
-}
-
 Package :: struct
 {
 	name: string,
@@ -21,10 +13,9 @@ Package :: struct
 
 Module :: struct
 {
-	file_id:        FileID,
-	owning_pkg:     ^Package,
-	platform_flags: PlatformFlags,
-	file_scope:     ^Scope,
+	file_id:    FileID,
+	owning_pkg: ^Package,
+	file_scope: ^Scope,
 }
 
 
@@ -75,20 +66,12 @@ UnionDecl :: struct
 	name:        string,
 }
 
-ProcLinkage :: enum
-{
-	Internal,
-	Foreign,
-}
-
 ProcDecl :: struct
 {
-	using stmnt:      Stmnt,
-	name:             string,
-	linkage:          ProcLinkage,
-	foreign_lib_name: ^Ident,
-	params:           [dynamic]^VarDecl,
-	body:             ^Scope,
+	using stmnt: Stmnt,
+	name:        string,
+	params:      [dynamic]^VarDecl,
+	body:        ^Scope,
 }
 
 VarDecl :: struct
