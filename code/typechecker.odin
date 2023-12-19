@@ -233,10 +233,15 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 	// Single-threadedly check top level declarations of the
 	// package and queue up procedure bodies to be checked
 	// in parallel
-	ok := false
+	ok := true
+
+	ctx: CheckerContext
 
 	for mod in &pkg.modules {
 		if !ok do break
+
+		ctx.mod        = mod
+		ctx.curr_scope = mod.file_scope
 
 		for stmnt in mod.file_scope.stmnts {
 			if !ok do break
@@ -244,10 +249,8 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 			if stmnt.check_state == .Resolved do continue
 
 			#partial switch st in stmnt.derived_stmnt {
-				case ^StructDecl:
-				case ^EnumDecl:
-				case ^UnionDecl:
-				case ^ProcDecl:
+				case ^StructDecl, ^EnumDecl, ^UnionDecl, ^ProcDecl:
+					ok = tc_check_type_decl( &ctx, stmnt )
 				case:
 					log_spanned_error( &stmnt.span, "Unexpected top-level declaration" )
 					ok = false
@@ -255,8 +258,7 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 		}
 	}
 
-	log_error( "impl check_pkg" )
-	return .Error
+	return .Continue if ok else .Error
 }
 
 
@@ -280,11 +282,11 @@ tc_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 	for stmnt in sc.stmnts {
 		ok := true
 		switch st in stmnt.derived_stmnt {
-			case ^StructDecl:    ok = tc_check_struct_decl( ctx, st )
-			case ^EnumDecl:      ok = tc_check_enum_decl( ctx, st )
-			case ^EnumVariant:   ok = tc_check_enum_variant( ctx, st )
-			case ^UnionDecl:     ok = tc_check_union_decl( ctx, st )
-			case ^ProcDecl:      ok = tc_check_proc_decl( ctx, st )
+			case ^StructDecl, ^EnumDecl, ^UnionDecl, ^ProcDecl:
+				ok = tc_check_type_decl( ctx, stmnt )
+			case ^EnumVariant:
+				log_spanned_error( &st.span, "got scope-level enum variant somehow?" )
+				ok = false
 			case ^VarDecl:       ok = tc_check_var_decl( ctx, st )
 			case ^ExprStmnt:     ok = tc_check_expr_stmnt( ctx, st )
 			case ^BlockStmnt:    ok = tc_check_block_stmnt( ctx, st )
@@ -303,6 +305,21 @@ tc_check_scope :: proc( ctx: ^CheckerContext, sc: ^Scope ) -> bool
 }
 
 
+tc_check_type_decl :: proc( ctx: ^CheckerContext, s: ^Stmnt ) -> bool
+{
+	#partial switch d in s.derived_stmnt {
+		case ^StructDecl: return tc_check_struct_decl( ctx, d )
+		case ^EnumDecl:   return tc_check_enum_decl( ctx, d )
+		case ^UnionDecl:  return tc_check_union_decl( ctx, d )
+		case ^ProcDecl:   return tc_check_proc_decl( ctx, d )
+		case:
+			log_spanned_error( &s.span, "Got unexpected type declaration" )
+	}
+
+	return false
+}
+
+
 tc_check_type :: proc( ctx: ^CheckerContext, t_expr: ^Expr ) -> bool
 {
 	log_spanned_error( &t_expr.span, "impl check_type" )
@@ -312,14 +329,19 @@ tc_check_type :: proc( ctx: ^CheckerContext, t_expr: ^Expr ) -> bool
 
 tc_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
 {
+	if d.check_state == .Resolved do return true
+
+	final_ty := new_type( StructType, ctx.mod )
+	final_ty.decl = d
+
 	for member in d.members {
-		if member.type_hint == nil {
-			log_spanned_error( &member.span, "struct members must specify a type" )
+		if member.default_value != nil {
+			log_spanned_error( &member.default_value.span, "struct default values are not supported" )
 			return false
 		}
 
-		if member.default_value != nil {
-			log_spanned_error( &member.default_value.span, "struct default values are not supported" )
+		if member.type_hint == nil {
+			log_spanned_error( &member.span, "struct members must specify a type" )
 			return false
 		}
 
@@ -329,17 +351,30 @@ tc_check_struct_decl :: proc( ctx: ^CheckerContext, d: ^StructDecl ) -> bool
 		member.type = member.type_hint.type
 	}
 
+	d.type        = final_ty
+	d.check_state = .Resolved
+
 	return true
 }
 
 
 tc_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 {
+	if d.check_state == .Resolved do return true
+
+	final_ty := new_type( EnumType, ctx.mod )
+	final_ty.decl = d
+
 	if d.type_hint == nil {
 		d.underlying = ty_builtin_usize
 	} else {
 		ty_ok := tc_check_type( ctx, d.type_hint )
 		if !ty_ok do return false
+
+		if !ty_is_int( d.type_hint.type ) {
+			log_spanned_error( &d.type_hint.span, "enum underlying type must be an integer" )
+			return false
+		}
 
 		d.underlying = d.type_hint.type
 	}
@@ -348,6 +383,9 @@ tc_check_enum_decl :: proc( ctx: ^CheckerContext, d: ^EnumDecl ) -> bool
 		vari_ok := tc_check_enum_variant( ctx, var )
 		if !vari_ok do return false
 	}
+
+	d.type        = final_ty
+	d.check_state = .Resolved
 
 	return true
 }
@@ -369,15 +407,101 @@ tc_check_union_decl :: proc( ctx: ^CheckerContext, d: ^UnionDecl ) -> bool
 
 tc_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 {
-	log_spanned_error( &d.span, "impl check_proc_decl" )
-	return false
+	if d.check_state == .Resolved do return true
+
+	final_ty := new_type( ProcType, ctx.mod )
+	final_ty.decl = d
+
+	for param in d.params {
+		if param.name in d.body.symbols {
+			log_spanned_error( &param.span, "duplicate declaration of parameter" )
+			return false
+		}
+
+		suggested_type: ^Type
+		val_type: ^Type
+
+		if param.type_hint != nil {
+			hint_ok := tc_check_type( ctx, param.type_hint )
+			if !hint_ok do return false
+
+			suggested_type = param.type_hint.type
+		}
+
+		if param.default_value != nil {
+			val_ok := tc_check_expr( ctx, param.default_value )
+			if !val_ok do return false
+
+			val_type = param.default_value.type
+		}
+
+		if suggested_type != nil && val_type != nil {
+			if !ty_are_eq( suggested_type, val_type ) {
+				log_spanned_error( &param.span, "mismatched types" ) // TODO: Make a better error for this
+				return false
+			}
+
+			param.type = suggested_type
+		} else {
+			assert( suggested_type != nil || val_type != nil )
+
+			param.type = suggested_type if suggested_type != nil else val_type
+		}
+	}
+
+	d.type        = final_ty
+	d.check_state = .Resolved
+
+	return true
 }
 
 
 tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 {
-	log_spanned_error( &d.span, "impl check_var_decl" )
-	return false
+	if d.check_state == .Resolved do return true
+
+	sc := ctx.curr_scope
+
+	if d.name in sc.symbols {
+		log_spanned_error( &d.span, "duplicate declaration of identifier" )
+		return false
+	}
+
+	sc.symbols[d.name] = d
+
+	suggested_type: ^Type
+	val_type: ^Type
+
+	if d.type_hint != nil {
+		hint_ok := tc_check_type( ctx, d.type_hint )
+		if !hint_ok do return false
+
+		suggested_type = d.type_hint.type
+	}
+
+	if d.default_value != nil {
+		val_ok := tc_check_expr( ctx, d.default_value )
+		if !val_ok do return false
+
+		val_type = d.default_value.type
+	}
+
+	if suggested_type != nil && val_type != nil {
+		if !ty_are_eq( suggested_type, val_type ) {
+			log_spanned_error( &d.span, "mismatched types" ) // TODO: Make a better error for this
+			return false
+		}
+
+		d.type = suggested_type
+	} else {
+		assert( suggested_type != nil || val_type != nil )
+
+		d.type = suggested_type if suggested_type != nil else val_type
+	}
+
+	d.check_state = .Resolved
+
+	return true
 }
 
 

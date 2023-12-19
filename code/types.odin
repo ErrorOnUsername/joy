@@ -5,10 +5,11 @@ import "core:math/bits"
 import "core:mem"
 
 
-new_type :: proc( $T: typeid ) -> ^T
+new_type :: proc( $T: typeid, mod: ^Module ) -> ^T
 {
 	new_type, _ := mem.new( T )
-	new_type.derived = new_type
+	new_type.derived    = new_type
+	new_type.owning_mod = mod
 
 	return new_type
 }
@@ -19,6 +20,7 @@ AnyType :: union
 	^StructType,
 	^EnumType,
 	^UnionType,
+	^ProcType,
 	^PrimitiveType,
 }
 
@@ -31,19 +33,25 @@ Type :: struct
 StructType :: struct
 {
 	using type: Type,
-	name: string,
+	decl: ^StructDecl,
 }
 
 EnumType :: struct
 {
 	using type: Type,
-	name: string,
+	decl: ^EnumDecl,
 }
 
 UnionType :: struct
 {
 	using type: Type,
-	name: string,
+	decl: ^UnionDecl,
+}
+
+ProcType :: struct
+{
+	using type: Type,
+	decl: ^ProcDecl,
 }
 
 
@@ -143,7 +151,7 @@ primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 ty_is_int :: proc( t: ^Type ) -> bool
 {
 	switch ty in t.derived {
-		case ^StructType, ^EnumType, ^UnionType:
+		case ^StructType, ^EnumType, ^UnionType, ^ProcType:
 			return false
 		case ^PrimitiveType:
 			return primitive_kind_is_int( ty.kind )
@@ -180,7 +188,7 @@ ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
 ty_get_base :: proc( t: ^Type ) -> ^Type
 {
 	switch ty in t.derived {
-		case ^StructType, ^EnumType, ^UnionType, ^PrimitiveType:
+		case ^StructType, ^EnumType, ^UnionType, ^PrimitiveType, ^ProcType:
 			return t
 	}
 
@@ -197,17 +205,22 @@ ty_are_eq :: proc( l_ty: ^Type, r_ty: ^Type ) -> bool
 			r, r_ok := r_ty.derived.(^StructType)
 			if !r_ok do return false
 
-			return l.name == r.name
+			return l.decl == r.decl
 		case ^EnumType:
 			r, r_ok := r_ty.derived.(^EnumType)
 			if !r_ok do return false
 
-			return l.name == r.name
+			return l.decl == r.decl
 		case ^UnionType:
 			r, r_ok := r_ty.derived.(^UnionType)
 			if !r_ok do return false
 
-			return l.name == r.name
+			return l.decl == r.decl
+		case ^ProcType:
+			r, r_ok := r_ty.derived.(^ProcType)
+			if !r_ok do return false
+
+			return l.decl == r.decl
 		case ^PrimitiveType:
 			r, r_ok := r_ty.derived.(^PrimitiveType)
 			if !r_ok do return false
@@ -244,79 +257,79 @@ init_default_types :: proc()
 {
 	ty: ^PrimitiveType
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .Bool
 	ty_builtin_bool = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .U8
 	ty_builtin_u8 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .I8
 	ty_builtin_i8 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .U16
 	ty_builtin_u16 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .I16
 	ty_builtin_i16 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .U32
 	ty_builtin_u32 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .I32
 	ty_builtin_i32 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .U64
 	ty_builtin_u64 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .I64
 	ty_builtin_i64 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .USize
 	ty_builtin_usize = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .ISize
 	ty_builtin_isize = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .F32
 	ty_builtin_f32 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .F64
 	ty_builtin_f64 = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .String
 	ty_builtin_string = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .CString
 	ty_builtin_cstring = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .RawPtr
 	ty_builtin_rawptr = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .Range
 	ty_builtin_range = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .UntypedInt
 	ty_builtin_untyped_int = ty
 
-	ty = new_type( PrimitiveType )
+	ty = new_type( PrimitiveType, nil )
 	ty.kind = .UntypedString
 	ty_builtin_untyped_string = ty
 }
