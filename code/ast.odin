@@ -350,18 +350,26 @@ AnyNode :: union
 
 Node :: struct
 {
-	span:    Span,
-	type:    ^Type,
-	derived: AnyNode,
+	span:        Span,
+	type:        ^Type,
+	derived:     AnyNode,
+	check_state: CheckState,
+}
+
+CheckState :: enum
+{
+	Unresolved,
+	Resolved,
 }
 
 
 new_node :: proc( $T: typeid, span: Span ) -> ^T
 {
-	new_node, _     := mem.new( T, tl_ast_allocator )
-	new_node.span    = span
-	base: ^Node      = new_node
-	_                = base
+	new_node, _          := mem.new( T, tl_ast_allocator )
+	new_node.span         = span
+	new_node.check_state  = .Unresolved
+	base: ^Node           = new_node
+	_                     = base
 
 	when intrinsics.type_has_field( T, "derived_stmnt" ) {
 		new_node.derived       = cast(^Stmnt) new_node

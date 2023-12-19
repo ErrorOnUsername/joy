@@ -230,6 +230,31 @@ tc_check_package_dag :: proc( c: ^Checker, pkgs: []PriorityItem(^Package) ) -> i
 
 pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 {
+	// Single-threadedly check top level declarations of the
+	// package and queue up procedure bodies to be checked
+	// in parallel
+	ok := false
+
+	for mod in &pkg.modules {
+		if !ok do break
+
+		for stmnt in mod.file_scope.stmnts {
+			if !ok do break
+
+			if stmnt.check_state == .Resolved do continue
+
+			#partial switch st in stmnt.derived_stmnt {
+				case ^StructDecl:
+				case ^EnumDecl:
+				case ^UnionDecl:
+				case ^ProcDecl:
+				case:
+					log_spanned_error( &stmnt.span, "Unexpected top-level declaration" )
+					ok = false
+			}
+		}
+	}
+
 	log_error( "impl check_pkg" )
 	return .Error
 }
