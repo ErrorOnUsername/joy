@@ -1,9 +1,3 @@
-decl MyEnum : enum
-{
-    VariantA;
-    VariantB;
-}
-
 decl MyStruct : struct
 {
     member_0: usize;
@@ -11,6 +5,13 @@ decl MyStruct : struct
     member_2: cstring;
     member_3: string;
     member_4: usize;
+    member_5: MyEnum;
+}
+
+decl MyEnum : enum
+{
+    VariantA;
+    VariantB;
 }
 
 decl main : ()

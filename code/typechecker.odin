@@ -90,10 +90,8 @@ tc_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Packag
 
 Checker :: struct
 {
-	type_def_mtx: sync.Mutex,
-	type_defs:   [dynamic]^Stmnt,
-	proc_def_mtx: sync.Mutex,
-	proc_defs: [dynamic]^ProcDecl,
+	proc_work_mutex: sync.Mutex,
+	proc_bodies:     [dynamic]^ProcDecl,
 }
 
 
@@ -236,6 +234,7 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 	ok := true
 
 	ctx: CheckerContext
+	ctx.checker = c
 
 	for mod in &pkg.modules {
 		if !ok do break
@@ -264,6 +263,7 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 
 CheckerContext :: struct
 {
+	checker: ^Checker,
 	mod: ^Module,
 	curr_proc: ^ProcDecl,
 	curr_scope: ^Scope,
@@ -322,8 +322,14 @@ tc_check_type_decl :: proc( ctx: ^CheckerContext, s: ^Stmnt ) -> bool
 
 tc_check_type :: proc( ctx: ^CheckerContext, t_expr: ^Expr ) -> bool
 {
-	log_spanned_error( &t_expr.span, "impl check_type" )
-	return false
+	ok, addr_mode := tc_check_expr( ctx, t_expr )
+	if !ok do return false
+
+	if addr_mode != .Type {
+		log_spanned_errorf( &t_expr.span, "Expected a type, got {}", addr_mode )
+	}
+
+	return true
 }
 
 
@@ -429,8 +435,12 @@ tc_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 		}
 
 		if param.default_value != nil {
-			val_ok := tc_check_expr( ctx, param.default_value )
+			val_ok, addr_mode := tc_check_expr( ctx, param.default_value )
 			if !val_ok do return false
+
+			if addr_mode == .Type || addr_mode == .Invalid {
+				log_spanned_errorf( &param.default_value.span, "expected a value, got {}", addr_mode )
+			}
 
 			val_type = param.default_value.type
 		}
@@ -451,6 +461,15 @@ tc_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 
 	d.type        = final_ty
 	d.check_state = .Resolved
+
+	{
+		c := ctx.checker
+
+		sync.mutex_lock( &c.proc_work_mutex )
+		defer sync.mutex_unlock( &c.proc_work_mutex )
+
+		append( &c.proc_bodies, d )
+	}
 
 	return true
 }
@@ -480,8 +499,12 @@ tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 	}
 
 	if d.default_value != nil {
-		val_ok := tc_check_expr( ctx, d.default_value )
+		val_ok, addr_mode := tc_check_expr( ctx, d.default_value )
 		if !val_ok do return false
+
+		if addr_mode == .Type || addr_mode == .Invalid {
+			log_spanned_errorf( &d.default_value.span, "expected a value, got {}", addr_mode )
+		}
 
 		val_type = d.default_value.type
 	}
@@ -559,29 +582,122 @@ tc_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 }
 
 
-tc_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
+tc_check_expr :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> ( bool, AddressingMode )
 {
 	switch e in ex.derived_expr {
 		case ^Ident:             return tc_check_ident( ctx, e )
-		case ^StringLiteralExpr: return tc_check_string_lit( ctx, e )
-		case ^NumberLiteralExpr: return tc_check_number_lit( ctx, e )
-		case ^RangeExpr:         return tc_check_range_expr( ctx, e )
-		case ^BinOpExpr:         return tc_check_bin_op_expr( ctx, e )
-		case ^ProcCallExpr:      return tc_check_proc_call( ctx, e )
+		case ^StringLiteralExpr: return tc_check_string_lit( ctx, e ),   .Value
+		case ^NumberLiteralExpr: return tc_check_number_lit( ctx, e ),   .Value
+		case ^RangeExpr:         return tc_check_range_expr( ctx, e ),   .Value
+		case ^BinOpExpr:         return tc_check_bin_op_expr( ctx, e ),  .Value
+		case ^ProcCallExpr:      return tc_check_proc_call( ctx, e ),    .Value // This will need to change when generics get added
 		case ^FieldAccessExpr:   return tc_check_field_access( ctx, e )
-		case ^PointerTypeExpr:   unreachable()
-		case ^ArrayTypeExpr:     unreachable()
-		case ^SliceTypeExpr:     unreachable()
+		case ^PointerTypeExpr:   return tc_check_pointer_ty_expr( ctx, e ), .Type
+		case ^ArrayTypeExpr:     return tc_check_array_ty_expr( ctx, e ),   .Type
+		case ^SliceTypeExpr:     return tc_check_slice_ty_expr( ctx, e ),   .Type
 	}
+
+	return false, .Invalid
+}
+
+tc_check_pointer_ty_expr :: proc( ctx: ^CheckerContext, t: ^PointerTypeExpr ) -> bool
+{
+	sub_type_ok := tc_check_type( ctx, t.base_type )
+	if !sub_type_ok do return false
+
+	ptr_ty := new_type( PointerType, nil )
+	ptr_ty.base_type = t.base_type.type
+
+	t.type = ptr_ty
 
 	return true
 }
 
-
-tc_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> bool
+tc_check_array_ty_expr :: proc( ctx: ^CheckerContext, t: ^ArrayTypeExpr ) -> bool
 {
-	log_spanned_error( &i.span, "impl check_ident" )
-	return false
+	sub_type_ok := tc_check_type( ctx, t.base_type )
+	if !sub_type_ok do return false
+
+	size_expr_ok, addr_mode := tc_check_expr( ctx, t.size_expr )
+	if !size_expr_ok do return false
+
+	if addr_mode != .Constant {
+		log_spanned_error( &t.size_expr.span, "array size expression must be a constant" )
+		return false
+	}
+
+	if t.size_expr.type != ty_builtin_isize {
+		log_spanned_error( &t.size_expr.span, "array size expression must be of type 'isize'" )
+	}
+
+	arr_ty := new_type( ArrayType, nil )
+	arr_ty.base_type = t.base_type.type
+
+	t.type = arr_ty
+
+	return true
+}
+
+tc_check_slice_ty_expr :: proc( ctx: ^CheckerContext, t: ^SliceTypeExpr ) -> bool
+{
+	sub_type_ok := tc_check_type( ctx, t.base_type )
+	if !sub_type_ok do return false
+
+	slice_ty := new_type( SliceType, nil )
+	slice_ty.base_type = t.base_type.type
+
+	t.type = slice_ty
+
+	return true
+}
+
+@(private="file")
+builtin_type_name_map := map[string]^Type {
+	"bool"    = ty_builtin_bool,
+	"u8"      = ty_builtin_u8,
+	"i8"      = ty_builtin_i8,
+	"u16"     = ty_builtin_u16,
+	"i16"     = ty_builtin_i16,
+	"u32"     = ty_builtin_u32,
+	"i32"     = ty_builtin_i32,
+	"u64"     = ty_builtin_u64,
+	"i64"     = ty_builtin_i64,
+	"usize"   = ty_builtin_usize,
+	"isize"   = ty_builtin_isize,
+	"f32"     = ty_builtin_f32,
+	"f64"     = ty_builtin_f64,
+	"string"  = ty_builtin_string,
+	"cstring" = ty_builtin_cstring,
+	"rawptr"  = ty_builtin_rawptr,
+	"range"   = ty_builtin_range,
+}
+
+tc_check_ident :: proc( ctx: ^CheckerContext, i: ^Ident ) -> ( bool, AddressingMode )
+{
+	if i.name in builtin_type_name_map {
+		i.type = builtin_type_name_map[i.name]
+		return true, .Type
+	}
+
+	decl := lookup_identifier( ctx, i.name )
+
+	#partial switch d in decl.derived_stmnt {
+		case ^StructDecl, ^EnumDecl, ^UnionDecl, ^ProcDecl:
+			ok := tc_check_type_decl( ctx, decl )
+			if !ok do return false, .Invalid
+
+			i.type = decl.type
+			return true, .Type
+		case ^EnumVariant:
+		case ^VarDecl:
+			assert( d.check_state == .Resolved )
+			i.type = d.type
+
+			return true, .Variable
+	}
+
+	log_spanned_error( &i.span, "unknown identifier" )
+	return false, .Invalid
 }
 
 
@@ -620,10 +736,10 @@ tc_check_proc_call :: proc ( ctx: ^CheckerContext, b: ^ProcCallExpr ) -> bool
 }
 
 
-tc_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> bool
+tc_check_field_access :: proc( ctx: ^CheckerContext, f: ^FieldAccessExpr ) -> ( bool, AddressingMode )
 {
 	log_error( "impl check_field_access" );
-	return false
+	return false, .Invalid
 }
 
 

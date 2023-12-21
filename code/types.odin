@@ -21,6 +21,9 @@ AnyType :: union
 	^EnumType,
 	^UnionType,
 	^ProcType,
+	^PointerType,
+	^ArrayType,
+	^SliceType,
 	^PrimitiveType,
 }
 
@@ -52,6 +55,24 @@ ProcType :: struct
 {
 	using type: Type,
 	decl: ^ProcDecl,
+}
+
+PointerType :: struct
+{
+	using type: Type,
+	base_type:  ^Type,
+}
+
+ArrayType :: struct
+{
+	using type: Type,
+	base_type:  ^Type,
+}
+
+SliceType :: struct
+{
+	using type: Type,
+	base_type:  ^Type,
 }
 
 
@@ -151,7 +172,7 @@ primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 ty_is_int :: proc( t: ^Type ) -> bool
 {
 	switch ty in t.derived {
-		case ^StructType, ^EnumType, ^UnionType, ^ProcType:
+		case ^StructType, ^EnumType, ^UnionType, ^ProcType, ^PointerType, ^ArrayType, ^SliceType:
 			return false
 		case ^PrimitiveType:
 			return primitive_kind_is_int( ty.kind )
@@ -188,8 +209,10 @@ ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
 ty_get_base :: proc( t: ^Type ) -> ^Type
 {
 	switch ty in t.derived {
-		case ^StructType, ^EnumType, ^UnionType, ^PrimitiveType, ^ProcType:
+		case ^StructType, ^EnumType, ^UnionType, ^PrimitiveType, ^ProcType, ^ArrayType, ^SliceType:
 			return t
+		case ^PointerType:
+			return ty_get_base( ty.base_type )
 	}
 
 	return nil
@@ -226,6 +249,9 @@ ty_are_eq :: proc( l_ty: ^Type, r_ty: ^Type ) -> bool
 			if !r_ok do return false
 
 			return l.kind == r.kind
+		case ^PointerType: // TODO: impl
+		case ^ArrayType:
+		case ^SliceType:
 	}
 
 	return false

@@ -30,6 +30,16 @@ Scope :: struct
 }
 
 
+AddressingMode :: enum
+{
+	Invalid,
+	Type,
+	Constant,
+	Variable,
+	Value,
+}
+
+
 
 //
 // Declarations
