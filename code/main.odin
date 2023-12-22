@@ -30,8 +30,7 @@ main :: proc()
 		os.exit( 1 )
 	}
 
-	fmt.println( "Compilation Successful" )
-}
+	fmt.println( "Compilation Successful" ) }
 
 
 exec_phases :: proc( root_id: FileID ) -> int
@@ -55,6 +54,9 @@ exec_phases :: proc( root_id: FileID ) -> int
 	if tasks_failed != 0 do return tasks_failed
 
 	tasks_failed = tc_check_package_dag( &c, packages_to_check )
+	if tasks_failed != 0 do return tasks_failed
+
+	tasks_failed = tc_check_proc_bodies( &c )
 	if tasks_failed != 0 do return tasks_failed
 
 	return 0

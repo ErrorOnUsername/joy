@@ -79,6 +79,7 @@ UnionDecl :: struct
 ProcDecl :: struct
 {
 	using stmnt: Stmnt,
+	owning_mod:  ^Module,
 	name:        string,
 	params:      [dynamic]^VarDecl,
 	body:        ^Scope,

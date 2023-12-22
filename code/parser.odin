@@ -229,6 +229,7 @@ parse_proc_decl :: proc( file_data: ^FileData, name_tk: ^Token, scope: ^Scope ) 
 {
 	decl := new_node( ProcDecl, name_tk.span )
 	decl.name = name_tk.str
+	decl.owning_mod = file_data.mod
 
 	param, params_ok := parse_var_decl( file_data )
 	found_r_paren := false

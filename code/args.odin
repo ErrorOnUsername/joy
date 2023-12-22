@@ -22,9 +22,7 @@ g_usage_string := `Usage:
 
 modes:
     build
-
     run
-
     help
 `
 

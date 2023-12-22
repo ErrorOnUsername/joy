@@ -226,6 +226,33 @@ tc_check_package_dag :: proc( c: ^Checker, pkgs: []PriorityItem(^Package) ) -> i
 }
 
 
+tc_check_proc_bodies :: proc( c: ^Checker ) -> int
+{
+	for p in c.proc_bodies {
+		compiler_enqueue_work( .CheckProcBody, c = c, proc_body = p )
+	}
+
+	return compiler_finish_work()
+}
+
+
+pump_tc_check_proc_body :: proc( c: ^Checker, p: ^ProcDecl ) -> PumpResult
+{
+	ctx: CheckerContext
+	ctx.checker   = c
+	ctx.mod       = p.owning_mod
+	ctx.curr_proc = p
+	ctx.curr_scope = p.owning_mod.file_scope
+
+	assert( p.check_state == .Resolved ) // TODO: This will need to change when we add generics
+
+	scope_ok := tc_check_scope( &ctx, p.body )
+	if !scope_ok do return .Error
+
+	return .Continue
+}
+
+
 pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 {
 	// Single-threadedly check top level declarations of the
@@ -268,7 +295,6 @@ CheckerContext :: struct
 	curr_proc: ^ProcDecl,
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
-	type_hint: ^Type,
 }
 
 
@@ -475,6 +501,19 @@ tc_check_proc_decl :: proc( ctx: ^CheckerContext, d: ^ProcDecl ) -> bool
 }
 
 
+addr_mode_is_usable_value :: proc( mode: AddressingMode ) -> bool
+{
+	switch mode {
+		case .Invalid, .Type:
+			return false
+		case .Constant, .Variable, .Value:
+			return true
+	}
+
+	return false
+}
+
+
 tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 {
 	if d.check_state == .Resolved do return true
@@ -485,8 +524,6 @@ tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 		log_spanned_error( &d.span, "duplicate declaration of identifier" )
 		return false
 	}
-
-	sc.symbols[d.name] = d
 
 	suggested_type: ^Type
 	val_type: ^Type
@@ -502,7 +539,7 @@ tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 		val_ok, addr_mode := tc_check_expr( ctx, d.default_value )
 		if !val_ok do return false
 
-		if addr_mode == .Type || addr_mode == .Invalid {
+		if !addr_mode_is_usable_value( addr_mode ) {
 			log_spanned_errorf( &d.default_value.span, "expected a value, got {}", addr_mode )
 		}
 
@@ -523,6 +560,7 @@ tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 	}
 
 	d.check_state = .Resolved
+	sc.symbols[d.name] = d
 
 	return true
 }
@@ -556,8 +594,31 @@ tc_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
 
 tc_check_if_stmnt :: proc( ctx: ^CheckerContext, s: ^IfStmnt ) -> bool
 {
-	log_spanned_error( &s.span, "impl check_if_stmnt" )
-	return false
+	assert( s.check_state != .Resolved )
+
+	if s.cond != nil {
+		cond_ok, addr_mode := tc_check_expr( ctx, s.cond )
+		if !cond_ok do return false
+
+		if !addr_mode_is_usable_value( addr_mode ) {
+			log_spanned_errorf( &s.cond.span, "expected a value, got {}", addr_mode )
+			return false
+		}
+
+		if s.cond.type != ty_builtin_bool {
+			log_spanned_error( &s.cond.span, "if condition must be an expression of type 'bool'" )
+			return false
+		}
+	}
+
+	if s.else_stmnt != nil {
+		else_ok := tc_check_if_stmnt( ctx, s.else_stmnt )
+		if !else_ok do return false
+	}
+
+	s.check_state = .Resolved
+
+	return true
 }
 
 
@@ -570,15 +631,31 @@ tc_check_for_loop :: proc( ctx: ^CheckerContext, l: ^ForLoop ) -> bool
 
 tc_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 {
-	log_spanned_error( &l.span, "impl check_while_loop" )
-	return false
+	prev_loop := ctx.curr_loop
+	ctx.curr_loop = l
+	defer ctx.curr_loop = prev_loop
+
+	cond_ok, addr_mode := tc_check_expr( ctx, l.cond )
+	if !cond_ok do return false
+
+	if !addr_mode_is_usable_value( addr_mode ) {
+		log_spanned_errorf( &l.cond.span, "expected a value, got {}", addr_mode )
+		return false
+	}
+
+	body_ok := tc_check_scope( ctx, l.body )
+	if !body_ok do return false
+
+	return true
 }
 
 
 tc_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 {
-	log_spanned_error( &l.span, "impl check_inf_loop" )
-	return false
+	body_ok := tc_check_scope( ctx, l.body )
+	if !body_ok do return false
+
+	return true
 }
 
 
