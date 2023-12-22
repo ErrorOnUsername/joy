@@ -1,5 +1,6 @@
 package main
 
+import "core:c/libc"
 import "core:fmt"
 import "core:strings"
 import "core:sync"
@@ -14,6 +15,8 @@ log_spanned_error :: proc( span: ^Span, msg: string )
 
 	log_error_internal( msg )
 	print_span( span )
+
+	libc.fflush( libc.stdout )
 }
 
 log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
@@ -23,11 +26,15 @@ log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
 
 	log_errorf_internal( msg, args )
 	print_span( span )
+
+	libc.fflush( libc.stdout )
 }
 
 log_error_internal :: proc( msg: string )
 {
 	fmt.eprintf( "Error: {}\n", msg )
+
+	libc.fflush( libc.stdout )
 }
 
 
@@ -37,6 +44,8 @@ log_error :: proc( msg: string )
 	defer sync.mutex_unlock( &log_mutex )
 
 	log_error_internal( msg )
+
+	libc.fflush( libc.stdout )
 }
 
 
@@ -55,6 +64,8 @@ log_errorf :: proc( msg: string, args: ..any )
 	defer sync.mutex_unlock( &log_mutex )
 
 	log_errorf_internal( msg, args )
+
+	libc.fflush( libc.stdout )
 }
 
 
