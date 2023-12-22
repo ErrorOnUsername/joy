@@ -799,10 +799,44 @@ tc_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 }
 
 
+get_bin_op_res_type :: proc( op: BinaryOperator, l_ty: ^Type, r_ty: ^Type ) -> ( bool, ^Type )
+{
+	log_error( "impl is_op_valid_for_types" )
+	return false, nil
+}
+
+
 tc_check_bin_op_expr :: proc( ctx: ^CheckerContext, b: ^BinOpExpr ) -> bool
 {
-	log_error( "impl check_bin_op_expr" )
-	return false
+	assert( b.check_state != .Resolved )
+
+	lhs_ok, l_addr_mode := tc_check_expr( ctx, b.lhs )
+	if !lhs_ok do return false
+
+	if !addr_mode_is_usable_value( l_addr_mode ) {
+		log_spanned_errorf( &b.lhs.span, "expected value, got: {}", l_addr_mode )
+		return false
+	}
+
+	rhs_ok, r_addr_mode := tc_check_expr( ctx, b.rhs )
+	if !rhs_ok do return false
+
+	if !addr_mode_is_usable_value( r_addr_mode ) {
+		log_spanned_errorf( &b.rhs.span, "expected value, got: {}", r_addr_mode )
+		return false
+	}
+
+	op_ok, res_ty := get_bin_op_res_type( b.op, b.lhs.type, b.rhs.type )
+	if !op_ok {
+		// TODO: Print the type names
+		log_spanned_errorf( &b.span, "operator '{}' not valid for types", b.op )
+		return false
+	}
+
+	b.check_state = .Resolved
+	b.type = res_ty
+
+	return true
 }
 
 
