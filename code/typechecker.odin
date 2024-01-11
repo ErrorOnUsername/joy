@@ -799,8 +799,70 @@ tc_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 }
 
 
-get_bin_op_res_type :: proc( op: BinaryOperator, l_ty: ^Type, r_ty: ^Type ) -> ( bool, ^Type )
+can_type_fit_in_other :: proc( v_ty: ^Type, b_ty: ^Type ) -> bool
 {
+	return false
+}
+
+
+pick_autocast_type :: proc( b: ^BinOpExpr ) -> ^Type
+{
+	#partial switch b.op {
+		case .Invalid:
+			log_spanned_error( &b.span, "invalid binary operator" )
+			return nil
+	}
+
+	if !ty_are_eq( b.rhs.type, b.lhs.type ) {
+		log_spanned_error( &b.span, "incongruent types" )
+		return nil
+	}
+
+	return b.lhs.type
+}
+
+
+get_bin_op_res_type :: proc( b: ^BinOpExpr ) -> ( bool, ^Type )
+{
+	l_ty := b.lhs.type
+	r_ty := b.rhs.type
+
+	main_type := pick_autocast_type( b )
+	if main_type == nil {
+		return false, nil
+	}
+
+	switch b.op {
+		case .Invalid:
+			log_spanned_error( &b.span, "invalid binary operator" )
+			return false, nil
+		case .Add, .Subtract, .Multiply, .Divide, .Modulo:
+			if !ty_is_number( main_type ) {
+				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers", b.op )
+			}
+		case .LessThanOrEq, .LessThan, .GreaterThanOrEq, .GreaterThan:
+			if !ty_is_number( main_type ) {
+				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers", b.op )
+			}
+		case .Equal, .NotEqual:
+			if !ty_is_number( main_type ) && !ty_is_string( main_type ) {
+				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers or string", b.op )
+			}
+		case .LogicalAnd, .LogicalOr, .LogicalXOr:
+			if !ty_is_bool( main_type ) {
+				log_spanned_errorf( &b.span, "operands for logical operator '{}' must be numbers", b.op )
+			}
+		case .BitwiseAnd, .BitwiseOr, .BitwiseXOr, .BitwiseLShift, .BitwiseRShift:
+			if !ty_is_number( main_type ) {
+				log_spanned_errorf( &b.span, "operands for bitwise operator '{}' must be numbers", b.op )
+			}
+		case .Assign: // any type is fine here
+		case .AddAssign, .SubtractAssign, .MultiplyAssign, .DivideAssign, .ModuloAssign, .AndAssign, .OrAssign, .XOrAssign:
+			if !ty_is_number( main_type ) {
+				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers", b.op )
+			}
+	}
+
 	log_error( "impl is_op_valid_for_types" )
 	return false, nil
 }
@@ -826,12 +888,8 @@ tc_check_bin_op_expr :: proc( ctx: ^CheckerContext, b: ^BinOpExpr ) -> bool
 		return false
 	}
 
-	op_ok, res_ty := get_bin_op_res_type( b.op, b.lhs.type, b.rhs.type )
-	if !op_ok {
-		// TODO: Print the type names
-		log_spanned_errorf( &b.span, "operator '{}' not valid for types", b.op )
-		return false
-	}
+	op_ok, res_ty := get_bin_op_res_type( b )
+	if !op_ok do return false
 
 	b.check_state = .Resolved
 	b.type = res_ty

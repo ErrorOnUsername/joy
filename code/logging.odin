@@ -16,7 +16,7 @@ log_spanned_error :: proc( span: ^Span, msg: string )
 	log_error_internal( msg )
 	print_span( span )
 
-	libc.fflush( libc.stdout )
+	libc.fflush( libc.stderr )
 }
 
 log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
@@ -27,14 +27,12 @@ log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
 	log_errorf_internal( msg, args )
 	print_span( span )
 
-	libc.fflush( libc.stdout )
+	libc.fflush( libc.stderr )
 }
 
 log_error_internal :: proc( msg: string )
 {
 	fmt.eprintf( "Error: {}\n", msg )
-
-	libc.fflush( libc.stdout )
 }
 
 
@@ -45,7 +43,7 @@ log_error :: proc( msg: string )
 
 	log_error_internal( msg )
 
-	libc.fflush( libc.stdout )
+	libc.fflush( libc.stderr )
 }
 
 
@@ -65,7 +63,7 @@ log_errorf :: proc( msg: string, args: ..any )
 
 	log_errorf_internal( msg, args )
 
-	libc.fflush( libc.stdout )
+	libc.fflush( libc.stderr )
 }
 
 

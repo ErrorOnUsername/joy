@@ -169,6 +169,29 @@ primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 }
 
 
+primitive_kind_is_float :: proc( kind: PrimitiveKind ) -> bool
+{
+	switch kind {
+		case .Bool:
+			return false
+		case .U8,  .I8,  .U16, .I16,
+		     .U32, .I32, .U64, .I64,
+		     .USize, .ISize:
+			return false
+		case .F32, .F64:
+			return true
+		case .String, .CString, .RawPtr, .Range:
+			return false
+		case .UntypedInt:
+			return false
+		case .UntypedString:
+			return false
+	}
+
+	return false
+}
+
+
 ty_is_int :: proc( t: ^Type ) -> bool
 {
 	switch ty in t.derived {
@@ -176,6 +199,51 @@ ty_is_int :: proc( t: ^Type ) -> bool
 			return false
 		case ^PrimitiveType:
 			return primitive_kind_is_int( ty.kind )
+	}
+
+	return false
+}
+
+
+ty_is_float :: proc( t: ^Type ) -> bool
+{
+	switch ty in t.derived {
+		case ^StructType, ^EnumType, ^UnionType, ^ProcType, ^PointerType, ^ArrayType, ^SliceType:
+			return false
+		case ^PrimitiveType:
+			return primitive_kind_is_float( ty.kind )
+	}
+
+	return false
+}
+
+
+ty_is_number :: proc( t: ^Type ) -> bool
+{
+	return ty_is_int( t ) || ty_is_float( t )
+}
+
+
+ty_is_bool :: proc( t: ^Type ) -> bool
+{
+	switch ty in t.derived {
+		case ^StructType, ^EnumType, ^UnionType, ^ProcType, ^PointerType, ^ArrayType, ^SliceType:
+			return false
+		case ^PrimitiveType:
+			return ty.kind == .Bool
+	}
+
+	return false
+}
+
+
+ty_is_string :: proc( t: ^Type ) -> bool
+{
+	switch ty in t.derived {
+		case ^StructType, ^EnumType, ^UnionType, ^ProcType, ^PointerType, ^ArrayType, ^SliceType:
+			return false
+		case ^PrimitiveType:
+			return ty.kind == .String || ty.kind == .CString
 	}
 
 	return false
