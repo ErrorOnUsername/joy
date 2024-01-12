@@ -799,13 +799,7 @@ tc_check_range_expr :: proc( ctx: ^CheckerContext, r: ^RangeExpr ) -> bool
 }
 
 
-can_type_fit_in_other :: proc( v_ty: ^Type, b_ty: ^Type ) -> bool
-{
-	return false
-}
-
-
-pick_autocast_type :: proc( b: ^BinOpExpr ) -> ^Type
+pick_main_expr_type :: proc( b: ^BinOpExpr ) -> ^Type
 {
 	#partial switch b.op {
 		case .Invalid:
@@ -827,7 +821,7 @@ get_bin_op_res_type :: proc( b: ^BinOpExpr ) -> ( bool, ^Type )
 	l_ty := b.lhs.type
 	r_ty := b.rhs.type
 
-	main_type := pick_autocast_type( b )
+	main_type := pick_main_expr_type( b )
 	if main_type == nil {
 		return false, nil
 	}
