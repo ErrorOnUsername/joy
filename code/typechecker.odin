@@ -568,8 +568,14 @@ tc_check_var_decl :: proc( ctx: ^CheckerContext, d: ^VarDecl ) -> bool
 
 tc_check_expr_stmnt :: proc( ctx: ^CheckerContext, s: ^ExprStmnt ) -> bool
 {
-	log_spanned_error( &s.span, "impl check_expr_stmnt" )
-	return false
+	ok, addr_mode := tc_check_expr( ctx, s.expr )
+
+	if addr_mode_is_usable_value( addr_mode ) && s.expr.type != ty_builtin_void {
+		log_spanned_error( &s.span, "value given by expression is discarded" )
+		return false
+	}
+
+	return true
 }
 
 
@@ -582,13 +588,23 @@ tc_check_block_stmnt :: proc( ctx: ^CheckerContext, s: ^BlockStmnt ) -> bool
 
 tc_check_continue_stmnt :: proc( ctx: ^CheckerContext, s: ^ContinueStmnt ) -> bool
 {
-	return ctx.curr_loop != nil
+	if ctx.curr_loop == nil {
+		log_spanned_error( &s.span, "continue statements are only valid within loops" )
+		return false
+	}
+
+	return true
 }
 
 
 tc_check_break_stmnt :: proc( ctx: ^CheckerContext, s: ^BreakStmnt ) -> bool
 {
-	return ctx.curr_loop != nil
+	if ctx.curr_loop == nil {
+		log_spanned_error( &s.span, "break statements are only valid within loops" )
+		return false
+	}
+
+	return true
 }
 
 
@@ -652,6 +668,10 @@ tc_check_while_loop :: proc( ctx: ^CheckerContext, l: ^WhileLoop ) -> bool
 
 tc_check_inf_loop :: proc( ctx: ^CheckerContext, l: ^InfiniteLoop ) -> bool
 {
+	prev_loop := ctx.curr_loop
+	ctx.curr_loop = l
+	defer ctx.curr_loop = prev_loop
+
 	body_ok := tc_check_scope( ctx, l.body )
 	if !body_ok do return false
 
