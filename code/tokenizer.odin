@@ -437,6 +437,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 }
 
 keyword_map := map[string]TokenKind {
+	"void"     = .Void,
 	"decl"     = .Decl,
 	"let"      = .Let,
 	"struct"   = .Struct,
@@ -651,6 +652,7 @@ TokenKind :: enum
 	While,
 	Loop,
 
+	Void,
 	Bool,
 	U8,
 	I8,

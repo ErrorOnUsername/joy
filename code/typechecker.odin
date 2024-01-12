@@ -826,6 +826,8 @@ get_bin_op_res_type :: proc( b: ^BinOpExpr ) -> ( bool, ^Type )
 		return false, nil
 	}
 
+	res_ty: ^Type
+
 	switch b.op {
 		case .Invalid:
 			log_spanned_error( &b.span, "invalid binary operator" )
@@ -834,31 +836,43 @@ get_bin_op_res_type :: proc( b: ^BinOpExpr ) -> ( bool, ^Type )
 			if !ty_is_number( main_type ) {
 				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers", b.op )
 			}
+
+			res_ty = main_type
 		case .LessThanOrEq, .LessThan, .GreaterThanOrEq, .GreaterThan:
 			if !ty_is_number( main_type ) {
 				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers", b.op )
 			}
+
+			res_ty = ty_builtin_bool
 		case .Equal, .NotEqual:
 			if !ty_is_number( main_type ) && !ty_is_string( main_type ) {
 				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers or string", b.op )
 			}
+
+			res_ty = ty_builtin_bool
 		case .LogicalAnd, .LogicalOr, .LogicalXOr:
 			if !ty_is_bool( main_type ) {
 				log_spanned_errorf( &b.span, "operands for logical operator '{}' must be numbers", b.op )
 			}
+
+			res_ty = ty_builtin_bool
 		case .BitwiseAnd, .BitwiseOr, .BitwiseXOr, .BitwiseLShift, .BitwiseRShift:
 			if !ty_is_number( main_type ) {
 				log_spanned_errorf( &b.span, "operands for bitwise operator '{}' must be numbers", b.op )
 			}
+
+			res_ty = main_type
 		case .Assign: // any type is fine here
+			res_ty = ty_builtin_void
 		case .AddAssign, .SubtractAssign, .MultiplyAssign, .DivideAssign, .ModuloAssign, .AndAssign, .OrAssign, .XOrAssign:
 			if !ty_is_number( main_type ) {
 				log_spanned_errorf( &b.span, "operands for operator '{}' must be numbers", b.op )
 			}
+
+			res_ty = ty_builtin_void
 	}
 
-	log_error( "impl is_op_valid_for_types" )
-	return false, nil
+	return true, res_ty
 }
 
 

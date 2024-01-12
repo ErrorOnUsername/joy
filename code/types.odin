@@ -78,6 +78,7 @@ SliceType :: struct
 
 PrimitiveKind :: enum
 {
+	Void,
 	Bool,
 	U8,
 	I8,
@@ -102,6 +103,8 @@ PrimitiveKind :: enum
 type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
 {
 	#partial switch tk {
+		case .Void:
+			return .Void
 		case .Bool:
 			return .Bool
 		case .U8:
@@ -151,6 +154,8 @@ PrimitiveType :: struct
 primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 {
 	switch kind {
+		case .Void:
+			return false
 		case .Bool:
 			return false
 		case .U8,  .I8,  .U16, .I16,
@@ -172,6 +177,8 @@ primitive_kind_is_int :: proc( kind: PrimitiveKind ) -> bool
 primitive_kind_is_float :: proc( kind: PrimitiveKind ) -> bool
 {
 	switch kind {
+		case .Void:
+			return false
 		case .Bool:
 			return false
 		case .U8,  .I8,  .U16, .I16,
@@ -255,6 +262,7 @@ ty_does_int_fit_in_type :: proc( t: ^PrimitiveType, i: int ) -> bool
 	assert( primitive_kind_is_int( t.kind ) )
 
 	switch t.kind {
+		case .Void:  return false
 		case .Bool:  return false
 		case .U8:    return i <= bits.U8_MAX
 		case .I8:    return i <= bits.I8_MAX
@@ -326,6 +334,7 @@ ty_are_eq :: proc( l_ty: ^Type, r_ty: ^Type ) -> bool
 }
 
 
+ty_builtin_void: ^Type
 ty_builtin_bool: ^Type
 ty_builtin_u8: ^Type
 ty_builtin_i8: ^Type
@@ -350,6 +359,10 @@ ty_builtin_untyped_string: ^Type
 init_default_types :: proc()
 {
 	ty: ^PrimitiveType
+
+	ty = new_type( PrimitiveType, nil )
+	ty.kind = .Void
+	ty_builtin_void = ty
 
 	ty = new_type( PrimitiveType, nil )
 	ty.kind = .Bool
