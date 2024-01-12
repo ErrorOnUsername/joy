@@ -554,7 +554,7 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 	colon_tk := next_tk( file_data )
 
 	if colon_tk.kind == .Colon {
-		decl.type_hint = parse_expr( file_data )
+		decl.type_hint = parse_type( file_data )
 
 		if decl.type_hint == nil do return nil, false
 	} else if colon_tk.kind != .ColonAssign {
@@ -579,17 +579,20 @@ parse_var_decl :: proc( file_data: ^FileData ) -> ( ^VarDecl, bool )
 }
 
 
-parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false ) -> ^Expr
+parse_type :: proc( file_data: ^FileData ) -> ^Expr
 {
-	// 1. get the first operand (lhs)
-	// 2. peek the operator
-	//      - if none, return
-	// 4. get the next operand (rhs)
-	// 5. peek the next operator
-	//      - if it's a higher priority, build that as the nested expr
+	return parse_expr( file_data, false, true )
+}
 
+
+parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is_type := false ) -> ^Expr
+{
 	lhs := parse_operand( file_data, can_create_struct_literal )
 	if lhs == nil do return nil
+
+	if is_type {
+		return lhs // types should never be binary expressions
+	}
 
 	op_tk := next_non_newline_tk( file_data )
 
@@ -746,7 +749,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 		case .Star:
 			pointer_type := new_node( PointerTypeExpr, lead_tk.span )
 
-			base_ty := parse_expr( file_data )
+			base_ty := parse_type( file_data )
 			if base_ty == nil do return nil
 
 			pointer_type.base_type = base_ty

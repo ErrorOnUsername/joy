@@ -17,7 +17,7 @@ decl MyEnum : enum
 
 decl main : ()
 {
-    let a := "haha";
+    let a: string = "haha";
     let b := 10;
 
     if b == 10 {
