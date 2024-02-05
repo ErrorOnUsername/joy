@@ -81,7 +81,7 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 
 parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := true )
 {
-	first_tk := next_non_newline_tk( file_data )
+	first_tk := curr_tk( file_data )
 
 	for ok && first_tk.kind != .EndOfFile {
 		#partial switch first_tk.kind {
@@ -96,12 +96,14 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 			case .Let:
 				log_error( "impl globals" )
 				ok = false
+			case .EndOfLine:
+				file_data.tk_idx += 1
 			case:
 				log_errorf( "Unexpected token kind: {}", first_tk.kind )
 				ok = false
 		}
 
-		first_tk = next_non_newline_tk( file_data )
+		first_tk = curr_tk( file_data )
 	}
 
 	return
@@ -109,16 +111,22 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 
 parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
-	name_tk := next_tk( file_data )
+	if !try_consume_tk( file_data, .Decl ) {
+		log_spanned_error( &curr_tk( file_data ).span, "expected 'decl" )
+	}
 
-	if name_tk.kind != .Ident {
+	name_tk := curr_tk( file_data )
+	if !try_consume_tk( file_data, .Ident ) {
 		log_spanned_error( &name_tk.span, "Expected identifier for declaration name, but got something else" )
 	}
 
-	colon_tk := next_tk( file_data )
+	colon_tk := curr_tk( file_data )
+	if !( try_consume_tk( file_data, .Colon ) || try_consume_tk( file_data, .ColonAssign ) ) {
+		log_spanned_error( &colon_tk.span, "Expected ':' or ':='" )
+	}
 
 	if colon_tk.kind == .Colon {
-		distiction_tk := next_tk( file_data )
+		distiction_tk := curr_tk( file_data )
 
 		#partial switch distiction_tk.kind {
 			case .Struct: return parse_struct_decl( file_data, name_tk )
@@ -845,22 +853,18 @@ parse_proc_call_param_pack :: proc( file_data: ^FileData, call_expr: ^ProcCallEx
 	return
 }
 
-next_tk :: proc( file_data: ^FileData ) -> ^Token
+curr_tk :: proc( data: ^FileData ) -> ^Token
 {
-	tk := &file_data.tokens[file_data.tk_idx]
-	file_data.tk_idx += 1
-
-	return tk
+	return &data.tokens[data.tk_idx]
 }
 
-next_non_newline_tk :: proc( file_data: ^FileData ) -> ^Token
+try_consume_tk :: proc( data: ^FileData, kind: TokenKind ) -> bool
 {
-	tk := next_tk( file_data )
-
-	for tk.kind == .EndOfLine {
-		tk = next_tk( file_data )
+	if data.tokens[data.tk_idx].kind == kind {
+		data.tk_idx += 1
+		return true
 	}
-
-	return tk
+	
+	return false
 }
 

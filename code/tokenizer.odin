@@ -2,326 +2,291 @@ package main
 
 import "core:strings"
 
-StateNode :: struct
-{
-	char:    u8,
-	tk_kind: TokenKind,
-	next:    []StateNode,
-}
-
-TokenParseStateTree :: struct
-{
-	nodes: []StateNode,
-}
-
-parse_state_tree := TokenParseStateTree {
-	{
-		{
-			char    = ':',
-			tk_kind = .Colon,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .ColonAssign,
-					next    = {},
-				},
-			},
-		},
-		{ ';', .Semicolon, {} },
-		{ ',', .Comma, {} },
-		{
-			char    = '.',
-			tk_kind = .Dot,
-			next    = {
-				{
-					char    = '.',
-					tk_kind = .DotDot,
-					next    = { },
-				},
-			},
-		},
-		{ '(', .LParen, {} },
-		{ ')', .RParen, {} },
-		{ '{', .LCurly, {} },
-		{ '}', .RCurly, {} },
-		{ '[', .LSquare, {} },
-		{ ']', .RSquare, {} },
-		{
-			char    = '=',
-			tk_kind = .Assign,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .Equal,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '!',
-			tk_kind = .Bang,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .NotEqual,
-					next    = {},
-				},
-			},
-		},
-		{ '~', .Tilde, {}, },
-		{ '@', .At, {}, },
-		{
-			char    = '&',
-			tk_kind = .Ampersand,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .AmpersandAssign,
-					next    = {},
-				},
-				{
-					char    = '&',
-					tk_kind = .DoubleAmpersand,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '|',
-			tk_kind = .Pipe,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .PipeAssign,
-					next    = {},
-				},
-				{
-					char    = '|',
-					tk_kind = .DoublePipe,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '^',
-			tk_kind = .Caret,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .CaretAssign,
-					next    = {},
-				},
-				{
-					char    = '^',
-					tk_kind = .DoubleCaret,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '<',
-			tk_kind = .LAngle,
-			next    = {
-				{
-					char    = '<',
-					tk_kind = .LShift,
-					next    = {}, // TODO: Arithmetic shift?
-				},
-				{
-					char    = '=',
-					tk_kind = .LessThanOrEqual,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '>',
-			tk_kind = .RAngle,
-			next    = {
-				{
-					char    = '>',
-					tk_kind = .RShift,
-					next    = {}, // TODO: Arithmetic shift?
-				},
-				{
-					char    = '=',
-					tk_kind = .GreaterThanOrEqual,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '+',
-			tk_kind = .Plus,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .PlusAssign,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '-',
-			tk_kind = .Minus,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .MinusAssign,
-					next    = {},
-				},
-				{
-					char    = '>',
-					tk_kind = .SmolArrow,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '*',
-			tk_kind = .Star,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .StarAssign,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '/',
-			tk_kind = .Slash,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .SlashAssign,
-					next    = {},
-				},
-			},
-		},
-		{
-			char    = '%',
-			tk_kind = .Percent,
-			next    = {
-				{
-					char    = '=',
-					tk_kind = .PercentAssign,
-					next    = {},
-				},
-			},
-		},
-	},
-}
-
-try_lex_from_parse_tree_node :: proc( data: ^FileData, token: ^Token, nodes: []StateNode ) -> bool
-{
-	token.kind       = .Invalid
-	token.span.file  = data.id
-	token.span.start = data.read_idx
-	token.span.end   = data.read_idx + 1
-
-	ch := data.data[data.read_idx]
-
-	current_node_list := nodes
-	idx               := 0
-
-	for {
-		if len( current_node_list ) == 0 || idx == len( current_node_list ) do break
-
-		node := &current_node_list[idx]
-
-		if node.char == ch {
-			token.kind     = node.tk_kind
-			token.span.end = data.read_idx + 1
-
-			data.read_idx += 1
-			ch = data.data[data.read_idx]
-
-			current_node_list = node.next
-			idx               = 0
-
-			continue
-		}
-
-		idx += 1
-	}
-
-	return token.kind != .Invalid
-}
-
 tokenize_file :: proc( data: ^FileData ) -> bool
 {
-	tk := Token { }
-	ok := lex_next_token( data, &tk )
-
-	if !ok do return false
-
-	for tk.kind != .Invalid {
+	tk := lex_next_token( data )
+	for tk.kind != .EndOfFile {
+		if tk.kind == .Invalid {
+			return false
+		}
 		append( &data.tokens, tk )
-
-		if tk.kind == .EndOfFile do break
-
-		ok = lex_next_token( data, &tk )
-		if !ok do return false
+		tk = lex_next_token( data )
 	}
 
 	return true
 }
 
-lex_next_token :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
+lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 {
-	token^ = { }
+	data_size := uint( len( data.data ) )
 
-	if data.read_idx >= len( data.data ) {
-		end := len( data.data )
+	for data.read_idx < data_size {
+		c := data.data[data.read_idx]
 
-		token.kind = .EndOfFile
-		token.span = { data.id, uint( end - 1 ), uint( end ) }
-		return
-	}
-
-	for data.data[data.read_idx] == ' ' || data.data[data.read_idx] == '\t' {
-		data.read_idx += 1
-	}
-
-	full_data_len := uint( len( data.data ) )
-
-	parse_tree_res_ok := try_lex_from_parse_tree_node( data, token, parse_state_tree.nodes )
-
-	if !parse_tree_res_ok {
-		start_ch := data.data[data.read_idx]
-
-		switch start_ch {
+		switch c {
+			case ' ':
+				data.read_idx += 1
 			case '\r':
-				if data.data[data.read_idx + 1] != '\n' {
-					log_errorf( "Carriage return not followed by newline??? Got {:q} instead", rune( data.data[data.read_idx + 1] ) )
-					token.kind = .Invalid
-					ok = false
-				} else {
-					token.kind = .EndOfLine
-				}
-
-				token.span = { data.id, data.read_idx, data.read_idx + 2 }
-				data.read_idx += 2
+				data.read_idx += 1
+				assert( data.data[data.read_idx] == '\n' )
+				data.read_idx += 1
+				token.kind = .EndOfLine
+				lex_assign_span( data, &token, 2 )
 			case '\n':
 				data.read_idx += 1
-
 				token.kind = .EndOfLine
-				token.span = { data.id, data.read_idx - 1, data.read_idx }
+				lex_assign_span( data, &token, 2 )
+			case '=':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .Equal					
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '>' ) {
+					token.kind = .ThiccArrow
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Assign
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case ';':
+				data.read_idx += 1
+				token.kind = .Semicolon
+				lex_assign_span( data, &token, 1 )
+				return
+			case ',':
+				data.read_idx += 1
+				token.kind = .Comma
+				lex_assign_span( data, &token, 1 )
+				return
+			case '.':
+				data.read_idx += 1
+				if lex_try_consume( data, '.' ) {
+					token.kind = .DotDot
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Dot
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '~':
+				data.read_idx += 1
+				token.kind = .Tilde
+				lex_assign_span( data, &token, 1 )
+				return
+			case ':':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .ColonAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Colon
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '+':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .PlusAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Plus
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '-':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .MinusAssign
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '>' ) {
+					token.kind = .SmolArrow
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Minus
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '*':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .StarAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Star
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '/':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .SlashAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Slash
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '%':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .PercentAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Percent
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '(':
+				data.read_idx += 1
+				token.kind = .LParen
+				lex_assign_span( data, &token, 1 )
+			case ')':
+				data.read_idx += 1
+				token.kind = .RParen
+				lex_assign_span( data, &token, 1 )
+			case '{':
+				data.read_idx += 1
+				token.kind = .LCurly
+				lex_assign_span( data, &token, 1 )
+			case '}':
+				data.read_idx += 1
+				token.kind = .RCurly
+				lex_assign_span( data, &token, 1 )
+			case '[':
+				data.read_idx += 1
+				token.kind = .LSquare
+				lex_assign_span( data, &token, 1 )
+			case ']':
+				data.read_idx += 1
+				token.kind = .RSquare
+				lex_assign_span( data, &token, 1 )
+			case '<':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .LessThanOrEqual
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '<' ) {
+					token.kind = .LShift
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .LAngle
+					lex_assign_span( data, &token, 1 )
+				}
+			case '>':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .GreaterThanOrEqual
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '>' ) {
+					token.kind = .RShift
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .RAngle
+					lex_assign_span( data, &token, 1 )
+				}
+			case '!':
+				data.read_idx += 1
+				if lex_try_consume( data, '=' ) {
+					token.kind = .NotEqual
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Bang
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '@':
+				data.read_idx += 1
+				lex_assign_span( data, &token, 1 )
+				return
+			case '&':
+				data.read_idx += 1
+				if lex_try_consume( data, '&' ) {
+					token.kind = .DoubleAmpersand
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '=' ) {
+					token.kind = .AmpersandAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Ampersand
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '|':
+				data.read_idx += 1
+				if lex_try_consume( data, '|' ) {
+					token.kind = .DoublePipe
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '=' ) {
+					token.kind = .PipeAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Pipe
+					lex_assign_span( data, &token, 1 )
+				}
+				return
+			case '^':
+				data.read_idx += 1
+				if lex_try_consume( data, '^' ) {
+					token.kind = .DoubleCaret
+					lex_assign_span( data, &token, 2 )
+				} else if lex_try_consume( data, '=' ) {
+					token.kind = .CaretAssign
+					lex_assign_span( data, &token, 2 )
+				} else {
+					token.kind = .Caret
+					lex_assign_span( data, &token, 1 )
+				}
+				return
 			case '"':
-				ok = get_string_literal( data, token )
-			case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-				ok = get_number_literal( data, token )
+				ok := get_string_literal( data, &token )
+				if !ok {
+					token.kind = .Invalid
+					return
+				}
+				return
+			case '0'..='9':
+				ok := get_number_literal( data, &token )
+				if !ok {
+					token.kind = .Invalid
+					return
+				}
+				return
+			case 'a'..='z':
+				ok := get_ident_or_keword( data, &token )
+				if !ok {
+					token.kind = .Invalid
+					return
+				}
+				return
 			case:
-				ok = get_ident_or_keword( data, token )
+				data.read_idx += 1
+				token.kind = .Invalid
+				lex_assign_span( data, &token, 1 )
+				return
 		}
 	}
-
-	if token.kind != .Invalid && len( token.str ) == 0 {
-		token.str = data.data[token.span.start:token.span.end]
-	}
-
+	
+	token.kind = .EndOfFile
+	token.span = { data.id, data_size - 1, data_size }
 	return
+}
+
+lex_try_consume :: proc( data: ^FileData, c: u8 ) -> bool
+{
+	if data.data[data.read_idx] == c {
+		data.read_idx += 1
+		return true
+	}
+	
+	return false
+}
+
+lex_assign_span :: proc( data: ^FileData, t: ^Token, size: uint )
+{
+	t.span.file = data.id
+	t.span.start = data.read_idx - size
+	t.span.end = data.read_idx
 }
 
 is_digit_char :: proc( char: u8 ) -> bool
@@ -575,8 +540,8 @@ TokenKind :: enum
 {
 	Invalid,
 
-	EndOfLine,
 	EndOfFile,
+	EndOfLine,
 
 	Decl,
 	Let,
@@ -613,6 +578,7 @@ TokenKind :: enum
 	PercentAssign,
 
 	SmolArrow,
+	ThiccArrow,
 
 	LParen,
 	RParen,
