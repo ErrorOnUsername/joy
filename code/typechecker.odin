@@ -1,5 +1,7 @@
 package main
 
+/*
+
 import "core:sync"
 import "core:strings"
 import "core:fmt"
@@ -91,7 +93,7 @@ tc_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Packag
 Checker :: struct
 {
 	proc_work_mutex: sync.Mutex,
-	proc_bodies:     [dynamic]^ProcDecl,
+	proc_bodies:     [dynamic]^Scope,
 }
 
 
@@ -229,27 +231,17 @@ tc_check_package_dag :: proc( c: ^Checker, pkgs: []PriorityItem(^Package) ) -> i
 tc_check_proc_bodies :: proc( c: ^Checker ) -> int
 {
 	for p in c.proc_bodies {
-		compiler_enqueue_work( .CheckProcBody, c = c, proc_body = p )
+		compiler_enqueue_work( .CheckProcBody, c = c )
 	}
 
 	return compiler_finish_work()
 }
 
 
-pump_tc_check_proc_body :: proc( c: ^Checker, p: ^ProcDecl ) -> PumpResult
+pump_tc_check_proc_body :: proc( c: ^Checker, p: ^Scope ) -> PumpResult
 {
-	ctx: CheckerContext
-	ctx.checker   = c
-	ctx.mod       = p.owning_mod
-	ctx.curr_proc = p
-	ctx.curr_scope = p.owning_mod.file_scope
-
-	assert( p.check_state == .Resolved ) // TODO: This will need to change when we add generics
-
-	scope_ok := tc_check_scope( &ctx, p.body )
-	if !scope_ok do return .Error
-
-	return .Continue
+	log_error( "impl check_proc_body" )
+	return .Error
 }
 
 
@@ -292,7 +284,7 @@ CheckerContext :: struct
 {
 	checker: ^Checker,
 	mod: ^Module,
-	curr_proc: ^ProcDecl,
+	curr_proc: ^Scope,
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
 }
@@ -953,4 +945,5 @@ lookup_identifier :: proc( ctx: ^CheckerContext, ident: string ) -> ^Stmnt
 
 	return nil
 }
+*/
 

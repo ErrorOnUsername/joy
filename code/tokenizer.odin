@@ -7,6 +7,7 @@ tokenize_file :: proc( data: ^FileData ) -> bool
 	tk := lex_next_token( data )
 	for tk.kind != .EndOfFile {
 		if tk.kind == .Invalid {
+			log_spanned_error( &tk.span, "got invalid token" )
 			return false
 		}
 		append( &data.tokens, tk )
@@ -39,7 +40,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 			case '=':
 				data.read_idx += 1
 				if lex_try_consume( data, '=' ) {
-					token.kind = .Equal					
+					token.kind = .Equal
 					lex_assign_span( data, &token, 2 )
 				} else if lex_try_consume( data, '>' ) {
 					token.kind = .ThiccArrow
@@ -252,7 +253,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 					return
 				}
 				return
-			case 'a'..='z':
+			case 'a'..='z', 'A'..='Z', '_':
 				ok := get_ident_or_keword( data, &token )
 				if !ok {
 					token.kind = .Invalid
@@ -266,7 +267,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				return
 		}
 	}
-	
+
 	token.kind = .EndOfFile
 	token.span = { data.id, data_size - 1, data_size }
 	return
@@ -278,7 +279,7 @@ lex_try_consume :: proc( data: ^FileData, c: u8 ) -> bool
 		data.read_idx += 1
 		return true
 	}
-	
+
 	return false
 }
 
@@ -408,6 +409,8 @@ keyword_map := map[string]TokenKind {
 	"struct"   = .Struct,
 	"enum"     = .Enum,
 	"union"    = .Union,
+	"proc"     = .Proc,
+	"return"   = .Return,
 	"continue" = .Continue,
 	"break"    = .Break,
 	"in"       = .In,
@@ -462,42 +465,6 @@ is_valid_ident_char :: proc( c: u8 ) -> bool
 	return ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) || c == '_'
 }
 
-tk_to_bin_op :: proc( tk: ^Token ) -> BinaryOperator
-{
-	#partial switch tk.kind {
-		case .Assign:             return .Assign
-		case .Equal:              return .Equal
-		case .Plus:               return .Add
-		case .PlusAssign:         return .AddAssign
-		case .Minus:              return .Subtract
-		case .MinusAssign:        return .SubtractAssign
-		case .Star:               return .Multiply
-		case .StarAssign:         return .MultiplyAssign
-		case .Slash:              return .Divide
-		case .SlashAssign:        return .DivideAssign
-		case .Percent:            return .Modulo
-		case .PercentAssign:      return .ModuloAssign
-		case .LAngle:             return .LessThan
-		case .LessThanOrEqual:    return .LessThanOrEq
-		case .LShift:             return .BitwiseLShift
-		case .RAngle:             return .GreaterThan
-		case .GreaterThanOrEqual: return .GreaterThanOrEq
-		case .RShift:             return .BitwiseRShift
-		case .NotEqual:           return .NotEqual
-		case .Ampersand:          return .BitwiseAnd
-		case .DoubleAmpersand:    return .LogicalAnd
-		case .AmpersandAssign:    return .AndAssign
-		case .Pipe:               return .BitwiseOr
-		case .DoublePipe:         return .LogicalOr
-		case .PipeAssign:         return .OrAssign
-		case .Caret:              return .BitwiseXOr
-		case .DoubleCaret:        return .LogicalXOr
-		case .CaretAssign:        return .XOrAssign
-	}
-
-	return .Invalid
-}
-
 join_span :: proc( l_span: ^Span, r_span: ^Span ) -> ( ret: Span, ok := true )
 {
 	ret = {}
@@ -549,6 +516,7 @@ TokenKind :: enum
 	Struct,
 	Enum,
 	Union,
+	Proc,
 
 	Ident,
 	StringLiteral,
@@ -608,6 +576,7 @@ TokenKind :: enum
 	DoubleCaret,
 	CaretAssign,
 
+	Return,
 	Continue,
 	Break,
 	In,

@@ -1,5 +1,4 @@
-decl MyStruct := struct
-{
+decl MyStruct := struct {
     member_0: usize;
     member_1: f32;
     member_2: cstring;
@@ -8,15 +7,13 @@ decl MyStruct := struct
     member_5: MyEnum;
 }
 
-decl MyEnum := enum
-{
+decl MyEnum := enum {
     VariantA;
     VariantB;
 }
 
 
-decl main : () =
-{
+decl main : proc () = {
     let a: string = "haha";
     let b := 10;
 

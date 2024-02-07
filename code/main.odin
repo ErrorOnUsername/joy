@@ -15,8 +15,6 @@ main :: proc()
 	compiler_init()
 	defer compiler_deinit()
 
-	init_default_types()
-
 	id, ok := fm_open( "test/basic" )
 	if !ok {
 		fmt.eprintln( "Could not load file" )
@@ -43,6 +41,9 @@ exec_phases :: proc( root_id: FileID ) -> int
 	root_package_data := fm_get_data( root_id )
 	pkg := root_package_data.pkg
 
+	/*
+	init_default_types()
+
 	packages_to_check, pkgs_ok := tc_build_package_list( pkg )
 	if !pkgs_ok {
 		return 1
@@ -58,6 +59,7 @@ exec_phases :: proc( root_id: FileID ) -> int
 
 	tasks_failed = tc_check_proc_bodies( &c )
 	if tasks_failed != 0 do return tasks_failed
+	*/
 
 	return 0
 }

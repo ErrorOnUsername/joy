@@ -24,9 +24,18 @@ SymbolTable :: map[string]^Stmnt
 Scope :: struct
 {
 	using node: Node,
+	variant:    ScopeVariant,
 	symbols:    SymbolTable,
 	stmnts:     [dynamic]^Stmnt,
 	parent:     ^Scope,
+}
+
+ScopeVariant :: enum
+{
+	Struct,
+	Enum,
+	Union,
+	Logic,
 }
 
 
@@ -40,49 +49,16 @@ AddressingMode :: enum
 }
 
 
-
 //
-// Declarations
+// Statements
 //
 
-StructDecl :: struct
+ConstDecl :: struct
 {
-	using stmnt: Stmnt,
-	name:        string,
-	memb_lookup: SymbolTable,
-	members:     [dynamic]^VarDecl,
-}
-
-EnumVariant :: struct
-{
-	using stmnt: Stmnt,
-	owning_enum: ^EnumDecl,
-	name:        string,
-}
-
-EnumDecl :: struct
-{
-	using stmnt: Stmnt,
-	name:        string,
-	underlying:  ^Type,
-	type_hint:   ^Expr,
-	vari_lookup: SymbolTable,
-	variants:    [dynamic]^EnumVariant,
-}
-
-UnionDecl :: struct
-{
-	using stmnt: Stmnt,
-	name:        string,
-}
-
-ProcDecl :: struct
-{
-	using stmnt: Stmnt,
-	owning_mod:  ^Module,
-	name:        string,
-	params:      [dynamic]^VarDecl,
-	body:        ^Scope,
+	using stmnt:   Stmnt,
+	name:          string,
+	type_hint:     ^Expr,
+	value:         ^Expr,
 }
 
 VarDecl :: struct
@@ -93,21 +69,10 @@ VarDecl :: struct
 	default_value: ^Expr,
 }
 
-
-//
-// Statements
-//
-
 ExprStmnt :: struct
 {
 	using stmnt: Stmnt,
 	expr:        ^Expr,
-}
-
-BlockStmnt :: struct
-{
-	using stmnt: Stmnt,
-	scope:       ^Scope,
 }
 
 ContinueStmnt :: struct
@@ -119,36 +84,6 @@ BreakStmnt :: struct
 {
 	using stmnt: Stmnt,
 }
-
-IfStmnt :: struct
-{
-	using stmnt: Stmnt,
-	cond:        ^Expr,
-	then_block:  ^Scope,
-	else_stmnt:  ^IfStmnt,
-}
-
-ForLoop :: struct
-{
-	using stmnt: Stmnt,
-	iter_ident: ^Ident,
-	range:      ^Expr,
-	body:       ^Scope,
-}
-
-WhileLoop :: struct
-{
-	using stmnt: Stmnt,
-	cond:        ^Expr,
-	body:        ^Scope,
-}
-
-InfiniteLoop :: struct
-{
-	using stmnt: Stmnt,
-	body:        ^Scope,
-}
-
 
 
 //
@@ -174,6 +109,35 @@ NumberLiteralExpr :: struct
 	str:        string,
 }
 
+IfExpr :: struct
+{
+	using expr: Expr,
+	cond:       ^Expr,
+	then:       ^Scope,
+	else_block: ^IfExpr,
+}
+
+ForLoop :: struct
+{
+	using expr: Expr,
+	iter_ident: ^Ident,
+	range:      ^Expr,
+	body:       ^Scope,
+}
+
+WhileLoop :: struct
+{
+	using expr: Expr,
+	cond:       ^Expr,
+	body:       ^Scope,
+}
+
+InfiniteLoop :: struct
+{
+	using expr: Expr,
+	body:       ^Scope,
+}
+
 RangeExpr :: struct
 {
 	using expr: Expr,
@@ -190,87 +154,46 @@ FieldAccessExpr :: struct
 	field:      ^Expr,
 }
 
-
-BinaryOperator :: enum
-{
-	Invalid,
-
-	Add,
-	Subtract,
-	Multiply,
-	Divide,
-	Modulo,
-
-	LessThanOrEq,
-	LessThan,
-	GreaterThanOrEq,
-	GreaterThan,
-
-	Equal,
-	NotEqual,
-
-	LogicalAnd,
-	LogicalOr,
-	LogicalXOr,
-	BitwiseAnd,
-	BitwiseOr,
-	BitwiseXOr,
-
-	BitwiseLShift,
-	BitwiseRShift,
-
-	Assign,
-
-	AddAssign,
-	SubtractAssign,
-	MultiplyAssign,
-	DivideAssign,
-	ModuloAssign,
-	AndAssign,
-	OrAssign,
-	XOrAssign,
-}
-
 BinOpExpr :: struct
 {
 	using expr: Expr,
-	op:         BinaryOperator,
+	op:         Token,
 	lhs:        ^Expr,
 	rhs:        ^Expr,
 }
 
-bin_op_priority :: proc( op: BinaryOperator ) -> i8
+bin_op_priority :: proc( op: Token ) -> i8
 {
-	switch op {
+	#partial switch op.kind {
 		case .Invalid: return -1
 
-		case .Multiply, .Divide, .Modulo:
+		case .Star, .Slash, .Percent:
 			return 12
 
-		case .Add, .Subtract:
+		case .Plus, .Minus:
 			return 11
 
-		case .BitwiseLShift, .BitwiseRShift:
+		case .LShift, .RShift:
 			return 10
 
-		case .LessThanOrEq, .LessThan,
-		     .GreaterThanOrEq, .GreaterThan:
+		case .LessThanOrEqual, .LAngle,
+		     .GreaterThanOrEqual, .RAngle:
 			return 9
 
 		case .Equal, .NotEqual:
 			return 8
 
-		case .BitwiseAnd: return 7
-		case .BitwiseOr:  return 6
-		case .BitwiseXOr: return 5
-		case .LogicalAnd: return 4
-		case .LogicalOr:  return 3
-		case .LogicalXOr: return 2
+		case .Ampersand:       return 7
+		case .Pipe:            return 6
+		case .Caret:           return 5
+		case .DoubleAmpersand: return 4
+		case .DoublePipe:      return 3
+		case .DoubleCaret:     return 2
 
-		case .Assign, .AddAssign,
-			 .SubtractAssign, .MultiplyAssign,
-			 .DivideAssign, .ModuloAssign,
-			 .AndAssign, .OrAssign, .XOrAssign:
+		case .Assign, .PlusAssign,
+			 .MinusAssign, .StarAssign,
+			 .SlashAssign, .PercentAssign,
+			 .AmpersandAssign, .PipeAssign, .CaretAssign:
 			return 1
 	}
 
@@ -310,20 +233,11 @@ ArrayTypeExpr :: struct
 
 AnyStmnt :: union
 {
-	^StructDecl,
-	^EnumDecl,
-	^EnumVariant,
-	^UnionDecl,
-	^ProcDecl,
+	^ConstDecl,
 	^VarDecl,
 	^ExprStmnt,
-	^BlockStmnt,
 	^ContinueStmnt,
 	^BreakStmnt,
-	^IfStmnt,
-	^ForLoop,
-	^WhileLoop,
-	^InfiniteLoop,
 }
 
 Stmnt :: struct
@@ -337,6 +251,10 @@ AnyExpr :: union
 	^Ident,
 	^StringLiteralExpr,
 	^NumberLiteralExpr,
+	^IfExpr,
+	^ForLoop,
+	^WhileLoop,
+	^InfiniteLoop,
 	^RangeExpr,
 	^BinOpExpr,
 	^ProcCallExpr,
