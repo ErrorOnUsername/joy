@@ -51,6 +51,10 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
 	return .Continue
 }
 
+ParserContext :: struct
+{
+}
+
 pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 {
 	data := fm_get_data( file_id )
@@ -214,6 +218,11 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 	#partial switch start_tk.kind {
 		case .Decl: return parse_decl( file_data, scope )
 		case .Let:
+			if !try_consume_tk( file_data, .Let ) {
+				log_spanned_error( &start_tk.span, "Expected 'let' at start of variable declaration" )
+				return nil
+			}
+
 			var := parse_var_decl( file_data )
 			if var == nil {
 				return nil
@@ -227,6 +236,11 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 
 			return var
 		case .Continue:
+			if !try_consume_tk( file_data, .Continue ) {
+				log_spanned_error( &start_tk.span, "Expected 'continue' at start of continue statement" )
+				return nil
+			}
+
 			continue_stmnt := new_node( ContinueStmnt, start_tk.span )
 
 			sc_tk := curr_tk( file_data )
@@ -237,6 +251,11 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 
 			return continue_stmnt
 		case .Break:
+			if !try_consume_tk( file_data, .Break ) {
+				log_spanned_error( &start_tk.span, "Expected 'break' at start of break statement" )
+				return nil
+			}
+
 			break_stmnt := new_node( BreakStmnt, start_tk.span )
 
 			sc_tk := curr_tk( file_data )
@@ -247,8 +266,21 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 
 			return break_stmnt
 		case .Return:
-			log_spanned_error( &start_tk.span, "impl 'return' parsing" )
-			return nil
+			if !try_consume_tk( file_data, .Return ) {
+				log_spanned_error( &start_tk.span, "Expected 'return' at start of return statement" )
+				return nil
+			}
+
+			return_stmnt := new_node( ReturnStmnt, start_tk.span )
+			return_stmnt.expr = parse_expr( file_data, true )
+
+			sc_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .Semicolon ) {
+				log_spanned_error( &sc_tk.span, "Expected ';' to terminate return statement" )
+				return nil
+			}
+
+			return return_stmnt
 		case:
 			file_data.tk_idx -= 1
 
@@ -268,7 +300,7 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 	}
 }
 
-parse_if_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfExpr
+parse_if_expr :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfExpr
 {
 	if_tk := curr_tk( file_data )
 	log_spanned_error( &if_tk.span, "impl 'if' parsing" )
@@ -289,7 +321,7 @@ parse_while_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^WhileLoop
 	return nil
 }
 
-parse_loop_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^InfiniteLoop
+parse_inf_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^InfiniteLoop
 {
 	loop_tk := curr_tk( file_data )
 	log_spanned_error( &loop_tk.span, "impl 'loop' parsing" )
@@ -330,11 +362,41 @@ parse_type :: proc( file_data: ^FileData ) -> ^Expr
 }
 
 
-parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is_type := false ) -> ^Expr
+parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is_type := false, last_prio := -1 ) -> ^Expr
 {
-	start_tk := curr_tk( file_data )
-	log_spanned_error( &start_tk.span, "impl expr parsing" )
-	return nil
+	lhs := parse_operand( file_data, can_create_struct_literal )
+	if lhs == nil do return nil
+
+	op_tk := curr_tk( file_data )
+	op_prio := bin_op_priority( op_tk )
+	can_operate_on := expr_allows_bin_ops( lhs )
+
+	// magic, baby
+	if can_operate_on && op_prio > 0 {
+		rhs: ^Expr
+		if op_prio >= last_prio {
+			rhs = parse_expr( file_data, false, last_prio = op_prio )
+		} else {
+			rhs = parse_operand( file_data, false )
+		}
+
+		if rhs == nil do return nil
+
+		span, ok := join_span( &lhs.span, &rhs.span )
+		if !ok {
+			// TODO(rd): maybe make this better
+			return nil // internal compiler error ig
+		}
+
+		b_op := new_node( BinOpExpr, span )
+		b_op.lhs = lhs
+		b_op.rhs = rhs
+		b_op.op = op_tk^
+
+		return b_op
+	}
+
+	return lhs
 }
 
 parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -> ^Expr
@@ -342,6 +404,19 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 	start_tk := curr_tk( file_data )
 	log_spanned_error( &start_tk.span, "impl operand parsing" )
 	return nil
+}
+
+expr_allows_bin_ops :: proc( expr: ^Expr ) -> bool
+{
+	#partial switch _ in expr.derived_expr {
+		case ^Scope, ^IfExpr,
+		     ^ForLoop, ^WhileLoop,
+		     ^InfiniteLoop, ^RangeExpr,
+		     ^PointerTypeExpr, ^SliceTypeExpr,
+		     ^ArrayTypeExpr:
+			return false
+		case: return true
+	}
 }
 
 curr_tk :: proc( data: ^FileData ) -> ^Token

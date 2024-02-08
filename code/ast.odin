@@ -23,7 +23,7 @@ SymbolTable :: map[string]^Stmnt
 
 Scope :: struct
 {
-	using node: Node,
+	using expr: Expr,
 	variant:    ScopeVariant,
 	symbols:    SymbolTable,
 	stmnts:     [dynamic]^Stmnt,
@@ -83,6 +83,12 @@ ContinueStmnt :: struct
 BreakStmnt :: struct
 {
 	using stmnt: Stmnt,
+}
+
+ReturnStmnt :: struct
+{
+	using stmnt: Stmnt,
+	expr:        ^Expr,
 }
 
 
@@ -162,7 +168,7 @@ BinOpExpr :: struct
 	rhs:        ^Expr,
 }
 
-bin_op_priority :: proc( op: Token ) -> i8
+bin_op_priority :: proc( op: ^Token ) -> int
 {
 	#partial switch op.kind {
 		case .Invalid: return -1
@@ -238,6 +244,7 @@ AnyStmnt :: union
 	^ExprStmnt,
 	^ContinueStmnt,
 	^BreakStmnt,
+	^ReturnStmnt,
 }
 
 Stmnt :: struct
@@ -251,6 +258,7 @@ AnyExpr :: union
 	^Ident,
 	^StringLiteralExpr,
 	^NumberLiteralExpr,
+	^Scope,
 	^IfExpr,
 	^ForLoop,
 	^WhileLoop,
