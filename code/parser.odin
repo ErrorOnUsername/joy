@@ -534,11 +534,11 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 		case .LParen:
 			log_spanned_error( &start_tk.span, "impl range parsing" )
 			return nil
-		case .Void, .Bool, .U8,
-		     .I8, .U16, .I16,
-		     .U32, .I32, .U64,
-		     .I64, .USize, .ISize,
-		     .F32, .F64, .String,
+		case .Void,    .Bool,   .U8,
+		     .I8,      .U16,    .I16,
+		     .U32,     .I32,    .U64,
+		     .I64,     .USize,  .ISize,
+		     .F32,     .F64,    .String,
 		     .CString, .RawPtr, .Range:
 			log_spanned_error( &start_tk.span, "impl primitive parsing" )
 			return nil
@@ -546,8 +546,6 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &start_tk.span, "Invalid token in operand" )
 			return nil
 	}
-	log_spanned_error( &start_tk.span, "impl operand parsing" )
-	return nil
 }
 
 expr_allows_bin_ops :: proc( expr: ^Expr ) -> bool
