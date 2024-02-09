@@ -97,6 +97,9 @@ parse_top_level_stmnts :: proc( file_data: ^FileData, mod: ^Module ) -> ( ok := 
 			case .Let:
 				log_error( "impl globals" )
 				ok = false
+			case .Use:
+				log_spanned_error( &first_tk.span, "impl use statements" )
+				ok = false
 			case .EndOfLine:
 				file_data.tk_idx += 1
 			case:
