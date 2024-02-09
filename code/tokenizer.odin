@@ -33,10 +33,12 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				data.read_idx += 1
 				token.kind = .EndOfLine
 				lex_assign_span( data, &token, 2 )
+				return
 			case '\n':
 				data.read_idx += 1
 				token.kind = .EndOfLine
 				lex_assign_span( data, &token, 2 )
+				return
 			case '=':
 				data.read_idx += 1
 				if lex_try_consume( data, '=' ) {
@@ -142,26 +144,32 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				data.read_idx += 1
 				token.kind = .LParen
 				lex_assign_span( data, &token, 1 )
+				return
 			case ')':
 				data.read_idx += 1
 				token.kind = .RParen
 				lex_assign_span( data, &token, 1 )
+				return
 			case '{':
 				data.read_idx += 1
 				token.kind = .LCurly
 				lex_assign_span( data, &token, 1 )
+				return
 			case '}':
 				data.read_idx += 1
 				token.kind = .RCurly
 				lex_assign_span( data, &token, 1 )
+				return
 			case '[':
 				data.read_idx += 1
 				token.kind = .LSquare
 				lex_assign_span( data, &token, 1 )
+				return
 			case ']':
 				data.read_idx += 1
 				token.kind = .RSquare
 				lex_assign_span( data, &token, 1 )
+				return
 			case '<':
 				data.read_idx += 1
 				if lex_try_consume( data, '=' ) {
@@ -174,6 +182,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 					token.kind = .LAngle
 					lex_assign_span( data, &token, 1 )
 				}
+				return
 			case '>':
 				data.read_idx += 1
 				if lex_try_consume( data, '=' ) {
@@ -186,6 +195,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 					token.kind = .RAngle
 					lex_assign_span( data, &token, 1 )
 				}
+				return
 			case '!':
 				data.read_idx += 1
 				if lex_try_consume( data, '=' ) {

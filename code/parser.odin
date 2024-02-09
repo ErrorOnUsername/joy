@@ -348,21 +348,46 @@ is_ident_tk :: proc( tk: TokenKind ) -> bool
 	return false
 }
 
-parse_var_decl :: proc( file_data: ^FileData ) -> ^VarDecl
+parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" ) -> ^VarDecl
 {
 	start_tk := curr_tk( file_data )
-	log_spanned_error( &start_tk.span, "impl var parsing" )
-	return nil
+	if !try_consume_tk( file_data, .Ident ) {
+		log_spanned_errorf( &start_tk.span, "Expected identifier at start of {}", ctx_msg )
+		return nil
+	}
+
+	type_hint: ^Expr
+	default_value: ^Expr
+
+	colon_tk := curr_tk( file_data )
+	if try_consume_tk( file_data, .Colon ) {
+		type_hint = parse_type( file_data )
+		if type_hint == nil do return nil
+
+		if try_consume_tk( file_data, .Assign ) {
+			default_value = parse_expr( file_data, true )
+			if default_value == nil do return nil
+		}
+	} else if try_consume_tk( file_data, .ColonAssign ) {
+		default_value = parse_expr( file_data, true )
+		if default_value == nil do return nil
+	}
+
+	var := new_node( VarDecl, start_tk.span )
+	var.type_hint = type_hint
+	var.default_value = default_value
+
+	return var
 }
 
 
 parse_type :: proc( file_data: ^FileData ) -> ^Expr
 {
-	return parse_expr( file_data, false, true )
+	return parse_expr( file_data, false )
 }
 
 
-parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is_type := false, last_prio := -1 ) -> ^Expr
+parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, last_prio := -1 ) -> ^Expr
 {
 	lhs := parse_operand( file_data, can_create_struct_literal )
 	if lhs == nil do return nil
@@ -402,6 +427,122 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is
 parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -> ^Expr
 {
 	start_tk := curr_tk( file_data )
+
+	#partial switch start_tk.kind {
+		case .Struct:
+			assert( try_consume_tk( file_data, .Struct ) )
+
+			l_curly_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .LCurly ) {
+				log_spanned_error( &l_curly_tk.span, "Expected '{' at the start of struct body expression" )
+				return nil
+			}
+
+			struct_expr := new_node( Scope, start_tk.span )
+			struct_expr.variant = .Struct
+
+			consume_newlines( file_data )
+
+			for {
+				member := parse_var_decl( file_data, "struct declaration" )
+				if member == nil do return nil
+
+				sc_tk := curr_tk( file_data )
+				if !try_consume_tk( file_data, .Semicolon ) {
+					log_spanned_error( &sc_tk.span, "Expected ';' to terminate struct member declaration" )
+					return nil
+				}
+
+				append( &struct_expr.stmnts, member )
+
+				consume_newlines( file_data )
+
+				if try_consume_tk( file_data, .RCurly ) {
+					break
+				}
+			}
+
+			return struct_expr
+		case .Enum:
+			assert( try_consume_tk( file_data, .Enum ) )
+
+			l_curly_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .LCurly ) {
+				log_spanned_error( &l_curly_tk.span, "Expected '{' at the start of enum body expression" )
+				return nil
+			}
+
+			enum_expr := new_node( Scope, start_tk.span )
+			enum_expr.variant = .Struct
+
+			consume_newlines( file_data )
+
+			for {
+				ident_tk := curr_tk( file_data )
+				if !try_consume_tk( file_data, .Ident ) {
+					log_spanned_error( &ident_tk.span, "Expected ident for enum variant name" )
+				}
+
+				sc_tk := curr_tk( file_data )
+				if !try_consume_tk( file_data, .Semicolon ) {
+					log_spanned_error( &sc_tk.span, "Expected ';' to terminate enum variant declaration" )
+					return nil
+				}
+
+				variant := new_node( EnumVariantDecl, ident_tk.span )
+
+				append( &enum_expr.stmnts, variant )
+
+				consume_newlines( file_data )
+
+				if try_consume_tk( file_data, .RCurly ) {
+					break
+				}
+			}
+
+			return enum_expr
+		case .Union:
+			log_spanned_error( &start_tk.span, "impl union parsing" )
+			return nil
+		case .LCurly:
+			log_spanned_error( &start_tk.span, "impl scope parsing" )
+			return nil
+		case .If:
+			log_spanned_error( &start_tk.span, "impl if parsing" )
+			return nil
+		case .For:
+			log_spanned_error( &start_tk.span, "impl for parsing" )
+			return nil
+		case .While:
+			log_spanned_error( &start_tk.span, "impl while parsing" )
+			return nil
+		case .Loop:
+			log_spanned_error( &start_tk.span, "impl loop parsing" )
+			return nil
+		case .Star:
+			log_spanned_error( &start_tk.span, "impl pointer parsing" )
+			return nil
+		case .At:
+			log_spanned_error( &start_tk.span, "impl addr-of parsing" )
+			return nil
+		case .LSquare:
+			log_spanned_error( &start_tk.span, "impl array/range parsing" )
+			return nil
+		case .LParen:
+			log_spanned_error( &start_tk.span, "impl range parsing" )
+			return nil
+		case .Void, .Bool, .U8,
+		     .I8, .U16, .I16,
+		     .U32, .I32, .U64,
+		     .I64, .USize, .ISize,
+		     .F32, .F64, .String,
+		     .CString, .RawPtr, .Range:
+			log_spanned_error( &start_tk.span, "impl primitive parsing" )
+			return nil
+		case:
+			log_spanned_error( &start_tk.span, "Invalid token in operand" )
+			return nil
+	}
 	log_spanned_error( &start_tk.span, "impl operand parsing" )
 	return nil
 }
@@ -432,5 +573,10 @@ try_consume_tk :: proc( data: ^FileData, kind: TokenKind ) -> bool
 	}
 
 	return false
+}
+
+consume_newlines :: proc( file_data: ^FileData )
+{
+	for try_consume_tk( file_data, .EndOfLine ) { }
 }
 

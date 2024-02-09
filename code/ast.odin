@@ -69,6 +69,12 @@ VarDecl :: struct
 	default_value: ^Expr,
 }
 
+EnumVariantDecl :: struct
+{
+	using stmnt: Stmnt,
+	name:        string,
+}
+
 ExprStmnt :: struct
 {
 	using stmnt: Stmnt,
@@ -241,6 +247,7 @@ AnyStmnt :: union
 {
 	^ConstDecl,
 	^VarDecl,
+	^EnumVariantDecl,
 	^ExprStmnt,
 	^ContinueStmnt,
 	^BreakStmnt,
