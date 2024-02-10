@@ -432,6 +432,9 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 	start_tk := curr_tk( file_data )
 
 	#partial switch start_tk.kind {
+		case .Proc:
+			log_spanned_error( &start_tk.span, "impl procedure proto parsing" )
+			return nil
 		case .Struct:
 			assert( try_consume_tk( file_data, .Struct ) )
 
@@ -540,8 +543,14 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 		     .I64,     .USize,  .ISize,
 		     .F32,     .F64,    .String,
 		     .CString, .RawPtr, .Range:
-			log_spanned_error( &start_tk.span, "impl primitive parsing" )
-			return nil
+			file_data.tk_idx += 1
+			prim := new_node( PrimitiveTypeExpr, start_tk.span )
+			prim.prim = type_prim_kind_from_tk( start_tk.kind )
+			return prim
+		case .Ident:
+			file_data.tk_idx += 1
+			ident := new_node( Ident, start_tk.span )
+			return ident
 		case:
 			log_spanned_error( &start_tk.span, "Invalid token in operand" )
 			return nil

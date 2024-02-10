@@ -220,6 +220,13 @@ ProcCallExpr :: struct
 }
 
 
+PrimitiveTypeExpr :: struct
+{
+	using expr: Expr,
+	prim: PrimitiveKind,
+}
+
+
 PointerTypeExpr :: struct
 {
 	using expr: Expr,
@@ -274,6 +281,7 @@ AnyExpr :: union
 	^BinOpExpr,
 	^ProcCallExpr,
 	^FieldAccessExpr,
+	^PrimitiveTypeExpr,
 	^PointerTypeExpr,
 	^SliceTypeExpr,
 	^ArrayTypeExpr,
