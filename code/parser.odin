@@ -139,6 +139,12 @@ parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^ConstDecl
 		if decl.value == nil do return nil
 	}
 
+	sc_tk := curr_tk( file_data )
+	if !try_consume_tk( file_data, .Semicolon ) {
+		log_spanned_error( &sc_tk.span, "Expected ';' to terminate decl statement" )
+		return nil
+	}
+
 	return decl
 }
 
@@ -436,7 +442,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &start_tk.span, "impl procedure proto parsing" )
 			return nil
 		case .Struct:
-			assert( try_consume_tk( file_data, .Struct ) )
+			file_data.tk_idx += 1
 
 			l_curly_tk := curr_tk( file_data )
 			if !try_consume_tk( file_data, .LCurly ) {
@@ -470,7 +476,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 			return struct_expr
 		case .Enum:
-			assert( try_consume_tk( file_data, .Enum ) )
+			file_data.tk_idx += 1
 
 			l_curly_tk := curr_tk( file_data )
 			if !try_consume_tk( file_data, .LCurly ) {
