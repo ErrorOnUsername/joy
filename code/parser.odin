@@ -319,8 +319,28 @@ parse_if_expr :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfExpr
 parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 {
 	l_curly_tk := curr_tk( file_data )
-	log_spanned_error( &l_curly_tk.span, "impl logic scope parsing" )
-	return nil
+	if !try_consume_tk( file_data, .LCurly ) {
+		log_spanned_error( &l_curly_tk.span, "Expected '{' at start of scope" )
+		return nil
+	}
+
+	consume_newlines( file_data )
+
+	sc := new_node( Scope, l_curly_tk.span )
+
+	tk := curr_tk( file_data )
+	for tk.kind != .RCurly {
+		stmnt := parse_stmnt( file_data, sc )
+		if stmnt == nil do return nil
+
+		append( &sc.stmnts, stmnt )
+
+		consume_newlines( file_data )
+
+		tk = curr_tk( file_data )
+	}
+
+	return sc
 }
 
 parse_struct_literal :: proc( file_data: ^FileData ) -> ^StructLiteralExpr
@@ -378,18 +398,18 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 
 parse_type :: proc( file_data: ^FileData ) -> ^Expr
 {
-	return parse_expr( file_data, false )
+	return parse_expr( file_data, false, true )
 }
 
 
-parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, last_prio := -1 ) -> ^Expr
+parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is_type := false, last_prio := -1 ) -> ^Expr
 {
 	lhs := parse_operand( file_data, can_create_struct_literal )
 	if lhs == nil do return nil
 
 	op_tk := curr_tk( file_data )
 	op_prio := bin_op_priority( op_tk )
-	can_operate_on := expr_allows_bin_ops( lhs )
+	can_operate_on := expr_allows_bin_ops( lhs ) && !is_type
 
 	// magic, baby
 	if can_operate_on && op_prio > 0 {
@@ -465,7 +485,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 				return proto
 			}
 
-			sc := parse_scope( file_data )
+			sc := parse_scope( file_data, nil )
 			if sc == nil do return nil
 
 			proto.body = sc
