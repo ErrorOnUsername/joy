@@ -129,6 +129,11 @@ NumberLiteralExpr :: struct
 	str:        string,
 }
 
+StructLiteralExpr :: struct
+{
+	using expr: Expr,
+}
+
 IfExpr :: struct
 {
 	using expr: Expr,
@@ -281,6 +286,7 @@ AnyExpr :: union
 	^Ident,
 	^StringLiteralExpr,
 	^NumberLiteralExpr,
+	^StructLiteralExpr,
 	^Scope,
 	^IfExpr,
 	^ForLoop,

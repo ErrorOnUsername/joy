@@ -316,31 +316,17 @@ parse_if_expr :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfExpr
 	return nil
 }
 
-parse_for_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^ForLoop
-{
-	for_tk := curr_tk( file_data )
-	log_spanned_error( &for_tk.span, "impl 'for' parsing" )
-	return nil
-}
-
-parse_while_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^WhileLoop
-{
-	while_tk := curr_tk( file_data )
-	log_spanned_error( &while_tk.span, "impl 'while' parsing" )
-	return nil
-}
-
-parse_inf_loop :: proc( file_data: ^FileData, scope: ^Scope ) -> ^InfiniteLoop
-{
-	loop_tk := curr_tk( file_data )
-	log_spanned_error( &loop_tk.span, "impl 'loop' parsing" )
-	return nil
-}
-
 parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 {
 	l_curly_tk := curr_tk( file_data )
 	log_spanned_error( &l_curly_tk.span, "impl logic scope parsing" )
+	return nil
+}
+
+parse_struct_literal :: proc( file_data: ^FileData ) -> ^StructLiteralExpr
+{
+	l_curly_tk := curr_tk( file_data )
+	log_spanned_error( &l_curly_tk.span, "impl struct literal parsing" )
 	return nil
 }
 
@@ -479,14 +465,8 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 				return proto
 			}
 
-			body := parse_operand( file_data, false )
-			if body == nil do return nil
-
-			sc, ok := body.derived_expr.(^Scope)
-			if !ok {
-				log_spanned_error( &body.span, "Expected scope for procedure body" )
-				return nil
-			}
+			sc := parse_scope( file_data )
+			if sc == nil do return nil
 
 			proto.body = sc
 
@@ -567,6 +547,12 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &start_tk.span, "impl union parsing" )
 			return nil
 		case .LCurly:
+			if can_create_struct_literal {
+				return parse_struct_literal( file_data )
+			} else {
+				// FIXME(rd): need context so that we can actually have hookup
+				return parse_scope( file_data, nil )
+			}
 			log_spanned_error( &start_tk.span, "impl scope parsing" )
 			return nil
 		case .If:
