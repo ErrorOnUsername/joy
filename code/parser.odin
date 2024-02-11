@@ -439,8 +439,58 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 	#partial switch start_tk.kind {
 		case .Proc:
-			log_spanned_error( &start_tk.span, "impl procedure proto parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			lp_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .LParen ) {
+				log_spanned_error( &lp_tk.span, "Expected '(' to begin procedure prototype parameter definitions" )
+				return nil
+			}
+
+			proto := new_node( ProcProto, start_tk.span )
+
+			consume_newlines( file_data )
+
+			tk := curr_tk( file_data )
+
+			for tk.kind != .RParen {
+				if len( proto.params ) > 0 && !try_consume_tk( file_data, .Comma ) {
+					log_spanned_error( &tk.span, "Expected ',' to seperate procedure parameters" )
+					return nil
+				}
+
+				param := parse_var_decl( file_data, "procedure parameter" )
+				if param == nil do return nil
+
+				append( &proto.params, param )
+
+				consume_newlines( file_data )
+
+				tk = curr_tk( file_data )
+			}
+
+			// Cosume the ')'
+			file_data.tk_idx += 1
+
+			consume_newlines( file_data )
+
+			lc_tk := curr_tk( file_data )
+			if lc_tk.kind != .LCurly {
+				return proto
+			}
+
+			body := parse_operand( file_data, false )
+			if body == nil do return nil
+
+			sc, ok := body.derived_expr.(^Scope)
+			if !ok {
+				log_spanned_error( &body.span, "Expected scope for procedure body" )
+				return nil
+			}
+
+			proto.body = sc
+
+			return proto
 		case .Struct:
 			file_data.tk_idx += 1
 

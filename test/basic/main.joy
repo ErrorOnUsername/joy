@@ -13,7 +13,7 @@ decl MyEnum := enum {
 };
 
 
-decl main : proc () = {
+decl main := proc() {
     let a: string = "haha";
     let b := 10;
 

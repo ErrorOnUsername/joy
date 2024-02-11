@@ -102,6 +102,14 @@ ReturnStmnt :: struct
 // Expressions
 //
 
+ProcProto :: struct
+{
+	using expr: Expr,
+	name:       string,
+	params:     [dynamic]^VarDecl,
+	body:       ^Scope,
+}
+
 Ident :: struct
 {
 	using expr: Expr,
@@ -269,6 +277,7 @@ Stmnt :: struct
 
 AnyExpr :: union
 {
+	^ProcProto,
 	^Ident,
 	^StringLiteralExpr,
 	^NumberLiteralExpr,
