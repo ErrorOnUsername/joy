@@ -297,13 +297,22 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 			stmnt := new_node( ExprStmnt, expr.span )
 			stmnt.expr = expr
 
+			should_term_with_sc := should_expr_terminate_with_semicolon( expr )
 			sc_tk := curr_tk( file_data )
-			if !try_consume_tk( file_data, .Semicolon ) {
+			if !try_consume_tk( file_data, .Semicolon ) && should_term_with_sc {
 				log_spanned_error( &sc_tk.span, "Expected terminating ';' after expression statement" )
 				return nil
 			}
 
 			return stmnt
+	}
+}
+
+should_expr_terminate_with_semicolon :: proc( e: ^Expr ) -> bool
+{
+	#partial switch _ in e.derived_expr {
+		case ^IfExpr: return false
+		case: return false
 	}
 }
 
@@ -337,6 +346,8 @@ parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 
 		tk = curr_tk( file_data )
 	}
+
+	file_data.tk_idx += 1
 
 	return sc
 }
@@ -411,6 +422,8 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is
 
 	// magic, baby
 	if can_operate_on && op_prio > 0 {
+		file_data.tk_idx += 1
+
 		rhs: ^Expr
 		if op_prio >= last_prio {
 			rhs = parse_expr( file_data, false, last_prio = op_prio )
@@ -574,8 +587,44 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &start_tk.span, "impl scope parsing" )
 			return nil
 		case .If:
-			log_spanned_error( &start_tk.span, "impl if parsing" )
-			return nil
+			if_exp := new_node( IfExpr, start_tk.span )
+
+			curr_if := if_exp
+			for {
+				if try_consume_tk( file_data, .If ) {
+					cond := parse_expr( file_data )
+					if cond == nil do return nil
+
+					curr_if.cond = cond
+				}
+
+				consume_newlines( file_data )
+
+				l_curly_tk := curr_tk( file_data )
+				if l_curly_tk.kind != .LCurly {
+					log_spanned_error( &l_curly_tk.span, "Expected '{' to begin if body" )
+					return nil
+				}
+
+				// FIXME(rd): need context so that we can actually have hookup
+				body := parse_scope( file_data, nil )
+				if body == nil do return nil
+
+				curr_if.then = body
+
+				consume_newlines( file_data )
+
+				else_tk := curr_tk( file_data )
+				if !try_consume_tk( file_data, .Else ) {
+					break
+				}
+
+				else_block := new_node( IfExpr, else_tk.span )
+				curr_if.else_block = else_block
+				curr_if = else_block
+			}
+
+			return if_exp
 		case .For:
 			log_spanned_error( &start_tk.span, "impl for parsing" )
 			return nil
