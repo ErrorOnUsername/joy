@@ -311,8 +311,8 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 should_expr_terminate_with_semicolon :: proc( e: ^Expr ) -> bool
 {
 	#partial switch _ in e.derived_expr {
-		case ^IfExpr: return false
-		case: return false
+		case ^IfExpr, ^ForLoop, ^WhileLoop, ^InfiniteLoop: return false
+		case: return true
 	}
 }
 
