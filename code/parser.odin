@@ -316,13 +316,6 @@ should_expr_terminate_with_semicolon :: proc( e: ^Expr ) -> bool
 	}
 }
 
-parse_if_expr :: proc( file_data: ^FileData, scope: ^Scope ) -> ^IfExpr
-{
-	if_tk := curr_tk( file_data )
-	log_spanned_error( &if_tk.span, "impl 'if' parsing" )
-	return nil
-}
-
 parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 {
 	l_curly_tk := curr_tk( file_data )
@@ -350,13 +343,6 @@ parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 	file_data.tk_idx += 1
 
 	return sc
-}
-
-parse_struct_literal :: proc( file_data: ^FileData ) -> ^StructLiteralExpr
-{
-	l_curly_tk := curr_tk( file_data )
-	log_spanned_error( &l_curly_tk.span, "impl struct literal parsing" )
-	return nil
 }
 
 is_ident_tk :: proc( tk: TokenKind ) -> bool
@@ -578,13 +564,7 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &start_tk.span, "impl union parsing" )
 			return nil
 		case .LCurly:
-			if can_create_struct_literal {
-				return parse_struct_literal( file_data )
-			} else {
-				// FIXME(rd): need context so that we can actually have hookup
-				return parse_scope( file_data, nil )
-			}
-			log_spanned_error( &start_tk.span, "impl scope parsing" )
+			log_spanned_error( &start_tk.span, "impl struct literal parsing" )
 			return nil
 		case .If:
 			if_exp := new_node( IfExpr, start_tk.span )
