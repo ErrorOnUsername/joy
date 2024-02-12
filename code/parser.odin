@@ -291,8 +291,6 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 
 			return return_stmnt
 		case:
-			file_data.tk_idx -= 1
-
 			expr  := parse_expr( file_data )
 			if expr == nil do return nil
 
@@ -613,8 +611,16 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			file_data.tk_idx += 1
 			ident := new_node( Ident, start_tk.span )
 			return ident
+		case .StringLiteral:
+			file_data.tk_idx += 1
+			str_lit := new_node( StringLiteralExpr, start_tk.span )
+			return str_lit
+		case .Number:
+			file_data.tk_idx += 1
+			n_lit := new_node( NumberLiteralExpr, start_tk.span )
+			return n_lit
 		case:
-			log_spanned_error( &start_tk.span, "Invalid token in operand" )
+			log_spanned_errorf( &start_tk.span, "Invalid token in operand: {}", start_tk.kind )
 			return nil
 	}
 }
