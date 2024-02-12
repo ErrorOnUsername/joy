@@ -626,8 +626,42 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 			return if_exp
 		case .For:
-			log_spanned_error( &start_tk.span, "impl for parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			iter_name_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .Ident ) {
+				log_spanned_error( &iter_name_tk.span, "Expected identifier for loop iterator name" )
+				return nil
+			}
+			iter := new_node( Ident, iter_name_tk.span )
+
+			in_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .In ) {
+				log_spanned_error( &in_tk.span, "Expected 'in' in for loop expression" )
+				return nil
+			}
+
+			range_expr := parse_expr( file_data )
+			if range_expr == nil do return nil
+
+			consume_newlines( file_data )
+
+			l_curly_tk := curr_tk( file_data )
+			if l_curly_tk.kind != .LCurly {
+				log_spanned_error( &l_curly_tk.span, "Expected '{' to begin for loop body" )
+				return nil
+			}
+
+			// FIXME(rd): need context so that we can actually have hookup
+			body := parse_scope( file_data, nil )
+			if body == nil do return nil
+
+			for_loop := new_node( ForLoop, start_tk.span )
+			for_loop.iter_ident = iter
+			for_loop.range = range_expr
+			for_loop.body = body
+
+			return for_loop
 		case .While:
 			log_spanned_error( &start_tk.span, "impl while parsing" )
 			return nil
