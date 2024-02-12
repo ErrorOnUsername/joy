@@ -663,11 +663,47 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 			return for_loop
 		case .While:
-			log_spanned_error( &start_tk.span, "impl while parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			cond := parse_expr( file_data )
+			if cond == nil do return nil
+
+			consume_newlines( file_data )
+
+			l_curly_tk := curr_tk( file_data )
+			if l_curly_tk.kind != .LCurly {
+				log_spanned_error( &l_curly_tk.span, "Expected '{' to begin while loop body" )
+				return nil
+			}
+
+			// FIXME(rd): need context so that we can actually have hookup
+			body := parse_scope( file_data, nil )
+			if body == nil do return nil
+
+			while_loop := new_node( WhileLoop, start_tk.span )
+			while_loop.cond = cond
+			while_loop.body = body
+
+			return while_loop
 		case .Loop:
-			log_spanned_error( &start_tk.span, "impl loop parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			consume_newlines( file_data )
+
+			l_curly_tk := curr_tk( file_data )
+			if l_curly_tk.kind != .LCurly {
+				log_spanned_error( &l_curly_tk.span, "Expected '{' to begin loop body" )
+				return nil
+			}
+
+			// FIXME(rd): need context so that we can actually have hookup
+			body := parse_scope( file_data, nil )
+			if body == nil do return nil
+
+			inf_loop := new_node( InfiniteLoop, start_tk.span )
+			inf_loop.body = body
+
+			return inf_loop
 		case .Star:
 			log_spanned_error( &start_tk.span, "impl pointer parsing" )
 			return nil
