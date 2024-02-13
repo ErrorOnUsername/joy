@@ -1,21 +1,21 @@
 decl MyStruct := struct {
-    member_0: usize;
-    member_1: f32;
-    member_2: cstring;
-    member_3: string;
-    member_4: *usize;
-    member_5: MyEnum;
+	member_0: usize;
+	member_1: f32;
+	member_2: cstring;
+	member_3: string;
+	member_4: *usize;
+	member_5: MyEnum;
 };
 
 decl MyEnum := enum {
-    VariantA;
-    VariantB;
+	VariantA;
+	VariantB;
 };
 
 decl main := proc() {
 	// Line comment.
-    let a: string = "haha";
-    let b := 10;
+	let a: string = "haha";
+	let b := 10;
 
 	/* level 1
 		/* level 2
@@ -23,24 +23,24 @@ decl main := proc() {
 		*/
 	*/
 
-    if b == 10 {
-        b *= 10;
-    } else if b > 10 {
-        b = 10;
-    } else {
-        b -= 1;
-    }
+	if b == 10 {
+		b *= 10;
+	} else if b > 10 {
+		b = 10;
+	} else {
+		b -= 1;
+	}
 
-    let fact := 2;
-    for i in [0..b) {
-        fact *= fact;
-    }
+	let fact := 2;
+	for i in [0..b) {
+		fact *= fact;
+	}
 
-    while fact > 0 {
-        fact -= 1;
-    }
+	while fact > 0 {
+		fact -= 1;
+	}
 
-    loop { break; }
+	loop { break; }
 
-    println( "Hello, World!" );
+	println( "Hello, World!" );
 };
