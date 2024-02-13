@@ -171,6 +171,8 @@ print_span :: proc( span: ^Span )
 	for i := line_col_start; i < span.end; i += 1 {
 		if i >= span.start {
 			fmt.printf( "^" )
+		} else if file_data.data[i] == '\t' {
+			fmt.printf( "\t" )
 		} else {
 			fmt.printf( " " )
 		}
