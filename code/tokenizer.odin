@@ -27,7 +27,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 		c := data.data[data.read_idx]
 
 		switch c {
-			case ' ':
+			case ' ', '\t':
 				data.read_idx += 1
 			case '\r':
 				data.read_idx += 1
@@ -123,7 +123,38 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				}
 				return
 			case '/':
+				start_idx := data.read_idx
 				data.read_idx += 1
+
+				if lex_try_consume( data, '/' ) {
+					for data.read_idx < data_size && data.data[data.read_idx] != '\n' && data.data[data.read_idx] != '\r' {
+						data.read_idx += 1
+					}
+
+					continue
+				} else if lex_try_consume( data, '*' ) {
+					level := 1
+
+					for data.read_idx < data_size && level > 0 {
+						if data.data[data.read_idx] == '/' && data.data[data.read_idx - 1] == '*' {
+							level -= 1
+						} else if data.data[data.read_idx] == '*' && data.data[data.read_idx - 1] == '/' {
+							level += 1
+						}
+
+						data.read_idx += 1
+					}
+
+					if level != 0 {
+						log_error( "Unterminated string literal!" )
+						token.kind = .Invalid
+						token.span = { data.id, start_idx, start_idx + 1 }
+						return
+					}
+
+					continue
+				}
+
 				if lex_try_consume( data, '=' ) {
 					token.kind = .SlashAssign
 					lex_assign_span( data, &token, 2 )

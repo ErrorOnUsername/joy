@@ -13,8 +13,15 @@ decl MyEnum := enum {
 };
 
 decl main := proc() {
+	// Line comment.
     let a: string = "haha";
     let b := 10;
+
+	/* level 1
+		/* level 2
+			some stuff
+		*/
+	*/
 
     if b == 10 {
         b *= 10;
