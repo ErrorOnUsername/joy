@@ -12,7 +12,6 @@ decl MyEnum := enum {
     VariantB;
 };
 
-
 decl main := proc() {
     let a: string = "haha";
     let b := 10;
@@ -37,4 +36,4 @@ decl main := proc() {
     loop { break; }
 
     println( "Hello, World!" );
-}
+};

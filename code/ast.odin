@@ -192,6 +192,8 @@ bin_op_priority :: proc( op: ^Token ) -> int
 	#partial switch op.kind {
 		case .Invalid: return -1
 
+		case .Dot: return 13
+
 		case .Star, .Slash, .Percent:
 			return 12
 

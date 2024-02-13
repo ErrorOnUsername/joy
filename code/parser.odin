@@ -691,11 +691,93 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			log_spanned_error( &start_tk.span, "impl addr-of parsing" )
 			return nil
 		case .LSquare:
-			log_spanned_error( &start_tk.span, "impl array/range parsing" )
+			file_data.tk_idx += 1
+
+			lhs := parse_expr( file_data )
+			if lhs == nil do return nil
+
+			sep_tk := curr_tk( file_data )
+			if try_consume_tk( file_data, .Semicolon ) {
+				size_expr := parse_expr( file_data )
+				if size_expr == nil do return nil
+
+				r_sq_tk := curr_tk( file_data )
+				if !try_consume_tk( file_data, .RSquare ) {
+					log_spanned_error( &r_sq_tk.span, "Expected ']' to close array type expression" )
+					return nil
+				}
+
+				span, ok := join_span( &start_tk.span, &r_sq_tk.span )
+				if !ok do return nil
+
+				arr_ty := new_node( ArrayTypeExpr, span )
+				arr_ty.base_type = lhs
+				arr_ty.size_expr = size_expr
+
+				return arr_ty
+			} else if try_consume_tk( file_data, .DotDot ) {
+				rhs := parse_expr( file_data )
+				if rhs == nil do return nil
+
+
+				end_bound_tk := curr_tk( file_data )
+				include_end_bound: bool
+				if try_consume_tk( file_data, .RSquare ) {
+					include_end_bound = true
+				} else if try_consume_tk( file_data, .RParen ) {
+					include_end_bound = false
+				} else {
+					log_spanned_error( &end_bound_tk.span, "Expected ']' or ')'" )
+					return nil
+				}
+
+				span, ok := join_span( &start_tk.span, &end_bound_tk.span )
+				if !ok do return nil
+
+				range_expr := new_node( RangeExpr, span )
+				range_expr.left_bound_inclusive = true
+				range_expr.right_bound_inclusive = include_end_bound
+				range_expr.lhs = lhs
+				range_expr.rhs = rhs
+
+				return range_expr
+			}
+
+			log_spanned_error( &sep_tk.span, "Expected ';' or '..'" )
 			return nil
 		case .LParen:
-			log_spanned_error( &start_tk.span, "impl range parsing" )
-			return nil
+			lhs := parse_expr( file_data )
+
+			dot_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .DotDot ) {
+				log_spanned_error( &dot_tk.span, "Expected '..' in range expr" )
+				return nil
+			}
+
+			rhs := parse_expr( file_data )
+			if rhs == nil do return nil
+
+			end_bound_tk := curr_tk( file_data )
+			include_end_bound: bool
+			if try_consume_tk( file_data, .RSquare ) {
+				include_end_bound = true
+			} else if try_consume_tk( file_data, .RParen ) {
+				include_end_bound = false
+			} else {
+				log_spanned_error( &end_bound_tk.span, "Expected ']' or ')'" )
+				return nil
+			}
+
+			span, ok := join_span( &start_tk.span, &end_bound_tk.span )
+			if !ok do return nil
+
+			range_expr := new_node( RangeExpr, span )
+			range_expr.left_bound_inclusive = false
+			range_expr.right_bound_inclusive = include_end_bound
+			range_expr.lhs = lhs
+			range_expr.rhs = rhs
+
+			return range_expr
 		case .Void,    .Bool,   .U8,
 		     .I8,      .U16,    .I16,
 		     .U32,     .I32,    .U64,
@@ -708,6 +790,36 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 			return prim
 		case .Ident:
 			file_data.tk_idx += 1
+
+			peek_tk := curr_tk( file_data )
+			if try_consume_tk( file_data, .LParen ) {
+				call := new_node( ProcCallExpr, start_tk.span )
+
+				consume_newlines( file_data )
+
+				tk := curr_tk( file_data )
+				for tk.kind != .RParen {
+					if len( call.params ) > 0 && !try_consume_tk( file_data, .Comma ) {
+						log_spanned_error( &tk.span, "Expected ',' to separate procedure arguments" )
+						return nil
+					}
+
+					consume_newlines( file_data )
+
+					param := parse_expr( file_data )
+					if param == nil do return nil
+
+					append( &call.params, param )
+
+					consume_newlines( file_data )
+					tk = curr_tk( file_data )
+				}
+
+				file_data.tk_idx += 1
+
+				return call
+			}
+
 			ident := new_node( Ident, start_tk.span )
 			return ident
 		case .StringLiteral:

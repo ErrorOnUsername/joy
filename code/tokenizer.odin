@@ -14,6 +14,8 @@ tokenize_file :: proc( data: ^FileData ) -> bool
 		tk = lex_next_token( data )
 	}
 
+	append( &data.tokens, tk )
+
 	return true
 }
 
