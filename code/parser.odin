@@ -393,13 +393,13 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 
 parse_type :: proc( file_data: ^FileData ) -> ^Expr
 {
-	return parse_expr( file_data, false, true )
+	return parse_expr( file_data, true )
 }
 
 
-parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is_type := false, last_prio := -1 ) -> ^Expr
+parse_expr :: proc( file_data: ^FileData, is_type := false, last_prio := -1 ) -> ^Expr
 {
-	lhs := parse_operand( file_data, can_create_struct_literal )
+	lhs := parse_operand( file_data )
 	if lhs == nil do return nil
 
 	op_tk := curr_tk( file_data )
@@ -414,7 +414,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is
 		if op_prio >= last_prio {
 			rhs = parse_expr( file_data, false, last_prio = op_prio )
 		} else {
-			rhs = parse_operand( file_data, false )
+			rhs = parse_operand( file_data )
 		}
 
 		if rhs == nil do return nil
@@ -436,7 +436,7 @@ parse_expr :: proc( file_data: ^FileData, can_create_struct_literal := false, is
 	return lhs
 }
 
-parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -> ^Expr
+parse_operand :: proc( file_data: ^FileData ) -> ^Expr
 {
 	start_tk := curr_tk( file_data )
 
@@ -685,11 +685,26 @@ parse_operand :: proc( file_data: ^FileData, can_create_struct_literal: bool ) -
 
 			return inf_loop
 		case .Star:
-			log_spanned_error( &start_tk.span, "impl pointer parsing" )
-			return nil
-		case .At:
-			log_spanned_error( &start_tk.span, "impl addr-of parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			base_type := parse_expr( file_data )
+			if base_type == nil do return nil
+
+			ptr_ty := new_node( PointerTypeExpr, start_tk.span )
+			ptr_ty.base_type = base_type
+
+			return ptr_ty
+		case .At, .Bang, .Tilde, .Minus:
+			file_data.tk_idx += 1
+
+			rand := parse_operand( file_data )
+			if rand == nil do return nil
+
+			op := new_node( UnaryOpExpr, start_tk.span )
+			op.op = start_tk^
+			op.rand = rand
+
+			return op
 		case .LSquare:
 			file_data.tk_idx += 1
 

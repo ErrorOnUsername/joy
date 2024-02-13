@@ -179,6 +179,13 @@ FieldAccessExpr :: struct
 	field:      ^Expr,
 }
 
+UnaryOpExpr :: struct
+{
+	using expr: Expr,
+	op:         Token,
+	rand:       ^Expr,
+}
+
 BinOpExpr :: struct
 {
 	using expr: Expr,
@@ -295,6 +302,7 @@ AnyExpr :: union
 	^WhileLoop,
 	^InfiniteLoop,
 	^RangeExpr,
+	^UnaryOpExpr,
 	^BinOpExpr,
 	^ProcCallExpr,
 	^FieldAccessExpr,

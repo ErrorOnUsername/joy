@@ -210,6 +210,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				return
 			case '@':
 				data.read_idx += 1
+				token.kind = .At
 				lex_assign_span( data, &token, 1 )
 				return
 			case '&':

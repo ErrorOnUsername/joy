@@ -3,7 +3,7 @@ decl MyStruct := struct {
     member_1: f32;
     member_2: cstring;
     member_3: string;
-    member_4: usize;
+    member_4: *usize;
     member_5: MyEnum;
 };
 
