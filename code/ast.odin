@@ -320,7 +320,6 @@ Expr :: struct
 
 AnyNode :: union
 {
-	^Scope,
 	^Stmnt,
 	^Expr,
 }
