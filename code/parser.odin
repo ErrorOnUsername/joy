@@ -337,7 +337,7 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 {
 	start_tk := curr_tk( file_data )
 	if !try_consume_tk( file_data, .Ident ) {
-		log_spanned_errorf( &start_tk.span, "Expected identifier at start of {}", ctx_msg )
+		log_spanned_errorf( &start_tk.span, "Expected identifier at start of {:s}", ctx_msg )
 		return nil
 	}
 
@@ -412,6 +412,14 @@ parse_expr :: proc( file_data: ^FileData, is_type := false, last_prio := -1 ) ->
 }
 
 parse_operand :: proc( file_data: ^FileData ) -> ^Expr
+{
+	pre := parse_operand_prefix( file_data )
+	if pre == nil do return nil
+
+	return parse_operand_postfix( file_data, pre )
+}
+
+parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 {
 	start_tk := curr_tk( file_data )
 
@@ -604,8 +612,23 @@ parse_operand :: proc( file_data: ^FileData ) -> ^Expr
 
 			return union_expr
 		case .LCurly:
-			log_spanned_error( &start_tk.span, "impl struct literal parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			lit := new_node( AnonStructLiteralExpr, start_tk.span )
+
+			consume_newlines( file_data )
+
+			tk := curr_tk( file_data )
+			for tk.kind != .RCurly {
+				v := parse_expr( file_data )
+
+				consume_newlines( file_data )
+				tk = curr_tk( file_data )
+			}
+
+			file_data.tk_idx += 1;
+
+			return lit
 		case .If:
 			if_exp := new_node( IfExpr, start_tk.span )
 
@@ -852,7 +875,22 @@ parse_operand :: proc( file_data: ^FileData ) -> ^Expr
 			file_data.tk_idx += 1
 
 			peek_tk := curr_tk( file_data )
-			if try_consume_tk( file_data, .LParen ) {
+			if try_consume_tk( file_data, .LCurly ) {
+				lit := new_node( NamedStructLiteralExpr, start_tk.span )
+
+				consume_newlines( file_data )
+
+				tk := curr_tk( file_data )
+				for tk.kind != .RCurly {
+					v := parse_expr( file_data )
+					append( &lit.vals, v )
+
+					consume_newlines( file_data )
+					tk = curr_tk( file_data )
+				}
+
+				return lit
+			} else if try_consume_tk( file_data, .LParen ) {
 				call := new_node( ProcCallExpr, start_tk.span )
 
 				consume_newlines( file_data )
@@ -894,6 +932,28 @@ parse_operand :: proc( file_data: ^FileData ) -> ^Expr
 			log_spanned_errorf( &start_tk.span, "Invalid token in operand: {}", start_tk.kind )
 			return nil
 	}
+}
+
+parse_operand_postfix :: proc( file_data: ^FileData, prefix: ^Expr ) -> ^Expr
+{
+	consume_newlines( file_data )
+	tk := curr_tk( file_data )
+
+	#partial switch tk.kind {
+		case .Dot:
+			file_data.tk_idx += 1
+
+			access := new_node( MemberAccessExpr, tk.span )
+			access.val = prefix
+
+			mem := parse_operand( file_data )
+			if mem == nil do return nil
+
+			access.member = mem
+			return access
+	}
+
+	return prefix
 }
 
 expr_allows_bin_ops :: proc( expr: ^Expr ) -> bool

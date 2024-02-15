@@ -136,9 +136,24 @@ NumberLiteralExpr :: struct
 	str:        string,
 }
 
-StructLiteralExpr :: struct
+NamedStructLiteralExpr :: struct
 {
 	using expr: Expr,
+	name:       string,
+	vals:       [dynamic]^Expr,
+}
+
+AnonStructLiteralExpr :: struct
+{
+	using expr: Expr,
+	vals:       [dynamic]^Expr,
+}
+
+MemberAccessExpr :: struct
+{
+	using expr: Expr,
+	val:        ^Expr,
+	member:     ^Expr,
 }
 
 IfExpr :: struct
@@ -205,8 +220,6 @@ bin_op_priority :: proc( op: ^Token ) -> int
 {
 	#partial switch op.kind {
 		case .Invalid: return -1
-
-		case .Dot: return 13
 
 		case .Star, .Slash, .Percent:
 			return 12
@@ -303,7 +316,9 @@ AnyExpr :: union
 	^Ident,
 	^StringLiteralExpr,
 	^NumberLiteralExpr,
-	^StructLiteralExpr,
+	^NamedStructLiteralExpr,
+	^AnonStructLiteralExpr,
+	^MemberAccessExpr,
 	^Scope,
 	^IfExpr,
 	^ForLoop,
