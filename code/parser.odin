@@ -757,6 +757,17 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			ptr_ty.base_type = base_type
 
 			return ptr_ty
+		case .Dot:
+			file_data.tk_idx += 1
+
+			ise := new_node( ImplicitSelectorExpr, start_tk.span )
+
+			memb := parse_operand( file_data )
+			if memb == nil do return nil
+
+			ise.member = memb
+
+			return ise
 		case .At, .Bang, .Tilde, .Minus:
 			file_data.tk_idx += 1
 
@@ -946,10 +957,10 @@ parse_operand_postfix :: proc( file_data: ^FileData, prefix: ^Expr ) -> ^Expr
 			access := new_node( MemberAccessExpr, tk.span )
 			access.val = prefix
 
-			mem := parse_operand( file_data )
-			if mem == nil do return nil
+			memb := parse_operand( file_data )
+			if memb == nil do return nil
 
-			access.member = mem
+			access.member = memb
 			return access
 	}
 

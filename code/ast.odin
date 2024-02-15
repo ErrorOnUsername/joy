@@ -156,6 +156,12 @@ MemberAccessExpr :: struct
 	member:     ^Expr,
 }
 
+ImplicitSelectorExpr :: struct
+{
+	using expr: Expr,
+	member:     ^Expr,
+}
+
 IfExpr :: struct
 {
 	using expr: Expr,
@@ -319,6 +325,7 @@ AnyExpr :: union
 	^NamedStructLiteralExpr,
 	^AnonStructLiteralExpr,
 	^MemberAccessExpr,
+	^ImplicitSelectorExpr,
 	^Scope,
 	^IfExpr,
 	^ForLoop,
