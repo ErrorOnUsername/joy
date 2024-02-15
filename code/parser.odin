@@ -51,10 +51,6 @@ pump_parse_package :: proc( file_id: FileID ) -> PumpResult
 	return .Continue
 }
 
-ParserContext :: struct
-{
-}
-
 pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 {
 	data := fm_get_data( file_id )
@@ -197,27 +193,6 @@ parse_struct_body :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^Scope
 	}
 
 	return body
-}
-
-parse_enum_body :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^Scope
-{
-	enum_tk := curr_tk( file_data )
-	log_spanned_error( &enum_tk.span, "impl 'enum' parsing" )
-	return nil
-}
-
-parse_union_body :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^Scope
-{
-	union_tk := curr_tk( file_data )
-	log_spanned_error( &union_tk.span, "impl 'union' parsing" )
-	return nil
-}
-
-parse_proc_body :: proc( file_data: ^FileData, name_tk: ^Token, scope: ^Scope ) -> ^Scope
-{
-	proc_tk := curr_tk( file_data )
-	log_spanned_error( &proc_tk.span, "impl 'proc' parsing" )
-	return nil
 }
 
 parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
@@ -532,37 +507,102 @@ parse_operand :: proc( file_data: ^FileData ) -> ^Expr
 			}
 
 			enum_expr := new_node( Scope, start_tk.span )
-			enum_expr.variant = .Struct
+			enum_expr.variant = .Enum
 
 			consume_newlines( file_data )
 
-			for {
-				ident_tk := curr_tk( file_data )
+			tk := curr_tk( file_data )
+			for tk.kind != .RCurly {
 				if !try_consume_tk( file_data, .Ident ) {
-					log_spanned_error( &ident_tk.span, "Expected ident for enum variant name" )
-				}
-
-				sc_tk := curr_tk( file_data )
-				if !try_consume_tk( file_data, .Semicolon ) {
-					log_spanned_error( &sc_tk.span, "Expected ';' to terminate enum variant declaration" )
+					log_spanned_error( &tk.span, "Expected ident for enum variant name" )
 					return nil
 				}
 
-				variant := new_node( EnumVariantDecl, ident_tk.span )
-
+				variant := new_node( EnumVariantDecl, tk.span )
 				append( &enum_expr.stmnts, variant )
+
+				tk = curr_tk( file_data )
+				if !try_consume_tk( file_data, .Semicolon ) {
+					log_spanned_error( &tk.span, "Expected ';' to terminate enum variant declaration" )
+					return nil
+				}
 
 				consume_newlines( file_data )
 
-				if try_consume_tk( file_data, .RCurly ) {
-					break
-				}
+				tk = curr_tk( file_data )
 			}
+
+			file_data.tk_idx += 1
 
 			return enum_expr
 		case .Union:
-			log_spanned_error( &start_tk.span, "impl union parsing" )
-			return nil
+			file_data.tk_idx += 1
+
+			l_curly_tk := curr_tk( file_data )
+			if !try_consume_tk( file_data, .LCurly ) {
+				log_spanned_error( &l_curly_tk.span, "Expected '{' at the start of union body expression" )
+				return nil
+			}
+
+			union_expr := new_node( Scope, start_tk.span )
+			union_expr.variant = .Union
+
+			consume_newlines( file_data )
+
+			tk := curr_tk( file_data )
+			for tk.kind != .RCurly {
+				if !try_consume_tk( file_data, .Ident ) {
+					log_spanned_error( &tk.span, "Expected identifier for union variant name" )
+					return nil
+				}
+
+				variant := new_node( UnionVariantDecl, tk.span )
+
+				tk = curr_tk( file_data )
+				if !try_consume_tk( file_data, .LParen ) {
+					log_spanned_error( &tk.span, "Expected '(' to begin union variant field list" )
+					return nil
+				}
+
+				variant.sc = new_node( Scope, tk.span )
+				variant.sc.variant = .Struct
+
+				consume_newlines( file_data )
+
+				tk = curr_tk( file_data )
+				for tk.kind != .RParen {
+					if len( variant.sc.stmnts ) > 0 && !try_consume_tk( file_data, .Comma ) {
+						log_spanned_error( &tk.span, "Expected ',' to separate" )
+						return nil
+					}
+
+					field := parse_var_decl( file_data, "union variant field" )
+					if field == nil do return nil
+
+					append( &variant.sc.stmnts, field )
+
+					consume_newlines( file_data )
+					tk = curr_tk( file_data )
+				}
+
+				file_data.tk_idx += 1
+
+				append( &union_expr.stmnts, variant )
+
+				tk = curr_tk( file_data )
+				if !try_consume_tk( file_data, .Semicolon ) {
+					log_spanned_error( &tk.span, "Expected ';' to terminate union variant" )
+					return nil
+				}
+
+				consume_newlines( file_data )
+
+				tk = curr_tk( file_data )
+			}
+
+			file_data.tk_idx += 1
+
+			return union_expr
 		case .LCurly:
 			log_spanned_error( &start_tk.span, "impl struct literal parsing" )
 			return nil
@@ -756,10 +796,15 @@ parse_operand :: proc( file_data: ^FileData ) -> ^Expr
 				range_expr.rhs = rhs
 
 				return range_expr
+			} else if !try_consume_tk( file_data, .RSquare ) {
+				log_spanned_error( &sep_tk.span, "Expected ']' to close slice type expression" )
+				return nil
 			}
 
-			log_spanned_error( &sep_tk.span, "Expected ';' or '..'" )
-			return nil
+			slice_ty := new_node( SliceTypeExpr, start_tk.span )
+			slice_ty.base_type = lhs
+
+			return slice_ty
 		case .LParen:
 			lhs := parse_expr( file_data )
 

@@ -75,6 +75,13 @@ EnumVariantDecl :: struct
 	name:        string,
 }
 
+UnionVariantDecl :: struct
+{
+	using stmnt: Stmnt,
+	name:        string,
+	sc:          ^Scope,
+}
+
 ExprStmnt :: struct
 {
 	using stmnt: Stmnt,
@@ -277,6 +284,7 @@ AnyStmnt :: union
 	^ConstDecl,
 	^VarDecl,
 	^EnumVariantDecl,
+	^UnionVariantDecl,
 	^ExprStmnt,
 	^ContinueStmnt,
 	^BreakStmnt,

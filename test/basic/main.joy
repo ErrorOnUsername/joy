@@ -12,6 +12,11 @@ decl MyEnum := enum {
 	VariantB;
 };
 
+decl MyUnion := union {
+	VariantA(a: i32, slice: [u32]);
+	VariantB(thing: MyStruct, name: string);
+};
+
 decl main := proc() {
 	// Line comment.
 	let a: string = "haha";
