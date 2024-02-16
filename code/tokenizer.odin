@@ -332,6 +332,7 @@ lex_assign_span :: proc( data: ^FileData, t: ^Token, size: uint )
 	t.span.file = data.id
 	t.span.start = data.read_idx - size
 	t.span.end = data.read_idx
+	t.str = data.data[t.span.start:t.span.end]
 }
 
 is_digit_char :: proc( char: u8 ) -> bool
@@ -383,9 +384,7 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 	for ch != '\n' && is_valid_number_char( ch ) {
 		if ch == '.' {
 			if !is_digit_char( data.data[data.read_idx + 1] ) {
-				// Special case for '..'
-				token.span.end -= 1
-				return true
+				break
 			}
 
 			if radix != 10 {
@@ -395,8 +394,7 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 			}
 
 			if found_dot {
-				token.span.end -= 1
-				return true
+				break
 			}
 
 			found_dot = true
@@ -417,6 +415,7 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 	}
 
 	token.span.end -= 1
+	token.str = data.data[token.span.start:token.span.end]
 
 	return true
 }
@@ -442,6 +441,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 
 	data.read_idx += 1
 	token.span.end += 1
+	token.str = data.data[token.span.start:token.span.end]
 
 	return true
 }
@@ -486,8 +486,7 @@ keyword_map := map[string]TokenKind {
 get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 {
 	start := data.read_idx
-	for is_valid_ident_char( data.data[data.read_idx] )
-	{
+	for is_valid_ident_char( data.data[data.read_idx] ) {
 		data.read_idx += 1
 	}
 
@@ -499,8 +498,9 @@ get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 		token.kind = keyword_map[ident_slice]
 	} else {
 		token.kind = .Ident
-		token.str  = ident_slice
 	}
+
+	token.str = ident_slice
 
 	return
 }
