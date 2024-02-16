@@ -4,15 +4,12 @@ A language made for fun and to learn more about compilers
 
 
 ### Syntax
-(this is speculative and `#import` isn't implemented yet)
-
 ```
-decl IO := #import "core:io"
+use joy.io;
 
-decl main : ()
-{
-    IO.println( "Hello, World!" );
-}
+decl main := () {
+	io.println( "Hello, World!" );
+};
 ```
 
 ### Progress
@@ -22,4 +19,5 @@ decl main : ()
 - [ ] Typechecking (in-progress. multithreaded)
 - [ ] Custom IR
 - [ ] Custom backend (maybe also llvm just to learn? not sure)
+- [ ] Metaprogramming
 
