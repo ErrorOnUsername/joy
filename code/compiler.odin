@@ -11,6 +11,9 @@ PumpAction :: enum
 {
 	ParsePackage,
 	ParseFile,
+	InitializeScopes,
+	CheckPackage,
+	CheckProcBody,
 }
 
 PumpResult :: enum
@@ -21,10 +24,12 @@ PumpResult :: enum
 
 WorkerData :: struct
 {
-	action:    PumpAction,
-	file_id:   FileID,
-	result:    PumpResult,
-	pkg:       ^Package,
+	action:  PumpAction,
+	file_id: FileID,
+	result:  PumpResult,
+	pkg:     ^Package,
+	checker: ^Checker,
+	scope:   ^Scope,
 }
 
 PriorityItem :: struct( T: typeid )
@@ -80,7 +85,7 @@ compiler_finish_work :: proc() -> int
 	return failed_task_count
 }
 
-compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID = 0, pkg: ^Package = nil )
+compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID = 0, pkg: ^Package = nil, checker: ^Checker = nil )
 {
 	data_ptr := new( WorkerData, job_data_allocator )
 	data_ptr.action    = action
@@ -116,6 +121,12 @@ compiler_pump :: proc( wd: ^WorkerData ) -> PumpResult
 			return pump_parse_package( wd.file_id )
 		case .ParseFile:
 			return pump_parse_file( wd.file_id )
+		case .InitializeScopes:
+			return pump_tc_init_scopes( wd.file_id, wd.checker )
+		case .CheckPackage:
+			return pump_tc_check_pkg( wd.checker, wd.pkg )
+		case .CheckProcBody:
+			return pump_tc_check_proc_body( wd.checker, wd.scope )
 	}
 
 	return .Continue
