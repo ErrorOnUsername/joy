@@ -1,0 +1,7 @@
+package epoch
+
+
+Type :: struct
+{
+}
+
