@@ -17,7 +17,7 @@ decl MyUnion := union {
 	VariantB(thing: MyStruct, name: string);
 };
 
-decl main := proc() {
+decl main := fn() {
 	// Line comment.
 	let a: string = "haha";
 	let b := 10;

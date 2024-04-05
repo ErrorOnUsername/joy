@@ -454,7 +454,7 @@ keyword_map := map[string]TokenKind {
 	"struct"   = .Struct,
 	"enum"     = .Enum,
 	"union"    = .Union,
-	"proc"     = .Proc,
+	"fn"       = .Fn,
 	"return"   = .Return,
 	"continue" = .Continue,
 	"break"    = .Break,
@@ -562,7 +562,7 @@ TokenKind :: enum
 	Struct,
 	Enum,
 	Union,
-	Proc,
+	Fn,
 
 	Ident,
 	StringLiteral,

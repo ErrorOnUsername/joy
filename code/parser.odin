@@ -424,7 +424,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 	start_tk := curr_tk( file_data )
 
 	#partial switch start_tk.kind {
-		case .Proc:
+		case .Fn:
 			file_data.tk_idx += 1
 
 			lp_tk := curr_tk( file_data )
