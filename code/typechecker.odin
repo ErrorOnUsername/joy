@@ -110,15 +110,64 @@ tc_initialize_scopes :: proc( c: ^Checker, pkgs: []PriorityItem( ^Package ) ) ->
 
 pump_tc_init_scopes :: proc( file_id: FileID, c: ^Checker ) -> PumpResult
 {
-	log_error( "impl init_scopes" )
+	fd := fm_get_data( file_id )
 
-	return .Error
+	sc := fd.mod.file_scope
+	ok := tc_initialize_in_scope( c, sc )
+
+	return .Continue if ok else .Error
 }
 
 
 tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 {
 	s.symbols = make( SymbolTable )
+
+	for stmnt in s.stmnts {
+		switch st in stmnt.derived_stmnt {
+			case ^ConstDecl:
+				if st.name in s.symbols {
+					log_spanned_errorf( &st.span, "Redefinition of symbol '{:s}'", st.name )
+					return false
+				}
+
+				#partial switch v in st.value.derived_expr {
+					case ^Scope:
+						scope_ok := tc_initialize_in_scope( c, v )
+						if !scope_ok do return false
+					case ^ProcProto:
+						scope_ok := tc_initialize_in_scope( c, v.body )
+						if !scope_ok do return false
+				}
+
+				s.symbols[st.name] = stmnt
+			case ^VarDecl:
+				if st.name in s.symbols {
+					log_spanned_errorf( &st.span, "Redefinition of symbol '{:s}'", st.name )
+					return false
+				}
+
+				s.symbols[st.name] = stmnt
+			case ^EnumVariantDecl:
+				if st.name in s.symbols {
+					log_spanned_errorf( &st.span, "Duplicate enum variant '{:s}'", st.name )
+					return false
+				}
+
+				s.symbols[st.name] = stmnt
+			case ^UnionVariantDecl:
+				if st.name in s.symbols {
+					log_spanned_errorf( &st.span, "Duplicate union variant '{:s}'", st.name )
+					return false
+				}
+
+				s.symbols[st.name] = stmnt
+			case ^ExprStmnt: // These aren't bound to symbols
+			case ^ContinueStmnt:
+			case ^BreakStmnt:
+			case ^ReturnStmnt:
+		}
+	}
 
 	return true
 }

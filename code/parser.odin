@@ -63,7 +63,7 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 
 	mod_ptr, _ := mem.new( Module, tl_ast_allocator )
 	mod_ptr.owning_pkg = data.pkg
-	mod_ptr.file_scope = new_node( Scope, { file_id, 0, 0 } )
+	mod_ptr.file_scope = new_node( Scope, { file_id, 0, 1 } )
 	mod_ptr.file_id    = file_id
 
 	data.mod = mod_ptr
@@ -121,6 +121,7 @@ parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^ConstDecl
 	}
 
 	decl := new_node( ConstDecl, name_tk.span )
+	decl.name = name_tk.str
 
 	if try_consume_tk( file_data, .Colon ) {
 		decl.type_hint = parse_type( file_data )
@@ -361,6 +362,7 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 	var := new_node( VarDecl, start_tk.span )
 	var.type_hint = type_hint
 	var.default_value = default_value
+	var.name = start_tk.str
 
 	return var
 }
@@ -527,6 +529,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				}
 
 				variant := new_node( EnumVariantDecl, tk.span )
+				variant.name = tk.str
 				append( &enum_expr.stmnts, variant )
 
 				tk = curr_tk( file_data )
@@ -565,6 +568,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				}
 
 				variant := new_node( UnionVariantDecl, tk.span )
+				variant.name = tk.str
 
 				tk = curr_tk( file_data )
 				if !try_consume_tk( file_data, .LParen ) {
