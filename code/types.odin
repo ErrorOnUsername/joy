@@ -18,12 +18,47 @@ new_type :: proc( $T: typeid, mod: ^Module ) -> ^T
 AnyType :: union
 {
 	^PrimitiveType,
+	^StructType,
+	^EnumType,
+	^UnionType,
+	^FnType,
 }
 
 Type :: struct
 {
 	owning_mod: ^Module,
 	derived: AnyType,
+	size: u64,
+	alignment: u64,
+}
+
+StructMember :: struct
+{
+	name: string,
+	ty: ^Type,
+}
+
+StructType :: struct
+{
+	using type: Type,
+	members: [dynamic]StructMember,
+}
+
+EnumType :: struct
+{
+	using type: Type,
+	underlying: ^Type,
+}
+
+UnionType :: struct
+{
+	using type: Type,
+	variants: [dynamic]^StructType,
+}
+
+FnType :: struct
+{
+	using type: Type,
 }
 
 PrimitiveKind :: enum
