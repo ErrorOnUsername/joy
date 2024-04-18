@@ -135,3 +135,10 @@ PrimitiveType :: struct
 	kind:       PrimitiveKind,
 }
 
+
+ty_builtin_void: ^Type
+
+ty_is_void :: proc( ty: ^Type ) -> bool
+{
+    return ty == ty_builtin_void
+}

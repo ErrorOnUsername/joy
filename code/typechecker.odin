@@ -141,27 +141,10 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 				}
 
 				s.symbols[st.name] = stmnt
-			case ^VarDecl:
-				if st.name in s.symbols {
-					log_spanned_errorf( &st.span, "Redefinition of symbol '{:s}'", st.name )
-					return false
-				}
-
-				s.symbols[st.name] = stmnt
+			case ^VarDecl: // These don't need to be added yet. We just need to know about top-level decl names.
 			case ^EnumVariantDecl:
-				if st.name in s.symbols {
-					log_spanned_errorf( &st.span, "Duplicate enum variant '{:s}'", st.name )
-					return false
-				}
-
-				s.symbols[st.name] = stmnt
 			case ^UnionVariantDecl:
-				if st.name in s.symbols {
-					log_spanned_errorf( &st.span, "Duplicate union variant '{:s}'", st.name )
-					return false
-				}
 
-				s.symbols[st.name] = stmnt
 			case ^ExprStmnt: // These aren't bound to symbols
 			case ^ContinueStmnt:
 			case ^BreakStmnt:
@@ -215,9 +198,125 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 	// package and queue up procedure bodies to be checked
 	// in parallel
 
-	log_error( "impl check_pkg" )
+	for m in pkg.modules {
+		ctx: CheckerContext
+		ctx.checker = c
+		ctx.mod = m
+		ctx.defer_proc_bodies = true
+		ctx.curr_scope = m.file_scope
 
-	return .Error
+		for stmnt in m.file_scope.stmnts {
+			stmnt_ok := tc_check_stmnt( &ctx, stmnt )
+			if !stmnt_ok do return .Error
+		}
+	}
+
+	return .Continue
+}
+
+
+tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
+{
+    switch s in stmnt.derived_stmnt {
+        case ^ConstDecl:
+            if s.type_hint != nil {
+                ty := tc_check_type( ctx, s.type_hint )
+                if ty == nil do return false
+
+                s.type = ty
+            }
+
+            if s.value != nil {
+                ty := tc_check_expr( ctx, s.value )
+                if ty == nil do return false
+
+                if s.type != nil && s.type != ty {
+                    // FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
+                    log_spanned_errorf( &s.span, "Value assigned to identifier of incompatible type" )
+                    return false
+                }
+
+                s.type = ty
+            }
+
+            // This should've been a syntax error, but just in case...
+            assert( s.type_hint != nil || s.value != nil )
+    	case ^VarDecl:
+            if s.name in ctx.curr_scope.symbols {
+				log_spanned_errorf( &s.span, "Redefinition of variable '{:s}'", s.name )
+				return false
+			}
+
+			if s.type_hint != nil {
+				ty := tc_check_type( ctx, s.type_hint )
+				if ty == nil do return false
+
+				s.type = ty
+            }
+
+            if s.default_value != nil {
+                ty := tc_check_expr( ctx, s.default_value )
+                if ty == nil do return false
+
+                if s.type != nil && s.type != ty {
+                    log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+                    return false
+                }
+
+                s.type = ty
+            }
+
+            assert( s.type_hint != nil || s.default_value != nil )
+
+			ctx.curr_scope.symbols[s.name] = s
+    	case ^EnumVariantDecl:
+    	case ^UnionVariantDecl:
+    	case ^ExprStmnt:
+            ty := tc_check_expr( ctx, s.expr )
+            if ty == nil do return false
+
+            if !ty_is_void( ty ) {
+                log_spanned_error( &s.span, "Expression produces a value, but that value is discarded. If this is intentional, consider assigning it to the discard identifier: '_'" )
+            }
+    	case ^ContinueStmnt:
+            if ctx.curr_loop != nil {
+                log_spanned_error( &s.span, "'continue' statements are only prermitted within loops" )
+                return false
+            }
+    	case ^BreakStmnt:
+            if ctx.curr_loop != nil {
+                log_spanned_error( &s.span, "'break' statements are only prermitted within loops" )
+                return false
+            }
+    	case ^ReturnStmnt:
+            if ctx.curr_proc == nil {
+                log_spanned_error( &s.span, "'return' statements are only permitted within funcitons" )
+                return false
+            }
+
+            ty := tc_check_expr( ctx, s.expr )
+            if ty == nil do return false
+
+            if ty != ctx.curr_proc.type {
+                log_spanned_error( &s.span, "return expression's type does not match the return type of the function" )
+            }
+    }
+
+    return true
+}
+
+
+tc_check_type :: proc( ctx: ^CheckerContext, type_expr: ^Expr ) -> ^Type
+{
+    log_spanned_error( &type_expr.span, "impl check_type" )
+    return nil
+}
+
+
+tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
+{
+    log_spanned_error( &expr.span, "impl check_expr" )
+    return nil
 }
 
 
@@ -225,8 +324,8 @@ CheckerContext :: struct
 {
 	checker: ^Checker,
 	mod: ^Module,
+	defer_proc_bodies: bool,
 	curr_proc: ^Scope,
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
 }
-
