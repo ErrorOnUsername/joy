@@ -460,6 +460,16 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			// Cosume the ')'
 			file_data.tk_idx += 1
 
+			arrow_tk := curr_tk( file_data )
+			if arrow_tk.kind == .SmolArrow {
+				file_data.tk_idx += 1
+
+				ret_ty := parse_expr( file_data, is_type = true )
+				if ret_ty == nil do return nil
+
+				proto.return_type = ret_ty
+			}
+
 			consume_newlines( file_data )
 
 			lc_tk := curr_tk( file_data )
@@ -1003,4 +1013,3 @@ consume_newlines :: proc( file_data: ^FileData )
 {
 	for try_consume_tk( file_data, .EndOfLine ) { }
 }
-
