@@ -32,16 +32,10 @@ Type :: struct
 	alignment: u64,
 }
 
-StructMember :: struct
-{
-	name: string,
-	ty: ^Type,
-}
-
 StructType :: struct
 {
 	using type: Type,
-	members: [dynamic]StructMember,
+	members: [dynamic]^Type,
 }
 
 EnumType :: struct
@@ -59,6 +53,8 @@ UnionType :: struct
 FnType :: struct
 {
 	using type: Type,
+	params: [dynamic]^Type,
+	return_type: ^Type,
 }
 
 PrimitiveKind :: enum
@@ -137,6 +133,7 @@ PrimitiveType :: struct
 
 
 ty_builtin_void: ^Type
+ty_builtin_untyped_string: ^Type
 
 ty_is_void :: proc( ty: ^Type ) -> bool
 {

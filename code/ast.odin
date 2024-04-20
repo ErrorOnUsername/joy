@@ -111,10 +111,11 @@ ReturnStmnt :: struct
 
 ProcProto :: struct
 {
-	using expr: Expr,
-	name:       string,
-	params:     [dynamic]^VarDecl,
-	body:       ^Scope,
+	using expr:  Expr,
+	name:        string,
+	params:      [dynamic]^VarDecl,
+	body:        ^Scope,
+	return_type: ^Expr,
 }
 
 Ident :: struct

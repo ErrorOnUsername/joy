@@ -142,9 +142,21 @@ tc_initialize_in_scope :: proc( c: ^Checker, s: ^Scope ) -> bool
 
 				s.symbols[st.name] = stmnt
 			case ^VarDecl: // These don't need to be added yet. We just need to know about top-level decl names.
-			case ^EnumVariantDecl:
-			case ^UnionVariantDecl:
 
+			case ^EnumVariantDecl:
+				if st.name in s.symbols {
+					log_spanned_errorf( &st.span, "Redefinition of enum variant '{:s}'", st.name )
+					return false
+				}
+
+				s.symbols[st.name] = stmnt
+			case ^UnionVariantDecl:
+				if st.name in s.symbols {
+					log_spanned_errorf( &st.span, "Redefinition of union variant '{:s}'", st.name )
+					return false
+				}
+
+				s.symbols[st.name] = stmnt
 			case ^ExprStmnt: // These aren't bound to symbols
 			case ^ContinueStmnt:
 			case ^BreakStmnt:
@@ -315,6 +327,113 @@ tc_check_type :: proc( ctx: ^CheckerContext, type_expr: ^Expr ) -> ^Type
 
 tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
 {
+	switch ex in expr.derived_expr {
+		case ^ProcProto:
+			last_scope := ctx.curr_scope
+			ctx.curr_scope = ex.body
+			defer ctx.curr_scope = last_scope
+
+			ty := new_type( FnType, ctx.mod )
+
+			for p in ex.params {
+				if p.name in ex.body.symbols {
+					log_spanned_error( &p.span, "Redefinition of function parameter" )
+					return nil
+				}
+
+				param_ok := tc_check_stmnt( ctx, p )
+				if !param_ok do return nil
+
+				append( &ty.params, p.type )
+
+				ex.body.symbols[p.name] = p
+			}
+
+			if ex.return_type != nil {
+				return_ty := tc_check_expr( ctx, ex.return_type )
+				if return_ty == nil do return nil
+
+				ty.return_type = return_ty
+			} else {
+				ty.return_type = ty_builtin_void
+			}
+
+			ex.type = ty
+
+			if ctx.defer_proc_bodies {
+				log_error( "impl proc body deferring" )
+				return nil
+			} else {
+				for stmnt in ex.body.stmnts {
+					stmnt_ok := tc_check_stmnt( ctx, stmnt )
+					if !stmnt_ok do return nil
+				}
+			}
+		case ^Ident:
+			log_spanned_error( &ex.span, "impl ident checking" )
+			return nil
+		case ^StringLiteralExpr:
+			ex.type = ty_builtin_untyped_string
+			return ex.type
+		case ^NumberLiteralExpr:
+			log_spanned_error( &ex.span, "impl number literal checking" )
+			return nil
+		case ^NamedStructLiteralExpr:
+			log_spanned_error( &ex.span, "impl struct literal checking" )
+			return nil
+		case ^AnonStructLiteralExpr:
+			log_spanned_error( &ex.span, "impl struct literal checking" )
+			return nil
+		case ^MemberAccessExpr:
+			log_spanned_error( &ex.span, "impl member access checking" )
+			return nil
+		case ^ImplicitSelectorExpr:
+			log_spanned_error( &ex.span, "impl implicit selector checking" )
+			return nil
+		case ^Scope:
+			log_spanned_error( &ex.span, "impl scope checking" )
+			return nil
+		case ^IfExpr:
+			log_spanned_error( &ex.span, "impl if checking" )
+			return nil
+		case ^ForLoop:
+			log_spanned_error( &ex.span, "impl for checking" )
+			return nil
+		case ^WhileLoop:
+			log_spanned_error( &ex.span, "impl while checking" )
+			return nil
+		case ^InfiniteLoop:
+			log_spanned_error( &ex.span, "impl loop checking" )
+			return nil
+		case ^RangeExpr:
+			log_spanned_error( &ex.span, "impl range checking" )
+			return nil
+		case ^UnaryOpExpr:
+			log_spanned_error( &ex.span, "impl unary op checking" )
+			return nil
+		case ^BinOpExpr:
+			log_spanned_error( &ex.span, "impl binary op checking" )
+			return nil
+		case ^ProcCallExpr:
+			log_spanned_error( &ex.span, "impl proc call checking" )
+			return nil
+		case ^FieldAccessExpr:
+			log_spanned_error( &ex.span, "impl field access checking" )
+			return nil
+		case ^PrimitiveTypeExpr:
+			log_spanned_error( &ex.span, "impl primitive type expr checking" )
+			return nil
+		case ^PointerTypeExpr:
+			log_spanned_error( &ex.span, "impl pointer type expr checking" )
+			return nil
+		case ^SliceTypeExpr:
+			log_spanned_error( &ex.span, "impl slice type checking" )
+			return nil
+		case ^ArrayTypeExpr:
+			log_spanned_error( &ex.span, "impl array type checking" )
+			return nil
+	}
+
 	log_spanned_error( &expr.span, "impl check_expr" )
 	return nil
 }
