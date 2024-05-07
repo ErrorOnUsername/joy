@@ -239,8 +239,13 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			}
 
 			if s.value != nil {
-				ty := tc_check_expr( ctx, s.value )
+				ty, addr_mode := tc_check_expr( ctx, s.value )
 				if ty == nil do return false
+				
+				if addr_mode != .Value {
+					log_spanned_error( &s.value.span, "Expression does produce a value" )
+					return false
+				}
 
 				if s.type != nil && s.type != ty {
 					// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
@@ -265,10 +270,16 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 				s.type = ty
 			}
+			
 
 			if s.default_value != nil {
-				ty := tc_check_expr( ctx, s.default_value )
+				ty, addr_mode := tc_check_expr( ctx, s.default_value )
 				if ty == nil do return false
+				
+				if addr_mode != .Value {
+					log_spanned_error( &s.default_value.span, "Expression does not produce a value" )
+					return false
+				}
 
 				if s.type != nil && s.type != ty {
 					log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
@@ -278,14 +289,19 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				s.type = ty
 			}
 
-			assert( s.type_hint != nil || s.default_value != nil )
+			assert( s.type_hint != nil || s.default_value != nil, "Internal Compiler Error: VarDecl must have at least a type hint or a default value" )
 
 			ctx.curr_scope.symbols[s.name] = s
 		case ^EnumVariantDecl:
 		case ^UnionVariantDecl:
 		case ^ExprStmnt:
-			ty := tc_check_expr( ctx, s.expr )
+			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
+
+			if addr_mode != .Value {
+				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
+				return false
+			}
 
 			if !ty_is_void( ty ) {
 				log_spanned_error( &s.span, "Expression produces a value, but that value is discarded. If this is intentional, consider assigning it to the discard identifier: '_'" )
@@ -306,8 +322,13 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				return false
 			}
 
-			ty := tc_check_expr( ctx, s.expr )
+			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
+			
+			if addr_mode != .Value {
+				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
+				return false
+			}
 
 			if ty != ctx.curr_proc.type {
 				log_spanned_error( &s.span, "return expression's type does not match the return type of the function" )
@@ -320,12 +341,19 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 tc_check_type :: proc( ctx: ^CheckerContext, type_expr: ^Expr ) -> ^Type
 {
-	log_spanned_error( &type_expr.span, "impl check_type" )
-	return nil
+	ty, addr_mode := tc_check_expr( ctx, type_expr )
+	if ty == nil do return nil
+	
+	if addr_mode != .Type {
+		log_spanned_error( &type_expr.span, "Expression does not reference a type" )
+		return nil
+	}
+	
+	return ty
 }
 
 
-tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
+tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, AddressingMode)
 {
 	switch ex in expr.derived_expr {
 		case ^ProcProto:
@@ -338,11 +366,11 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
 			for p in ex.params {
 				if p.name in ex.body.symbols {
 					log_spanned_error( &p.span, "Redefinition of function parameter" )
-					return nil
+					return nil, .Invalid
 				}
 
 				param_ok := tc_check_stmnt( ctx, p )
-				if !param_ok do return nil
+				if !param_ok do return nil, .Invalid
 
 				append( &ty.params, p.type )
 
@@ -350,8 +378,13 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
 			}
 
 			if ex.return_type != nil {
-				return_ty := tc_check_expr( ctx, ex.return_type )
-				if return_ty == nil do return nil
+				return_ty, addr_mode := tc_check_expr( ctx, ex.return_type )
+				if return_ty == nil do return nil, .Invalid
+				
+				if addr_mode != .Type {
+					log_spanned_error( &ex.return_type.span, "Expression does not reference a type" )
+					return nil, .Invalid
+				}
 
 				ty.return_type = return_ty
 			} else {
@@ -362,129 +395,173 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
 
 			if ctx.defer_proc_bodies {
 				log_error( "impl proc body deferring" )
-				return nil
+				return nil, .Invalid
 			} else {
 				for stmnt in ex.body.stmnts {
 					stmnt_ok := tc_check_stmnt( ctx, stmnt )
-					if !stmnt_ok do return nil
+					if !stmnt_ok do return nil, .Invalid
 				}
 			}
 		case ^Ident:
 			log_spanned_error( &ex.span, "impl ident checking" )
-			return nil
+			return nil, .Invalid
 		case ^StringLiteralExpr:
 			ex.type = ty_builtin_untyped_string
-			return ex.type
+			return ex.type, .Value
 		case ^NumberLiteralExpr:
 			log_spanned_error( &ex.span, "impl number literal checking" )
-			return nil
+			return nil, .Invalid
 		case ^NamedStructLiteralExpr:
 			log_spanned_error( &ex.span, "impl struct literal checking" )
-			return nil
+			return nil, .Invalid
 		case ^AnonStructLiteralExpr:
 			log_spanned_error( &ex.span, "impl struct literal checking" )
-			return nil
+			return nil, .Invalid
 		case ^MemberAccessExpr:
 			log_spanned_error( &ex.span, "impl member access checking" )
-			return nil
+			return nil, .Invalid
 		case ^ImplicitSelectorExpr:
 			log_spanned_error( &ex.span, "impl implicit selector checking" )
-			return nil
+			return nil, .Invalid
 		case ^Scope:
 			switch ex.variant {
 				case .Struct:
 					struct_type := new_type( StructType, ctx.mod )
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
-						if !mem_ok do return nil
+						if !mem_ok do return nil, .Invalid
 
 						append( &struct_type.members, m.type )
 					}
 
 					ex.type = struct_type
-					return struct_type
+					return struct_type, .Value
 				case .Union:
 					union_type := new_type( UnionType, ctx.mod )
 
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
-						if !mem_ok do return nil
+						if !mem_ok do return nil, .Invalid
 
 						struct_ty, is_struct := m.type.derived.(^StructType)
 						if !is_struct {
 							log_spanned_error( &m.span, "Union variant must be a struct type" )
-							return nil
+							return nil, .Invalid
 						}
 
 						append( &union_type.variants, struct_ty )
 					}
 
 					ex.type = union_type
-					return union_type
+					return union_type, .Value
 				case .Enum:
 					enum_type := new_type( EnumType, ctx.mod )
 					enum_type.underlying = ty_builtin_usize
 
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
-						if !mem_ok do return nil
+						if !mem_ok do return nil, .Invalid
 					}
 
 					ex.type = enum_type
-					return enum_type
+					return enum_type, .Value
 				case .Logic:
 					ex.type = ty_builtin_void
 
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
-						if !mem_ok do return nil
+						if !mem_ok do return nil, .Invalid
 					}
 
-					return ex.type
+					return ex.type, .Value
 			}
 		case ^IfExpr:
 			log_spanned_error( &ex.span, "impl if checking" )
-			return nil
+			return nil, .Invalid
 		case ^ForLoop:
 			log_spanned_error( &ex.span, "impl for checking" )
-			return nil
+			return nil, .Invalid
 		case ^WhileLoop:
 			log_spanned_error( &ex.span, "impl while checking" )
-			return nil
+			return nil, .Invalid
 		case ^InfiniteLoop:
 			log_spanned_error( &ex.span, "impl loop checking" )
-			return nil
+			return nil, .Invalid
 		case ^RangeExpr:
 			log_spanned_error( &ex.span, "impl range checking" )
-			return nil
+			return nil, .Invalid
 		case ^UnaryOpExpr:
 			log_spanned_error( &ex.span, "impl unary op checking" )
-			return nil
+			return nil, .Invalid
 		case ^BinOpExpr:
 			log_spanned_error( &ex.span, "impl binary op checking" )
-			return nil
+			return nil, .Invalid
 		case ^ProcCallExpr:
 			log_spanned_error( &ex.span, "impl proc call checking" )
-			return nil
+			return nil, .Invalid
 		case ^FieldAccessExpr:
 			log_spanned_error( &ex.span, "impl field access checking" )
-			return nil
+			return nil, .Invalid
 		case ^PrimitiveTypeExpr:
-			log_spanned_error( &ex.span, "impl primitive type expr checking" )
-			return nil
+			prim_ty: ^Type
+			switch ex.prim {
+				case .Void:
+					prim_ty = ty_builtin_void
+				case .Bool:
+					prim_ty = ty_builtin_bool
+				case .U8:
+					prim_ty = ty_builtin_u8
+				case .I8:
+					prim_ty = ty_builtin_i8
+				case .U16:
+					prim_ty = ty_builtin_u16
+				case .I16:
+					prim_ty = ty_builtin_i16
+				case .U32:
+					prim_ty = ty_builtin_u32
+				case .I32:
+					prim_ty = ty_builtin_i32
+				case .U64:
+					prim_ty = ty_builtin_u64
+				case .I64:
+					prim_ty = ty_builtin_i64
+				case .USize:
+					prim_ty = ty_builtin_usize
+				case .ISize:
+					prim_ty = ty_builtin_isize
+				case .F32:
+					prim_ty = ty_builtin_f32
+				case .F64:
+					prim_ty = ty_builtin_f64
+				case .String:
+					prim_ty = ty_builtin_string
+				case .CString:
+					prim_ty = ty_builtin_cstring
+				case .RawPtr:
+					prim_ty = ty_builtin_rawptr
+				case .Range:
+					prim_ty = ty_builtin_range
+				case .UntypedInt:
+					prim_ty = ty_builtin_untyped_string
+				case .UntypedString:
+					prim_ty = ty_builtin_untyped_string
+			}
+
+			ex.type = prim_ty
+			return prim_ty, .Type
 		case ^PointerTypeExpr:
 			log_spanned_error( &ex.span, "impl pointer type expr checking" )
-			return nil
+			return nil, .Invalid
 		case ^SliceTypeExpr:
 			log_spanned_error( &ex.span, "impl slice type checking" )
-			return nil
+			return nil, .Invalid
 		case ^ArrayTypeExpr:
 			log_spanned_error( &ex.span, "impl array type checking" )
-			return nil
+			return nil, .Invalid
 	}
 
 	log_spanned_error( &expr.span, "impl check_expr" )
-	return nil
+	return nil, .Invalid
 }
 
 
@@ -496,4 +573,5 @@ CheckerContext :: struct
 	curr_proc: ^Scope,
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
+	addr_mode: AddressingMode,
 }

@@ -48,6 +48,8 @@ exec_phases :: proc( root_id: FileID ) -> int
 
 	c: Checker
 
+	init_builtin_types()
+
 	tasks_failed = tc_initialize_scopes( &c, packages_to_check )
 	if tasks_failed != 0 do return tasks_failed
 
