@@ -391,8 +391,57 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> ^Type
 			log_spanned_error( &ex.span, "impl implicit selector checking" )
 			return nil
 		case ^Scope:
-			log_spanned_error( &ex.span, "impl scope checking" )
-			return nil
+			switch ex.variant {
+				case .Struct:
+					struct_type := new_type( StructType, ctx.mod )
+					for m in ex.stmnts {
+						mem_ok := tc_check_stmnt( ctx, m )
+						if !mem_ok do return nil
+
+						append( &struct_type.members, m.type )
+					}
+
+					ex.type = struct_type
+					return struct_type
+				case .Union:
+					union_type := new_type( UnionType, ctx.mod )
+
+					for m in ex.stmnts {
+						mem_ok := tc_check_stmnt( ctx, m )
+						if !mem_ok do return nil
+
+						struct_ty, is_struct := m.type.derived.(^StructType)
+						if !is_struct {
+							log_spanned_error( &m.span, "Union variant must be a struct type" )
+							return nil
+						}
+
+						append( &union_type.variants, struct_ty )
+					}
+
+					ex.type = union_type
+					return union_type
+				case .Enum:
+					enum_type := new_type( EnumType, ctx.mod )
+					enum_type.underlying = ty_builtin_usize
+
+					for m in ex.stmnts {
+						mem_ok := tc_check_stmnt( ctx, m )
+						if !mem_ok do return nil
+					}
+
+					ex.type = enum_type
+					return enum_type
+				case .Logic:
+					ex.type = ty_builtin_void
+
+					for m in ex.stmnts {
+						mem_ok := tc_check_stmnt( ctx, m )
+						if !mem_ok do return nil
+					}
+
+					return ex.type
+			}
 		case ^IfExpr:
 			log_spanned_error( &ex.span, "impl if checking" )
 			return nil

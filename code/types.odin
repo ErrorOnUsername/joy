@@ -133,6 +133,7 @@ PrimitiveType :: struct
 
 
 ty_builtin_void: ^Type
+ty_builtin_usize: ^Type
 ty_builtin_untyped_string: ^Type
 
 ty_is_void :: proc( ty: ^Type ) -> bool
