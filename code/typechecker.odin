@@ -402,6 +402,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					if !stmnt_ok do return nil, .Invalid
 				}
 			}
+
+			return ty, .Value if ex.body != nil else .Type
 		case ^Ident:
 			log_spanned_error( &ex.span, "impl ident checking" )
 			return nil, .Invalid
@@ -559,8 +561,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ptr_ty
 			return ptr_ty, .Type
 		case ^SliceTypeExpr:
-			log_spanned_error( &ex.span, "impl slice type checking" )
-			return nil, .Invalid
+			underlying_ty := tc_check_type( ctx, ex.base_type )
+			if underlying_ty == nil do return nil, .Invalid
+
+			slice_ty := new_type( SliceType, nil )
+			slice_ty.underlying = underlying_ty
+
+			ex.type = slice_ty
+			return slice_ty, .Type
 		case ^ArrayTypeExpr:
 			log_spanned_error( &ex.span, "impl array type checking" )
 			return nil, .Invalid

@@ -18,6 +18,7 @@ new_type :: proc( $T: typeid, mod: ^Module ) -> ^T
 AnyType :: union
 {
 	^PointerType,
+	^SliceType,
 	^PrimitiveType,
 	^StructType,
 	^EnumType,
@@ -34,6 +35,12 @@ Type :: struct
 }
 
 PointerType :: struct
+{
+	using type: Type,
+	underlying: ^Type,
+}
+
+SliceType :: struct
 {
 	using type: Type,
 	underlying: ^Type,
