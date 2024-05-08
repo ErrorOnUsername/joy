@@ -550,8 +550,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = prim_ty
 			return prim_ty, .Type
 		case ^PointerTypeExpr:
-			log_spanned_error( &ex.span, "impl pointer type expr checking" )
-			return nil, .Invalid
+			underlying_ty := tc_check_type( ctx, ex.base_type )
+			if underlying_ty == nil do return nil, .Invalid
+
+			ptr_ty := new_type( PointerType, nil )
+			ptr_ty.underlying = underlying_ty
+
+			ex.type = ptr_ty
+			return ptr_ty, .Type
 		case ^SliceTypeExpr:
 			log_spanned_error( &ex.span, "impl slice type checking" )
 			return nil, .Invalid

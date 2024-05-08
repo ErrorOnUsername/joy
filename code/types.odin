@@ -17,6 +17,7 @@ new_type :: proc( $T: typeid, mod: ^Module ) -> ^T
 
 AnyType :: union
 {
+	^PointerType,
 	^PrimitiveType,
 	^StructType,
 	^EnumType,
@@ -30,6 +31,12 @@ Type :: struct
 	derived: AnyType,
 	size: u64,
 	alignment: u64,
+}
+
+PointerType :: struct
+{
+	using type: Type,
+	underlying: ^Type,
 }
 
 StructType :: struct
