@@ -247,9 +247,9 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					return false
 				}
 
-				if s.type != nil && s.type != ty {
+				if s.type_hint != nil && s.type != ty {
 					// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
-					log_spanned_errorf( &s.span, "Value assigned to identifier of incompatible type" )
+					log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
 					return false
 				}
 
@@ -270,7 +270,6 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 				s.type = ty
 			}
-			
 
 			if s.default_value != nil {
 				ty, addr_mode := tc_check_expr( ctx, s.default_value )
@@ -293,7 +292,13 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 			ctx.curr_scope.symbols[s.name] = s
 		case ^EnumVariantDecl:
+			sc := ctx.curr_scope
+			assert( sc.variant == .Enum, "Enum variant declared outside of enum scope" )
+
+			s.type = ty_builtin_usize
 		case ^UnionVariantDecl:
+			log_spanned_error( &s.span, "impl union variant checking" )
+			return false
 		case ^ExprStmnt:
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
@@ -334,6 +339,8 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				log_spanned_error( &s.span, "return expression's type does not match the return type of the function" )
 			}
 	}
+	
+	stmnt.check_state = .Resolved
 
 	return true
 }
@@ -405,7 +412,45 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return ty, .Value if ex.body != nil else .Type
 		case ^Ident:
-			log_spanned_error( &ex.span, "impl ident checking" )
+			stmnt := lookup_ident( ctx, ex.name )
+			if stmnt == nil {
+				log_spanned_errorf( &ex.span, "Undeclared identifier '{}'", ex.name )
+				return nil, .Invalid
+			}
+
+			if stmnt.check_state != .Resolved {
+				stmnt_ok := tc_check_stmnt( ctx, stmnt )
+				if !stmnt_ok do return nil, .Invalid
+			}
+
+			switch st in stmnt.derived_stmnt {
+				case ^ConstDecl:
+					val := st.value
+					#partial switch v in val.derived_expr {
+						case ^ProcProto:
+							return st.type, .Value // function pointer
+						case ^Scope:
+							assert( v.variant != .Logic, "Logic scope assigned to constant" )
+							assert( st.type != nil, "Statement doesn't have type" )
+							return st.type, .Type
+						case:
+							return st.type, .Value
+					}
+
+				case ^EnumVariantDecl:
+				case ^UnionVariantDecl:
+					return st.type, .Type
+
+				case ^VarDecl:
+					return st.type, .Value
+
+				case ^ExprStmnt:
+				case ^ContinueStmnt:
+				case ^BreakStmnt:
+				case ^ReturnStmnt:
+					panic( "Internal Compiler Error: Identifer references bindless statement" )
+			}
+
 			return nil, .Invalid
 		case ^StringLiteralExpr:
 			ex.type = ty_builtin_untyped_string
@@ -426,6 +471,10 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			log_spanned_error( &ex.span, "impl implicit selector checking" )
 			return nil, .Invalid
 		case ^Scope:
+			last_scope := ctx.curr_scope
+			ctx.curr_scope = ex
+			defer ctx.curr_scope = last_scope;
+
 			switch ex.variant {
 				case .Struct:
 					struct_type := new_type( StructType, ctx.mod )
@@ -576,6 +625,18 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 	log_spanned_error( &expr.span, "impl check_expr" )
 	return nil, .Invalid
+}
+
+lookup_ident :: proc( ctx: ^CheckerContext, ident_name: string ) -> ^Stmnt
+{
+	sc := ctx.curr_scope
+	for sc != nil {
+		if ident_name in sc.symbols {
+			return sc.symbols[ident_name]
+		}
+		sc = sc.parent
+	}
+	return nil
 }
 
 

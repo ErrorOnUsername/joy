@@ -479,6 +479,8 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			sc := parse_scope( file_data, nil )
 			if sc == nil do return nil
+			
+			sc.parent = file_data.mod.file_scope
 
 			proto.body = sc
 
@@ -494,6 +496,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			struct_expr := new_node( Scope, start_tk.span )
 			struct_expr.variant = .Struct
+			struct_expr.parent = file_data.mod.file_scope
 
 			consume_newlines( file_data )
 
@@ -528,6 +531,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			enum_expr := new_node( Scope, start_tk.span )
 			enum_expr.variant = .Enum
+			enum_expr.parent = file_data.mod.file_scope
 
 			consume_newlines( file_data )
 
@@ -567,6 +571,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			union_expr := new_node( Scope, start_tk.span )
 			union_expr.variant = .Union
+			union_expr.parent = file_data.mod.file_scope
 
 			consume_newlines( file_data )
 
@@ -944,6 +949,8 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			}
 
 			ident := new_node( Ident, start_tk.span )
+			ident.name = start_tk.str
+
 			return ident
 		case .StringLiteral:
 			file_data.tk_idx += 1
