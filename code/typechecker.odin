@@ -241,7 +241,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			if s.value != nil {
 				ty, addr_mode := tc_check_expr( ctx, s.value )
 				if ty == nil do return false
-				
+
 				if addr_mode != .Value {
 					log_spanned_error( &s.value.span, "Expression does produce a value" )
 					return false
@@ -274,7 +274,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			if s.default_value != nil {
 				ty, addr_mode := tc_check_expr( ctx, s.default_value )
 				if ty == nil do return false
-				
+
 				if addr_mode != .Value {
 					log_spanned_error( &s.default_value.span, "Expression does not produce a value" )
 					return false
@@ -329,7 +329,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
-			
+
 			if addr_mode != .Value {
 				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
 				return false
@@ -339,7 +339,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				log_spanned_error( &s.span, "return expression's type does not match the return type of the function" )
 			}
 	}
-	
+
 	stmnt.check_state = .Resolved
 
 	return true
@@ -350,12 +350,12 @@ tc_check_type :: proc( ctx: ^CheckerContext, type_expr: ^Expr ) -> ^Type
 {
 	ty, addr_mode := tc_check_expr( ctx, type_expr )
 	if ty == nil do return nil
-	
+
 	if addr_mode != .Type {
 		log_spanned_error( &type_expr.span, "Expression does not reference a type" )
 		return nil
 	}
-	
+
 	return ty
 }
 
@@ -387,7 +387,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			if ex.return_type != nil {
 				return_ty, addr_mode := tc_check_expr( ctx, ex.return_type )
 				if return_ty == nil do return nil, .Invalid
-				
+
 				if addr_mode != .Type {
 					log_spanned_error( &ex.return_type.span, "Expression does not reference a type" )
 					return nil, .Invalid
