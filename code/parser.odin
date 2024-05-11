@@ -145,57 +145,6 @@ parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^ConstDecl
 	return decl
 }
 
-parse_struct_body :: proc( file_data: ^FileData, name_tk: ^Token ) -> ^Scope
-{
-	struct_tk := curr_tk( file_data )
-	if !try_consume_tk( file_data, .Struct ) {
-		log_spanned_error( &struct_tk.span, "Expected 'struct' at beginning of struct body" )
-		return nil
-	}
-
-	l_curly_tk := curr_tk( file_data )
-	if !try_consume_tk( file_data, .LCurly ) {
-		log_spanned_error( &l_curly_tk.span, "Expected '{' to begin struct body" )
-		return nil
-	}
-
-	body := new_node( Scope, l_curly_tk.span )
-	body.variant = .Struct
-
-	member := parse_var_decl( file_data )
-
-	for member != nil {
-		append( &body.stmnts, member )
-
-		semicolon_tk := curr_tk( file_data )
-		if semicolon_tk.kind == .RCurly {
-			break
-		} else if !try_consume_tk( file_data, .Semicolon ) {
-			log_spanned_error( &semicolon_tk.span, "Expected ';' to terminate structure member" )
-			return nil
-		}
-
-		member = parse_var_decl( file_data )
-	}
-
-	if member == nil {
-		return nil
-	}
-
-	r_curly_tk := curr_tk( file_data )
-	if !try_consume_tk( file_data, .RCurly ) {
-		log_spanned_error( &r_curly_tk.span, "Expected '}' to terminate struct declaration" )
-		return nil
-	}
-
-	if len( body.stmnts ) == 0 {
-		log_spanned_error( &body.span, "Struct declaration is empty" )
-		return nil
-	}
-
-	return body
-}
-
 parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 {
 	start_tk := curr_tk( file_data )
@@ -303,6 +252,7 @@ parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 	consume_newlines( file_data )
 
 	sc := new_node( Scope, l_curly_tk.span )
+	sc.parent = parent_scope
 
 	tk := curr_tk( file_data )
 	for tk.kind != .RCurly {
@@ -479,7 +429,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			sc := parse_scope( file_data, nil )
 			if sc == nil do return nil
-			
+
 			sc.parent = file_data.mod.file_scope
 
 			proto.body = sc
@@ -593,6 +543,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 				variant.sc = new_node( Scope, tk.span )
 				variant.sc.variant = .Struct
+				variant.sc.parent = union_expr
 
 				consume_newlines( file_data )
 

@@ -297,8 +297,20 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 			s.type = ty_builtin_usize
 		case ^UnionVariantDecl:
-			log_spanned_error( &s.span, "impl union variant checking" )
-			return false
+			variant_type := new_type( StructType, ctx.mod )
+
+			last_scope := ctx.curr_scope
+			defer ctx.curr_scope = last_scope
+			ctx.curr_scope = s.sc
+
+			for stmnt in s.sc.stmnts {
+				mem_ok := tc_check_stmnt( ctx, stmnt )
+				if !mem_ok do return false
+
+				append( &variant_type.members, stmnt.type )
+			}
+
+			s.type = variant_type
 		case ^ExprStmnt:
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
