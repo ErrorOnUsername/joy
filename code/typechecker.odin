@@ -88,10 +88,16 @@ tc_build_package_list :: proc( root_pkg: ^Package ) -> ( []PriorityItem( ^Packag
 }
 
 
+ProcBodyWorkData :: struct
+{
+	p: ^ProcProto,
+	m: ^Module,
+}
+
 Checker :: struct
 {
 	proc_work_mutex: sync.Mutex,
-	proc_bodies:     [dynamic]^Scope,
+	proc_bodies:     [dynamic]ProcBodyWorkData,
 }
 
 
@@ -190,17 +196,27 @@ tc_check_package_dag :: proc( c: ^Checker, pkgs: []PriorityItem(^Package) ) -> i
 tc_check_proc_bodies :: proc( c: ^Checker ) -> int
 {
 	for p in c.proc_bodies {
-		compiler_enqueue_work( .CheckProcBody, checker = c )
+		compiler_enqueue_work( .CheckProcBody, checker = c, proc_proto = p.p, module = p.m )
 	}
 
 	return compiler_finish_work()
 }
 
 
-pump_tc_check_proc_body :: proc( c: ^Checker, p: ^Scope ) -> PumpResult
+pump_tc_check_proc_body :: proc( c: ^Checker, p: ^ProcProto, m: ^Module ) -> PumpResult
 {
-	log_error( "impl check_proc_body" )
-	return .Error
+	ctx: CheckerContext
+	ctx.curr_scope = p.body
+	ctx.curr_proc = p
+	ctx.checker = c
+	ctx.mod = m
+
+	for stmnt in p.body.stmnts {
+		stmnt_ok := tc_check_stmnt( &ctx, stmnt )
+		if !stmnt_ok do return .Error
+	}
+
+	return .Continue
 }
 
 
@@ -413,8 +429,11 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ty
 
 			if ctx.defer_proc_bodies {
-				log_error( "impl proc body deferring" )
-				return nil, .Invalid
+				sync.mutex_lock( &ctx.checker.proc_work_mutex )
+				defer sync.mutex_unlock( &ctx.checker.proc_work_mutex )
+
+				data := ProcBodyWorkData { ex, ctx.mod }
+				append( &ctx.checker.proc_bodies, data )
 			} else {
 				for stmnt in ex.body.stmnts {
 					stmnt_ok := tc_check_stmnt( ctx, stmnt )
@@ -657,7 +676,7 @@ CheckerContext :: struct
 	checker: ^Checker,
 	mod: ^Module,
 	defer_proc_bodies: bool,
-	curr_proc: ^Scope,
+	curr_proc: ^ProcProto,
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
 	addr_mode: AddressingMode,

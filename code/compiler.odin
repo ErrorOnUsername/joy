@@ -29,7 +29,8 @@ WorkerData :: struct
 	result:  PumpResult,
 	pkg:     ^Package,
 	checker: ^Checker,
-	scope:   ^Scope,
+	module:  ^Module,
+	proc_proto: ^ProcProto,
 }
 
 PriorityItem :: struct( T: typeid )
@@ -85,12 +86,15 @@ compiler_finish_work :: proc() -> int
 	return failed_task_count
 }
 
-compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID = 0, pkg: ^Package = nil, checker: ^Checker = nil )
+compiler_enqueue_work :: proc( action: PumpAction, file_id: FileID = 0, pkg: ^Package = nil, checker: ^Checker = nil, proc_proto: ^ProcProto = nil, module: ^Module = nil )
 {
 	data_ptr := new( WorkerData, job_data_allocator )
-	data_ptr.action    = action
-	data_ptr.file_id   = file_id
-	data_ptr.pkg       = pkg
+	data_ptr.action  = action
+	data_ptr.file_id = file_id
+	data_ptr.pkg     = pkg
+	data_ptr.checker = checker
+	data_ptr.module  = module
+	data_ptr.proc_proto = proc_proto
 
 	thread.pool_add_task( &job_pool, context.allocator, threading_proc, data_ptr )
 }
@@ -126,7 +130,7 @@ compiler_pump :: proc( wd: ^WorkerData ) -> PumpResult
 		case .CheckPackage:
 			return pump_tc_check_pkg( wd.checker, wd.pkg )
 		case .CheckProcBody:
-			return pump_tc_check_proc_body( wd.checker, wd.scope )
+			return pump_tc_check_proc_body( wd.checker, wd.proc_proto, wd.module )
 	}
 
 	return .Continue
