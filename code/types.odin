@@ -199,7 +199,45 @@ init_builtin_types :: proc()
 	ty_builtin_rawptr = new_primitive_type( .RawPtr )
 }
 
+ty_is_untyped_builtin :: proc( ty: ^Type ) -> bool
+{
+	return ty == ty_builtin_untyped_string ||
+	       ty == ty_builtin_untyped_int
+}
+
 ty_is_void :: proc( ty: ^Type ) -> bool
 {
 	return ty == ty_builtin_void
 }
+
+ty_is_prim :: proc( ty: ^Type, kind: PrimitiveKind ) -> bool
+{
+	switch t in ty.derived {
+		case ^PrimitiveType:
+			return t.kind == kind
+		case ^PointerType, ^SliceType, ^StructType,
+		     ^EnumType, ^UnionType, ^FnType:
+			return false
+	}
+
+	return false
+}
+
+ty_is_number :: proc( ty: ^Type ) -> bool
+{
+	switch t in ty.derived {
+		case ^PrimitiveType:
+			#partial switch t.kind {
+				case .U8, .I8, .U16, .I16, .U32,
+				     .I32, .U64, .I64, .USize,
+				     .ISize, .F32, .F64:
+					return true
+			}
+		case ^PointerType, ^SliceType, ^StructType,
+		     ^EnumType, ^UnionType, ^FnType:
+			return false
+	}
+
+	return false
+}
+

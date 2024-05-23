@@ -254,6 +254,10 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				s.type = ty
 			}
 
+			last_hint_ty := ctx.hint_type
+			ctx.hint_type = s.type
+			defer ctx.hint_type = last_hint_ty
+
 			if s.value != nil {
 				ty, addr_mode := tc_check_expr( ctx, s.value )
 				if ty == nil do return false
@@ -264,8 +268,19 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				}
 
 				if s.type_hint != nil && s.type != ty {
-					// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
-					log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+					if !ty_is_untyped_builtin( ty ) {
+						// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
+						log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+						return false
+					}
+
+					ellide_ok := try_ellide_untyped_to_ty( s.value, s.type )
+					if !ellide_ok {
+						log_spanned_error( &s.span, "Could not ellide untyped expression to specified type of constant" )
+						return false
+					}
+				} else if ty_is_untyped_builtin( ty ) {
+					log_spanned_error( &s.span, "impl untyped literal concretization" )
 					return false
 				}
 
@@ -287,6 +302,10 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				s.type = ty
 			}
 
+			last_hint_ty := ctx.hint_type
+			ctx.hint_type = s.type
+			defer ctx.hint_type = last_hint_ty
+
 			if s.default_value != nil {
 				ty, addr_mode := tc_check_expr( ctx, s.default_value )
 				if ty == nil do return false
@@ -297,7 +316,19 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				}
 
 				if s.type != nil && s.type != ty {
-					log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+					if !ty_is_untyped_builtin( ty ) {
+						// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
+						log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+						return false
+					}
+
+					ellide_ok := try_ellide_untyped_to_ty( s.default_value, s.type )
+					if !ellide_ok {
+						log_spanned_error( &s.span, "Could not ellide untyped expression to specified type of constant" )
+						return false
+					}
+				} else if ty_is_untyped_builtin( ty ) {
+					log_spanned_error( &s.span, "impl untyped literal concretization" )
 					return false
 				}
 
@@ -369,6 +400,30 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 	}
 
 	stmnt.check_state = .Resolved
+
+	return true
+}
+
+
+try_ellide_untyped_to_ty :: proc( untyped_expr: ^Expr, to_ty: ^Type ) -> bool
+{
+	assert( ty_is_untyped_builtin( untyped_expr.type ) )
+
+	u_ty := untyped_expr.type
+
+	if u_ty == ty_builtin_untyped_string {
+		if !ty_is_prim( to_ty, .String ) && !ty_is_prim( to_ty, .CString ) {
+			return false
+		}
+	} else if u_ty == ty_builtin_untyped_int {
+		if !ty_is_number( to_ty ) {
+			return false
+		}
+	} else {
+		unreachable()
+	}
+
+	untyped_expr.type = to_ty
 
 	return true
 }
@@ -680,4 +735,5 @@ CheckerContext :: struct
 	curr_scope: ^Scope,
 	curr_loop: ^Stmnt,
 	addr_mode: AddressingMode,
+	hint_type: ^Type,
 }
