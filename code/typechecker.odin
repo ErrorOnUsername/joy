@@ -280,8 +280,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 						return false
 					}
 				} else if ty_is_untyped_builtin( ty ) {
-					log_spanned_error( &s.span, "impl untyped literal concretization" )
-					return false
+					ty = get_untyped_default_concrete_ty( ty )
 				}
 
 				s.type = ty
@@ -328,8 +327,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 						return false
 					}
 				} else if ty_is_untyped_builtin( ty ) {
-					log_spanned_error( &s.span, "impl untyped literal concretization" )
-					return false
+					ty = get_untyped_default_concrete_ty( ty )
 				}
 
 				s.type = ty
@@ -426,6 +424,20 @@ try_ellide_untyped_to_ty :: proc( untyped_expr: ^Expr, to_ty: ^Type ) -> bool
 	untyped_expr.type = to_ty
 
 	return true
+}
+
+
+get_untyped_default_concrete_ty :: proc( untyped_ty: ^Type ) -> ^Type
+{
+	assert( ty_is_untyped_builtin( untyped_ty ) )
+
+	if untyped_ty == ty_builtin_untyped_int {
+		return ty_builtin_isize
+	} else if untyped_ty == ty_builtin_untyped_string {
+		return ty_builtin_string
+	}
+
+	return nil
 }
 
 
@@ -542,8 +554,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ty_builtin_untyped_string
 			return ex.type, .Value
 		case ^NumberLiteralExpr:
-			log_spanned_error( &ex.span, "impl number literal checking" )
-			return nil, .Invalid
+			ex.type = ty_builtin_untyped_int
+			return ex.type, .Value
 		case ^NamedStructLiteralExpr:
 			log_spanned_error( &ex.span, "impl struct literal checking" )
 			return nil, .Invalid
