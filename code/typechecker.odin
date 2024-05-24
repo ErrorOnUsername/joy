@@ -560,6 +560,11 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			log_spanned_error( &ex.span, "impl struct literal checking" )
 			return nil, .Invalid
 		case ^AnonStructLiteralExpr:
+			if ctx.hint_type == nil {
+				log_spanned_error( &ex.span, "Cannot infer structure literal type without hint" )
+				return nil, .Invalid
+			}
+
 			log_spanned_error( &ex.span, "impl struct literal checking" )
 			return nil, .Invalid
 		case ^MemberAccessExpr:

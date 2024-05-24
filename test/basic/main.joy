@@ -22,8 +22,6 @@ decl main := fn() {
 	let a: string = "haha";
 	let b := 10;
 
-	let c := { 10 };
-
 	/* level 1
 		/* level 2
 			some stuff
