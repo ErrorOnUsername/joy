@@ -656,7 +656,36 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			log_spanned_error( &ex.span, "impl unary op checking" )
 			return nil, .Invalid
 		case ^BinOpExpr:
-			log_spanned_error( &ex.span, "impl binary op checking" )
+			lhs_ty, l_addr_mode := tc_check_expr( ctx, ex.lhs )
+			if lhs_ty == nil do return nil, .Invalid
+
+			rhs_ty, r_addr_mode := tc_check_expr( ctx, ex.rhs )
+			if rhs_ty == nil do return nil, .Invalid
+
+			if is_mutating_op( ex.op ) {
+				if l_addr_mode != .Variable {
+					log_spanned_error( &ex.lhs.span, "expression does not reference a variable" )
+				}
+			}
+
+			l_is_untyped := ty_is_untyped_builtin( lhs_ty )
+			r_is_untyped := ty_is_untyped_builtin( rhs_ty )
+
+			if l_is_untyped && r_is_untyped {
+				ex.lhs.type = get_untyped_default_concrete_ty( ex.lhs.type )
+				ex.rhs.type = get_untyped_default_concrete_ty( ex.rhs.type )
+			}
+
+			ty, ok := type_after_op( ex.op, ex.lhs.type, ex.rhs.type )
+			if !ok {
+				// TODO(rd): Print type names
+				log_spanned_error( &ex.op.span, "operation not allowed between operands" )
+				return nil, .Invalid
+			}
+
+			ex.type = ty
+			log_spanned_error( &ex.op.span, "impl bin ops" )
+
 			return nil, .Invalid
 		case ^ProcCallExpr:
 			log_spanned_error( &ex.span, "impl proc call checking" )
@@ -736,6 +765,24 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 	log_spanned_error( &expr.span, "impl check_expr" )
 	return nil, .Invalid
+}
+
+is_mutating_op :: proc( op: Token ) -> bool
+{
+	#partial switch op.kind {
+		case .Assign:
+		case .PlusAssign:
+		case .MinusAssign:
+		case .StarAssign:
+		case .SlashAssign:
+		case .PercentAssign:
+		case .AmpersandAssign:
+		case .PipeAssign:
+		case .CaretAssign:
+			return true
+	}
+
+	return false
 }
 
 lookup_ident :: proc( ctx: ^CheckerContext, ident_name: string ) -> ^Stmnt
