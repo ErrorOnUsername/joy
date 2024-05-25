@@ -630,6 +630,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return ex.type, .Value
 			}
 		case ^IfExpr:
+			cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
+			if cond_ty == nil do return nil, .Invalid
+
+			if cond_ty != ty_builtin_bool || addr_mode != .Value {
+				log_spanned_error( &ex.span, "if condition must be a boolean value" )
+				return nil, .Invalid
+			}
+
 			log_spanned_error( &ex.span, "impl if checking" )
 			return nil, .Invalid
 		case ^ForLoop:
