@@ -210,6 +210,11 @@ ty_is_void :: proc( ty: ^Type ) -> bool
 	return ty == ty_builtin_void
 }
 
+ty_is_bool :: proc( ty: ^Type ) -> bool
+{
+	return ty == ty_builtin_bool
+}
+
 ty_is_prim :: proc( ty: ^Type, kind: PrimitiveKind ) -> bool
 {
 	switch t in ty.derived {

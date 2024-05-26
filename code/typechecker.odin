@@ -520,27 +520,35 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				stmnt_ok := tc_check_stmnt( ctx, stmnt )
 				if !stmnt_ok do return nil, .Invalid
 			}
+			
+			ty: ^Type
+			addr_mode: AddressingMode
 
 			switch st in stmnt.derived_stmnt {
 				case ^ConstDecl:
 					val := st.value
 					#partial switch v in val.derived_expr {
 						case ^ProcProto:
-							return st.type, .Value // function pointer
+							ty = st.type
+							addr_mode = .Value // function pointer
 						case ^Scope:
 							assert( v.variant != .Logic, "Logic scope assigned to constant" )
 							assert( st.type != nil, "Statement doesn't have type" )
-							return st.type, .Type
+							ty = st.type
+							addr_mode = .Type
 						case:
-							return st.type, .Value
+							ty = st.type
+							addr_mode = .Value
 					}
 
 				case ^EnumVariantDecl:
 				case ^UnionVariantDecl:
-					return st.type, .Type
+					ty = st.type
+					addr_mode = .Type
 
 				case ^VarDecl:
-					return st.type, .Value
+					ty = st.type
+					addr_mode = .Value
 
 				case ^ExprStmnt:
 				case ^ContinueStmnt:
@@ -549,7 +557,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					panic( "Internal Compiler Error: Identifer references bindless statement" )
 			}
 
-			return nil, .Invalid
+			ex.type = ty
+
+			return ty, addr_mode
 		case ^StringLiteralExpr:
 			ex.type = ty_builtin_untyped_string
 			return ex.type, .Value
@@ -665,6 +675,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			if is_mutating_op( ex.op ) {
 				if l_addr_mode != .Variable {
 					log_spanned_error( &ex.lhs.span, "expression does not reference a variable" )
+					return nil, .Invalid
 				}
 			}
 
@@ -674,6 +685,10 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			if l_is_untyped && r_is_untyped {
 				ex.lhs.type = get_untyped_default_concrete_ty( ex.lhs.type )
 				ex.rhs.type = get_untyped_default_concrete_ty( ex.rhs.type )
+			} else if l_is_untyped && !r_is_untyped {
+				_ = try_ellide_untyped_to_ty( ex.lhs, rhs_ty )
+			} else if !l_is_untyped && r_is_untyped {
+				_ = try_ellide_untyped_to_ty( ex.rhs, lhs_ty )
 			}
 
 			ty, ok := type_after_op( ex.op, ex.lhs.type, ex.rhs.type )
@@ -684,9 +699,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			ex.type = ty
-			log_spanned_error( &ex.op.span, "impl bin ops" )
-
-			return nil, .Invalid
+			return ty, .Value
 		case ^ProcCallExpr:
 			log_spanned_error( &ex.span, "impl proc call checking" )
 			return nil, .Invalid
@@ -765,6 +778,43 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 	log_spanned_error( &expr.span, "impl check_expr" )
 	return nil, .Invalid
+}
+
+type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
+{
+	#partial switch op.kind {
+		case .Plus, .Minus, .Star, .Slash, .Percent,
+		     .LAngle, .LessThanOrEqual, .LShift,
+		     .RAngle, .GreaterThanOrEqual, .RShift,
+		     .Equal, .NotEqual, .Ampersand, .Pipe,
+		     .Caret:
+			if !ty_is_number( l_ty ) || !ty_is_number( r_ty ) {
+				return nil, false
+			}
+
+			if l_ty != r_ty {
+				return nil, false
+			}
+			
+			ret_ty := l_ty
+			if op.kind == .Equal || op.kind == .NotEqual {
+				ret_ty = ty_builtin_bool
+			}
+
+			return ret_ty, true
+		case .DoubleAmpersand:
+		case .DoublePipe:
+		case .DoubleCaret:
+			if !ty_is_bool( l_ty ) || !ty_is_bool( r_ty ) {
+				return nil, false
+			}
+
+			return l_ty, true
+		case:
+			unreachable()
+	}
+	
+	return nil, false
 }
 
 is_mutating_op :: proc( op: Token ) -> bool
