@@ -20,6 +20,8 @@ FileData :: struct
 
 	pkg: ^Package,
 	mod: ^Module,
+	
+	cur_scope: ^Scope,
 }
 
 file_id_map:   map[string]FileID

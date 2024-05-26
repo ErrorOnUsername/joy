@@ -254,6 +254,10 @@ parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 	sc := new_node( Scope, l_curly_tk.span )
 	sc.parent = parent_scope
 
+	last_sc := file_data.cur_scope
+	defer file_data.cur_scope = last_sc
+	file_data.cur_scope = sc
+
 	tk := curr_tk( file_data )
 	for tk.kind != .RCurly {
 		stmnt := parse_stmnt( file_data, sc )
@@ -619,8 +623,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 					return nil
 				}
 
-				// FIXME(rd): need context so that we can actually have hookup
-				body := parse_scope( file_data, nil )
+				body := parse_scope( file_data, file_data.cur_scope )
 				if body == nil do return nil
 
 				curr_if.then = body
