@@ -1,6 +1,7 @@
 *.exe
 *.bin
 *.pdb
+*.rdi
 /ols.json
 /.vscode/
 /.vs/
