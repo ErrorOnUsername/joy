@@ -640,16 +640,34 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return ex.type, .Value
 			}
 		case ^IfExpr:
-			cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
-			if cond_ty == nil do return nil, .Invalid
+			if ex.cond != nil {
+				cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
+				if cond_ty == nil do return nil, .Invalid
 
-			if cond_ty != ty_builtin_bool || addr_mode != .Value {
-				log_spanned_error( &ex.span, "if condition must be a boolean value" )
-				return nil, .Invalid
+				if cond_ty != ty_builtin_bool && addr_mode != .Value {
+					log_spanned_error( &ex.span, "if condition must be a boolean value" )
+					return nil, .Invalid
+				}
 			}
 
-			log_spanned_error( &ex.span, "impl if checking" )
-			return nil, .Invalid
+			then_ty, addr_mode := tc_check_expr( ctx, ex.then )
+			if then_ty == nil do return nil, .Invalid
+			
+			yeild_ty := then_ty
+			
+			if ex.else_block != nil {
+				else_ty, addr_mode := tc_check_expr( ctx, ex.else_block )
+				if else_ty == nil do return nil, .Invalid
+
+				if then_ty != else_ty {
+					log_spanned_error( &ex.else_block.span, "not all branches yeild the same type" )
+					return nil, .Invalid
+				}
+			}
+			
+			ex.type = yeild_ty
+			
+			return yeild_ty, .Value
 		case ^ForLoop:
 			log_spanned_error( &ex.span, "impl for checking" )
 			return nil, .Invalid
