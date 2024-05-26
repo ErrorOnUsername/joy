@@ -59,8 +59,6 @@ pump_parse_file :: proc( file_id: FileID ) -> PumpResult
 		return .Error
 	}
 
-	fmt.println( data.data )
-
 	mod_ptr, _ := mem.new( Module, tl_ast_allocator )
 	mod_ptr.owning_pkg = data.pkg
 	mod_ptr.file_scope = new_node( Scope, { file_id, 0, 1 } )
