@@ -252,6 +252,7 @@ parse_scope :: proc( file_data: ^FileData, parent_scope: ^Scope ) -> ^Scope
 	consume_newlines( file_data )
 
 	sc := new_node( Scope, l_curly_tk.span )
+	sc.variant = .Logic
 	sc.parent = parent_scope
 
 	last_sc := file_data.cur_scope

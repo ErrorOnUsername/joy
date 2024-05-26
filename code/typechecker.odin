@@ -367,6 +367,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 			if !ty_is_void( ty ) {
 				log_spanned_error( &s.span, "Expression produces a value, but that value is discarded. If this is intentional, consider assigning it to the discard identifier: '_'" )
+				return false
 			}
 		case ^ContinueStmnt:
 			if ctx.curr_loop != nil {
@@ -530,7 +531,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					#partial switch v in val.derived_expr {
 						case ^ProcProto:
 							ty = st.type
-							addr_mode = .Value // function pointer
+							addr_mode = .Constant // function pointer
 						case ^Scope:
 							assert( v.variant != .Logic, "Logic scope assigned to constant" )
 							assert( st.type != nil, "Statement doesn't have type" )
@@ -538,7 +539,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 							addr_mode = .Type
 						case:
 							ty = st.type
-							addr_mode = .Value
+							addr_mode = .Constant
 					}
 
 				case ^EnumVariantDecl:
@@ -548,7 +549,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 				case ^VarDecl:
 					ty = st.type
-					addr_mode = .Value
+					addr_mode = .Variable
 
 				case ^ExprStmnt:
 				case ^ContinueStmnt:
@@ -805,7 +806,8 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 		     .LAngle, .LessThanOrEqual, .LShift,
 		     .RAngle, .GreaterThanOrEqual, .RShift,
 		     .Equal, .NotEqual, .Ampersand, .Pipe,
-		     .Caret:
+		     .Caret, .Assign, .PlusAssign, .MinusAssign,
+		     .StarAssign, .SlashAssign, .PercentAssign:
 			if !ty_is_number( l_ty ) || !ty_is_number( r_ty ) {
 				return nil, false
 			}
@@ -817,7 +819,11 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 			ret_ty := l_ty
 			if op.kind == .Equal || op.kind == .NotEqual {
 				ret_ty = ty_builtin_bool
+			} else if is_mutating_op( op ) {
+				ret_ty = ty_builtin_void
 			}
+			
+			_ = ret_ty
 
 			return ret_ty, true
 		case .DoubleAmpersand:
@@ -828,8 +834,19 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 			}
 
 			return l_ty, true
+			
+		case .AmpersandAssign, .PipeAssign, .CaretAssign:
+			if !( ty_is_number( l_ty ) && ty_is_number( r_ty ) ) && !( ty_is_bool( l_ty ) && ty_is_bool( r_ty ) ) {
+				return nil, false
+			}
+
+			if l_ty != r_ty {
+				return nil, false
+			}
+
+			return ty_builtin_void, true
 		case:
-			unreachable()
+			assert( false, "Internal Compiler Error: Unexpected operator token" )
 	}
 	
 	return nil, false
@@ -838,15 +855,9 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 is_mutating_op :: proc( op: Token ) -> bool
 {
 	#partial switch op.kind {
-		case .Assign:
-		case .PlusAssign:
-		case .MinusAssign:
-		case .StarAssign:
-		case .SlashAssign:
-		case .PercentAssign:
-		case .AmpersandAssign:
-		case .PipeAssign:
-		case .CaretAssign:
+		case .Assign, .PlusAssign, .MinusAssign, .StarAssign,
+		     .SlashAssign, .PercentAssign, .AmpersandAssign,
+		     .PipeAssign, .CaretAssign:
 			return true
 	}
 
