@@ -713,8 +713,56 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return body_ty, .Value
 		case ^RangeExpr:
-			log_spanned_error( &ex.span, "impl range checking" )
-			return nil, .Invalid
+			start_ty, s_addr_mode := tc_check_expr( ctx, ex.lhs )
+			if start_ty == nil do return nil, .Invalid
+
+			// FIXME(rd): Encapsulate this in a consistent function
+			if s_addr_mode != .Value && s_addr_mode != .Variable {
+				log_spanned_error( &ex.lhs.span, "range start expression is not a value" )
+				return nil, .Invalid
+			}
+
+			if ty_is_untyped_builtin( start_ty ) {
+				start_cast_ok := try_ellide_untyped_to_ty( ex.lhs, ty_builtin_isize )
+				if !start_cast_ok {
+					log_spanned_error( &ex.lhs.span, "untyped literal cannot be used to represent an isize" )
+					return nil, .Invalid
+				}
+
+				start_ty = ex.lhs.type
+			}
+
+			if !ty_is_integer( start_ty ) {
+				log_spanned_error( &ex.lhs.span, "expected an integer, got 'TODO'" )
+				return nil, .Invalid
+			}
+
+			end_ty, e_addr_mode := tc_check_expr( ctx, ex.rhs )
+			if end_ty == nil do return nil, .Invalid
+
+			if e_addr_mode != .Value && e_addr_mode != .Variable {
+				log_spanned_error( &ex.rhs.span, "range end expression is not a value" )
+				return nil, .Invalid
+			}
+
+			if ty_is_untyped_builtin( end_ty ) {
+				end_cast_ok := try_ellide_untyped_to_ty( ex.rhs, ty_builtin_isize )
+				if !end_cast_ok {
+					log_spanned_error( &ex.lhs.span, "untyped literal cannot be used to represent an isize" )
+					return nil, .Invalid
+				}
+
+				end_ty = ex.rhs.type
+			}
+
+			if !ty_is_integer( end_ty ) {
+				log_spanned_error( &ex.rhs.span, "expected an integer, got 'TODO'" )
+				return nil, .Invalid
+			}
+
+			ex.type = ty_builtin_range
+
+			return ty_builtin_range, .Value
 		case ^UnaryOpExpr:
 			log_spanned_error( &ex.span, "impl unary op checking" )
 			return nil, .Invalid

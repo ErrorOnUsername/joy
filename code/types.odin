@@ -246,6 +246,24 @@ ty_is_number :: proc( ty: ^Type ) -> bool
 	return false
 }
 
+ty_is_integer :: proc( ty: ^Type ) -> bool
+{
+	switch t in ty.derived {
+		case ^PrimitiveType:
+			#partial switch t.kind {
+				case .U8, .I8, .U16, .I16, .U32,
+				     .I32, .U64, .I64, .USize,
+				     .ISize:
+					return true
+			}
+		case ^PointerType, ^SliceType, ^StructType,
+		     ^EnumType, ^UnionType, ^FnType:
+			return false
+	}
+
+	return false
+}
+
 ty_is_range :: proc( ty: ^Type ) -> bool
 {
 	return ty == ty_builtin_range
