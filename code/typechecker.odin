@@ -521,7 +521,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				stmnt_ok := tc_check_stmnt( ctx, stmnt )
 				if !stmnt_ok do return nil, .Invalid
 			}
-			
+
 			ty: ^Type
 			addr_mode: AddressingMode
 
@@ -653,9 +653,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			then_ty, addr_mode := tc_check_expr( ctx, ex.then )
 			if then_ty == nil do return nil, .Invalid
-			
+
 			yeild_ty := then_ty
-			
+
 			if ex.else_block != nil {
 				else_ty, addr_mode := tc_check_expr( ctx, ex.else_block )
 				if else_ty == nil do return nil, .Invalid
@@ -665,9 +665,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return nil, .Invalid
 				}
 			}
-			
+
 			ex.type = yeild_ty
-			
+
 			return yeild_ty, .Value
 		case ^ForLoop:
 			range_ty, addr_mode := tc_check_expr( ctx, ex.range )
@@ -860,14 +860,14 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 			if l_ty != r_ty {
 				return nil, false
 			}
-			
+
 			ret_ty := l_ty
 			if is_bool_op( op.kind ) {
 				ret_ty = ty_builtin_bool
 			} else if is_mutating_op( op.kind ) {
 				ret_ty = ty_builtin_void
 			}
-			
+
 			_ = ret_ty
 
 			return ret_ty, true
@@ -879,7 +879,7 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 			}
 
 			return l_ty, true
-			
+
 		case .AmpersandAssign, .PipeAssign, .CaretAssign:
 			if !( ty_is_number( l_ty ) && ty_is_number( r_ty ) ) && !( ty_is_bool( l_ty ) && ty_is_bool( r_ty ) ) {
 				return nil, false
@@ -893,7 +893,7 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 		case:
 			assert( false, "Internal Compiler Error: Unexpected operator token" )
 	}
-	
+
 	return nil, false
 }
 
