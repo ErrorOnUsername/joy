@@ -246,3 +246,21 @@ ty_is_number :: proc( ty: ^Type ) -> bool
 	return false
 }
 
+ty_is_range :: proc( ty: ^Type ) -> bool
+{
+	return ty == ty_builtin_range
+}
+
+ty_is_array_or_slice :: proc( ty: ^Type ) -> bool
+{
+	switch t in ty.derived {
+		case ^SliceType:
+			return true
+		case ^PointerType, ^PrimitiveType, ^StructType,
+		     ^EnumType, ^UnionType, ^FnType:
+			return false
+	}
+
+	return false
+}
+

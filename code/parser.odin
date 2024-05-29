@@ -690,8 +690,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				return nil
 			}
 
-			// FIXME(rd): need context so that we can actually have hookup
-			body := parse_scope( file_data, nil )
+			body := parse_scope( file_data, file_data.cur_scope )
 			if body == nil do return nil
 
 			while_loop := new_node( WhileLoop, start_tk.span )
@@ -710,8 +709,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				return nil
 			}
 
-			// FIXME(rd): need context so that we can actually have hookup
-			body := parse_scope( file_data, nil )
+			body := parse_scope( file_data, file_data.cur_scope )
 			if body == nil do return nil
 
 			inf_loop := new_node( InfiniteLoop, start_tk.span )

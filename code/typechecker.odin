@@ -670,14 +670,48 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			
 			return yeild_ty, .Value
 		case ^ForLoop:
+			range_ty, addr_mode := tc_check_expr( ctx, ex.range )
+			if range_ty == nil do return nil, .Invalid
+
+			if addr_mode != .Value {
+				log_spanned_error( &ex.range.span, "for loop range expression does not reference a value" )
+				return nil, .Invalid
+			}
+
+			if !ty_is_range( range_ty ) && !ty_is_array_or_slice( range_ty ) {
+				log_spanned_error( &ex.range.span, "for loop iterator expression is not an array, slice, or range" )
+				return nil, .Invalid
+			}
+
 			log_spanned_error( &ex.span, "impl for checking" )
 			return nil, .Invalid
 		case ^WhileLoop:
-			log_spanned_error( &ex.span, "impl while checking" )
-			return nil, .Invalid
+			cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
+			if cond_ty == nil do return nil, .Invalid
+
+			if addr_mode != .Value {
+				log_spanned_error( &ex.cond.span, "while loop condition does not represent a value" )
+				return nil, .Invalid
+			}
+
+			if !ty_is_bool( cond_ty ) {
+				log_spanned_error( &ex.cond.span, "expected 'bool' got 'TODO'" )
+				return nil, .Invalid
+			}
+
+			body_ty, _ := tc_check_expr( ctx, ex.body )
+			if body_ty == nil do return nil, .Invalid
+
+			ex.type = body_ty
+
+			return body_ty, .Value
 		case ^InfiniteLoop:
-			log_spanned_error( &ex.span, "impl loop checking" )
-			return nil, .Invalid
+			body_ty, _ := tc_check_expr( ctx, ex.body )
+			if body_ty == nil do return nil, .Invalid
+
+			ex.type = body_ty
+
+			return body_ty, .Value
 		case ^RangeExpr:
 			log_spanned_error( &ex.span, "impl range checking" )
 			return nil, .Invalid
@@ -691,7 +725,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			rhs_ty, r_addr_mode := tc_check_expr( ctx, ex.rhs )
 			if rhs_ty == nil do return nil, .Invalid
 
-			if is_mutating_op( ex.op ) {
+			if is_mutating_op( ex.op.kind ) {
 				if l_addr_mode != .Variable {
 					log_spanned_error( &ex.lhs.span, "expression does not reference a variable" )
 					return nil, .Invalid
@@ -799,6 +833,17 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 	return nil, .Invalid
 }
 
+is_bool_op :: proc( op: TokenKind ) -> bool
+{
+	#partial switch op {
+		case .LAngle, .LessThanOrEqual, .RAngle, .GreaterThanOrEqual,
+		     .Equal, .NotEqual:
+			return true
+	}
+
+	return false
+}
+
 type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 {
 	#partial switch op.kind {
@@ -817,9 +862,9 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 			}
 			
 			ret_ty := l_ty
-			if op.kind == .Equal || op.kind == .NotEqual {
+			if is_bool_op( op.kind ) {
 				ret_ty = ty_builtin_bool
-			} else if is_mutating_op( op ) {
+			} else if is_mutating_op( op.kind ) {
 				ret_ty = ty_builtin_void
 			}
 			
@@ -852,9 +897,9 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 	return nil, false
 }
 
-is_mutating_op :: proc( op: Token ) -> bool
+is_mutating_op :: proc( op: TokenKind ) -> bool
 {
-	#partial switch op.kind {
+	#partial switch op {
 		case .Assign, .PlusAssign, .MinusAssign, .StarAssign,
 		     .SlashAssign, .PercentAssign, .AmpersandAssign,
 		     .PipeAssign, .CaretAssign:
