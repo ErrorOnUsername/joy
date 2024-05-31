@@ -393,8 +393,10 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				return false
 			}
 
-			if ty != ctx.curr_proc.type {
-				log_spanned_error( &s.span, "return expression's type does not match the return type of the function" )
+			proc_ty := ctx.curr_proc.type.derived.(^FnType)
+
+			if ty != proc_ty.return_type {
+				log_spanned_error( &s.span, "return expression's type does not match the return type of the function. Expected 'TODO' got 'TODO'" )
 			}
 	}
 
@@ -888,8 +890,37 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ty
 			return ty, .Value
 		case ^ProcCallExpr:
-			log_spanned_error( &ex.span, "impl proc call checking" )
-			return nil, .Invalid
+			decl := lookup_ident( ctx, ex.name )
+			if decl == nil {
+				log_spanned_errorf( &ex.span, "undeclared function '{}'", ex.name )
+				return nil, .Invalid
+			}
+
+			fn_ty := decl.type.derived.(^FnType)
+
+			if len( ex.params ) != len( fn_ty.params ) {
+				log_spanned_errorf( &ex.span, "function '{}' takes {} parameters, got {}", ex.name, len( fn_ty.params ), len( ex.params ) )
+				return nil, .Invalid
+			}
+
+			for i in 0..<len(ex.params) {
+				param_ty, addr_mode := tc_check_expr( ctx, ex.params[i] )
+				if param_ty == nil do return nil, .Invalid
+
+				if addr_mode != .Value && addr_mode != .Variable {
+					log_spanned_error( &ex.span, "expected value, got 'TODO'" )
+					return nil, .Invalid
+				}
+
+				if param_ty != fn_ty.params[i] {
+					log_spanned_error( &ex.span, "parameter type mismatch, expected 'TODO' got 'TODO'" )
+					return nil, .Invalid
+				}
+			}
+
+			ex.type = fn_ty.return_type
+
+			return fn_ty.return_type, .Value
 		case ^PrimitiveTypeExpr:
 			prim_ty: ^Type
 			switch ex.prim {

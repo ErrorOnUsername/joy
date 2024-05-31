@@ -17,6 +17,10 @@ decl MyUnion := union {
 	VariantB(thing: MyStruct, name: string);
 };
 
+decl square := fn(n: isize) -> isize {
+	return n * n;
+};
+
 decl main := fn() {
 	// Line comment.
 	let a: string = "haha";
@@ -47,5 +51,5 @@ decl main := fn() {
 
 	loop { break; }
 
-	println( "Hello, World!" );
+	let c := square(b);
 };

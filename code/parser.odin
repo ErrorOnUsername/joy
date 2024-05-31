@@ -204,7 +204,7 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 			}
 
 			return_stmnt := new_node( ReturnStmnt, start_tk.span )
-			return_stmnt.expr = parse_expr( file_data, true )
+			return_stmnt.expr = parse_expr( file_data, false )
 
 			sc_tk := curr_tk( file_data )
 			if !try_consume_tk( file_data, .Semicolon ) {
@@ -874,6 +874,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				return lit
 			} else if try_consume_tk( file_data, .LParen ) {
 				call := new_node( ProcCallExpr, start_tk.span )
+				call.name = start_tk.str
 
 				consume_newlines( file_data )
 
