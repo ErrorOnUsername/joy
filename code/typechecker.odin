@@ -678,13 +678,28 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				return nil, .Invalid
 			}
 
-			if !ty_is_range( range_ty ) && !ty_is_array_or_slice( range_ty ) {
+			if ty_is_range( range_ty ) {
+				ex.iter.type = ty_builtin_isize
+			} else if ty_is_array_or_slice( range_ty ) {
+				ex.iter.type = ty_get_array_underlying( range_ty )
+			} else {
 				log_spanned_error( &ex.range.span, "for loop iterator expression is not an array, slice, or range" )
 				return nil, .Invalid
 			}
 
-			log_spanned_error( &ex.span, "impl for checking" )
-			return nil, .Invalid
+			assert( !(ex.iter.name in ex.body.symbols) )
+
+			ex.body.symbols[ex.iter.name] = ex.iter
+
+			body_ty, body_addr_mode := tc_check_expr( ctx, ex.body )
+			if body_addr_mode != .Value {
+				log_spanned_error( &ex.body.span, "expected value, got 'TODO'" )
+				return nil, .Invalid
+			}
+
+			ex.type = body_ty
+
+			return body_ty, .Value
 		case ^WhileLoop:
 			cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
 			if cond_ty == nil do return nil, .Invalid
@@ -764,8 +779,79 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return ty_builtin_range, .Value
 		case ^UnaryOpExpr:
-			log_spanned_error( &ex.span, "impl unary op checking" )
-			return nil, .Invalid
+			rand_ty, addr_mode := tc_check_expr( ctx, ex.rand )
+			if rand_ty == nil do return nil, .Invalid
+
+			fnl_ty: ^Type
+			fnl_addr_mode: AddressingMode
+
+			#partial switch ex.op.kind {
+				case .At:
+					if addr_mode != .Value && addr_mode != .Variable {
+						log_spanned_error( &ex.rand.span, "expected value, got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					if !ty_is_pointer( rand_ty ) {
+						log_spanned_error( &ex.rand.span, "expected pointer type, got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					ptr_ty := rand_ty.derived.(^PointerType)
+					base := ptr_ty.underlying
+
+					ex.type = base
+
+					fnl_ty = base
+					fnl_addr_mode = .Value
+				case .Ampersand:
+					if addr_mode != .Variable {
+						log_spanned_error( &ex.rand.span, "expected variable, got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					ptr_ty := new_type( PointerType, nil )
+					ptr_ty.underlying = rand_ty
+
+					ex.type = ptr_ty
+
+					fnl_ty = ptr_ty
+					fnl_addr_mode = .Value
+				case .Bang:
+					if addr_mode != .Value && addr_mode != .Variable {
+						log_spanned_error( &ex.rand.span, "expected value, got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					if !ty_is_bool( rand_ty ) {
+						log_spanned_error( &ex.rand.span, "expected type 'bool' got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					ex.type = ty_builtin_bool
+
+					fnl_ty = ty_builtin_bool
+					fnl_addr_mode = .Value
+				case .Tilde, .Minus:
+					if addr_mode != .Value && addr_mode != .Variable {
+						log_spanned_error( &ex.rand.span, "expected value, got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					if !ty_is_integer( rand_ty ) {
+						log_spanned_error( &ex.rand.span, "expected integer, got 'TODO'" )
+						return nil, .Invalid
+					}
+
+					ex.type = rand_ty
+
+					fnl_ty = rand_ty
+					fnl_addr_mode = .Value
+			}
+
+			assert( fnl_ty != nil )
+
+			return fnl_ty, fnl_addr_mode
 		case ^BinOpExpr:
 			lhs_ty, l_addr_mode := tc_check_expr( ctx, ex.lhs )
 			if lhs_ty == nil do return nil, .Invalid
@@ -803,9 +889,6 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			return ty, .Value
 		case ^ProcCallExpr:
 			log_spanned_error( &ex.span, "impl proc call checking" )
-			return nil, .Invalid
-		case ^FieldAccessExpr:
-			log_spanned_error( &ex.span, "impl field access checking" )
 			return nil, .Invalid
 		case ^PrimitiveTypeExpr:
 			prim_ty: ^Type

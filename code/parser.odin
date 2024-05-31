@@ -648,7 +648,9 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				log_spanned_error( &iter_name_tk.span, "Expected identifier for loop iterator name" )
 				return nil
 			}
-			iter := new_node( Ident, iter_name_tk.span )
+
+			iter := new_node( VarDecl, iter_name_tk.span )
+			iter.name = iter_name_tk.str
 
 			in_tk := curr_tk( file_data )
 			if !try_consume_tk( file_data, .In ) {
@@ -671,7 +673,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			if body == nil do return nil
 
 			for_loop := new_node( ForLoop, start_tk.span )
-			for_loop.iter_ident = iter
+			for_loop.iter = iter
 			for_loop.range = range_expr
 			for_loop.body = body
 
@@ -737,7 +739,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			ise.member = memb
 
 			return ise
-		case .At, .Bang, .Tilde, .Minus:
+		case .At, .Ampersand, .Bang, .Tilde, .Minus:
 			file_data.tk_idx += 1
 
 			rand := parse_operand( file_data )

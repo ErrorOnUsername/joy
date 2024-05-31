@@ -282,3 +282,26 @@ ty_is_array_or_slice :: proc( ty: ^Type ) -> bool
 	return false
 }
 
+ty_is_pointer :: proc( ty: ^Type ) -> bool
+{
+	#partial switch t in ty.derived {
+		case ^PointerType:
+			return true
+	}
+
+	return false
+}
+
+ty_get_array_underlying :: proc( ty: ^Type ) -> ^Type
+{
+
+	#partial switch t in ty.derived {
+		case ^SliceType:
+			return t.underlying
+		case:
+			assert( false, "type is not an array or slice" )
+	}
+
+	return nil
+}
+

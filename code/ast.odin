@@ -174,7 +174,7 @@ IfExpr :: struct
 ForLoop :: struct
 {
 	using expr: Expr,
-	iter_ident: ^Ident,
+	iter: ^VarDecl,
 	range:      ^Expr,
 	body:       ^Scope,
 }
@@ -199,13 +199,6 @@ RangeExpr :: struct
 	lhs:                   ^Expr,
 	right_bound_inclusive: bool,
 	rhs:                   ^Expr,
-}
-
-FieldAccessExpr :: struct
-{
-	using expr: Expr,
-	owner:      ^Expr,
-	field:      ^Expr,
 }
 
 UnaryOpExpr :: struct
@@ -336,7 +329,6 @@ AnyExpr :: union
 	^UnaryOpExpr,
 	^BinOpExpr,
 	^ProcCallExpr,
-	^FieldAccessExpr,
 	^PrimitiveTypeExpr,
 	^PointerTypeExpr,
 	^SliceTypeExpr,
