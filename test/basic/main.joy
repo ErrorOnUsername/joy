@@ -49,5 +49,5 @@ decl main := fn() {
 
 	let c := square(b);
 	
-	let d := MyStruct { 10, "Hello" };
+	let d: MyStruct = { 10, "Hello" };
 };
