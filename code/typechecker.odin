@@ -991,7 +991,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			return nil, .Invalid
 	}
 
-	log_spanned_error( &expr.span, "impl check_expr" )
+	assert( false )
+
 	return nil, .Invalid
 }
 
