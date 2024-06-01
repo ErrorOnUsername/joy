@@ -292,6 +292,26 @@ ty_is_pointer :: proc( ty: ^Type ) -> bool
 	return false
 }
 
+ty_is_struct :: proc( ty: ^Type ) -> bool
+{
+	#partial switch t in ty.derived {
+		case ^StructType:
+			return true
+	}
+
+	return false
+}
+
+ty_is_union :: proc( ty: ^Type ) -> bool
+{
+	#partial switch t in ty.derived {
+		case ^UnionType:
+			return true
+	}
+
+	return false
+}
+
 ty_get_array_underlying :: proc( ty: ^Type ) -> ^Type
 {
 

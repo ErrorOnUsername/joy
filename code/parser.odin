@@ -593,7 +593,17 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			tk := curr_tk( file_data )
 			for tk.kind != .RCurly {
+				if len( lit.vals ) > 0 && !try_consume_tk( file_data, .Comma ) {
+					log_spanned_error( &tk.span, "expected ',' to separate structure literal member values" )
+					return nil
+				}
+
+				consume_newlines( file_data )
+
 				v := parse_expr( file_data )
+				if v == nil do return nil
+
+				append( &lit.vals, v )
 
 				consume_newlines( file_data )
 				tk = curr_tk( file_data )
@@ -859,17 +869,29 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			peek_tk := curr_tk( file_data )
 			if try_consume_tk( file_data, .LCurly ) {
 				lit := new_node( NamedStructLiteralExpr, start_tk.span )
+				lit.name = start_tk.str
 
 				consume_newlines( file_data )
 
 				tk := curr_tk( file_data )
 				for tk.kind != .RCurly {
+					if len( lit.vals ) > 0 && !try_consume_tk( file_data, .Comma ) {
+						log_spanned_error( &tk.span, "expected ',' to separate structure literal member values" )
+						return nil
+					}
+					
+					consume_newlines( file_data )
+
 					v := parse_expr( file_data )
+					if v == nil do return nil
+
 					append( &lit.vals, v )
 
 					consume_newlines( file_data )
 					tk = curr_tk( file_data )
 				}
+				
+				file_data.tk_idx += 1
 
 				return lit
 			} else if try_consume_tk( file_data, .LParen ) {

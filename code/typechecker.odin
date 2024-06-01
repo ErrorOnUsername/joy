@@ -570,8 +570,52 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ty_builtin_untyped_int
 			return ex.type, .Value
 		case ^NamedStructLiteralExpr:
-			log_spanned_error( &ex.span, "impl struct literal checking" )
-			return nil, .Invalid
+			decl := lookup_ident( ctx, ex.name )
+			if decl == nil {
+				log_spanned_errorf( &ex.span, "undeclared struct or union variant '{}'", ex.name )
+				return nil, .Invalid
+			}
+			
+			if !ty_is_struct( decl.type ) {
+				log_spanned_errorf( &ex.span, "'{}' does not reference a struct or enum variant", ex.name )				
+				return nil, .Invalid
+			}
+
+			struct_ty := decl.type.derived.(^StructType)
+			
+			if len( ex.vals ) != len( struct_ty.members ) {
+				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you only supplied {} values", ex.name, len( ex.vals ), len( struct_ty.members ) )
+				return nil, .Invalid
+			}
+			
+			for i in 0..<len( ex.vals ) {
+				val_ty, val_addr_mode := tc_check_expr( ctx, ex.vals[i] )
+				if val_ty == nil do return nil, .Invalid
+				
+				if val_addr_mode != .Variable && val_addr_mode != .Value {
+					log_spanned_error( &ex.vals[i].span, "expected value, got 'TODO'" )
+					return nil, .Invalid
+				}
+				
+				if ty_is_untyped_builtin( val_ty ) {
+					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i] )
+					if !ok {
+						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
+						return nil, .Invalid
+					}
+					
+					val_ty = ex.vals[i].type
+				}
+
+				if val_ty != struct_ty.members[i] {
+					log_spanned_error( &ex.vals[i].span, "expected 'TODO' got 'TODO'" )
+					return nil, .Invalid
+				}
+			}
+			
+			ex.type = struct_ty
+			
+			return struct_ty, .Value
 		case ^AnonStructLiteralExpr:
 			if ctx.hint_type == nil {
 				log_spanned_error( &ex.span, "Cannot infer structure literal type without hint" )

@@ -1,10 +1,6 @@
 decl MyStruct := struct {
 	member_0: usize;
-	member_1: f32;
-	member_2: cstring;
-	member_3: string;
-	member_4: *usize;
-	member_5: MyEnum;
+	member_1: string;
 };
 
 decl MyEnum := enum {
@@ -52,4 +48,6 @@ decl main := fn() {
 	loop { break; }
 
 	let c := square(b);
+	
+	let d := MyStruct { 10, "Hello" };
 };
