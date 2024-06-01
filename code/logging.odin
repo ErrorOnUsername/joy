@@ -24,7 +24,7 @@ log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
 	sync.mutex_lock( &log_mutex )
 	defer sync.mutex_unlock( &log_mutex )
 
-	log_errorf_internal( msg, args )
+	log_errorf_internal( msg, ..args )
 	print_span( span )
 
 	libc.fflush( libc.stderr )
@@ -32,7 +32,7 @@ log_spanned_errorf :: proc( span: ^Span, msg: string, args: ..any )
 
 log_error_internal :: proc( msg: string )
 {
-	fmt.eprintf( "Error: {}\n", msg )
+	fmt.eprintf( "\e[31;1mError\e[0m: {}\n", msg )
 }
 
 
@@ -51,8 +51,8 @@ log_errorf_internal :: proc( msg: string, args: ..any )
 {
 	sb: strings.Builder
 
-	fmt.sbprintf( &sb, msg, args )
-	fmt.eprintf( "Error: {}\n", strings.to_string( sb ) )
+	fmt.sbprintf( &sb, msg, ..args )
+	fmt.eprintf( "\e[31;1mError\e[0m: {}\n", strings.to_string( sb ) )
 }
 
 
@@ -61,7 +61,7 @@ log_errorf :: proc( msg: string, args: ..any )
 	sync.mutex_lock( &log_mutex )
 	defer sync.mutex_unlock( &log_mutex )
 
-	log_errorf_internal( msg, args )
+	log_errorf_internal( msg, ..args )
 
 	libc.fflush( libc.stderr )
 }
@@ -69,7 +69,7 @@ log_errorf :: proc( msg: string, args: ..any )
 
 log_warning_internal :: proc( msg: string )
 {
-	fmt.eprintf( "Warning: {}\n", msg )
+	fmt.eprintf( "\e[33;1mWarning\e[0m: {}\n", msg )
 }
 
 
@@ -86,8 +86,8 @@ log_warningf_internal :: proc( msg: string, args: ..any )
 {
 	sb: strings.Builder
 
-	fmt.sbprintf( &sb, msg, args )
-	fmt.eprintf( "Warning: {}\n", strings.to_string( sb ) )
+	fmt.sbprintf( &sb, msg, ..args )
+	fmt.eprintf( "\e[33;1mWarning\e[0m: {}\n", strings.to_string( sb ) )
 }
 
 
@@ -96,7 +96,7 @@ log_warningf :: proc( msg: string, args: ..any )
 	sync.mutex_lock( &log_mutex )
 	defer sync.mutex_unlock( &log_mutex )
 
-	log_warningf_internal( msg, args )
+	log_warningf_internal( msg, ..args )
 }
 
 

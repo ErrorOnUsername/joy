@@ -590,7 +590,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			struct_ty := decl.type.derived.(^StructType)
 			
 			if len( ex.vals ) != len( struct_ty.members ) {
-				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you only supplied {} values", ex.name, len( struct_ty.members ), len( ex.vals ) )
+				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you supplied {} values", ex.name, len( struct_ty.members ), len( ex.vals ) )
 				return nil, .Invalid
 			}
 			
@@ -636,7 +636,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			struct_ty := ctx.hint_type.derived.(^StructType)
 
 			if len( ex.vals ) != len( struct_ty.members ) {
-				log_spanned_errorf( &ex.span, "struct 'TODO' has {} members, but you only supplied {} values", len( ex.vals ), len( struct_ty.members ) )
+				log_spanned_errorf( &ex.span, "struct 'TODO' has {} members, but you supplied {} values", len( ex.vals ), len( struct_ty.members ) )
 				return nil, .Invalid
 			}
 			
