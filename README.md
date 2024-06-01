@@ -7,7 +7,7 @@ A language made for fun and to learn more about compilers
 ```
 use joy.io;
 
-decl main := () {
+decl main := fn() {
 	io.println( "Hello, World!" );
 };
 ```
