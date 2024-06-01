@@ -49,18 +49,21 @@ SliceType :: struct
 StructType :: struct
 {
 	using type: Type,
+	ast_scope: ^Scope,
 	members: [dynamic]^Type,
 }
 
 EnumType :: struct
 {
 	using type: Type,
+	ast_scope: ^Scope,
 	underlying: ^Type,
 }
 
 UnionType :: struct
 {
 	using type: Type,
+	ast_scope: ^Scope,
 	variants: [dynamic]^StructType,
 }
 

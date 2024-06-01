@@ -48,6 +48,10 @@ decl main := fn() {
 	loop { break; }
 
 	let c := square(b);
-	
+
 	let d: MyStruct = { 10, "Hello" };
+	let e: usize = d.member_0;
+	let f: string = d.member_1;
+
+	let g: MyUnion = MyUnion.VariantB { d, "haha" };
 };

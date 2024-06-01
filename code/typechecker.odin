@@ -343,6 +343,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			s.type = ty_builtin_usize
 		case ^UnionVariantDecl:
 			variant_type := new_type( StructType, ctx.mod )
+			variant_type.ast_scope = s.sc
 
 			last_scope := ctx.curr_scope
 			defer ctx.curr_scope = last_scope
@@ -570,11 +571,16 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ty_builtin_untyped_int
 			return ex.type, .Value
 		case ^NamedStructLiteralExpr:
+
 			decl := lookup_ident( ctx, ex.name )
 			if decl == nil {
 				log_spanned_errorf( &ex.span, "undeclared struct or union variant '{}'", ex.name )
 				return nil, .Invalid
 			}
+
+			last_ctx_ty := ctx.hint_type
+			defer ctx.hint_type = last_ctx_ty
+			ctx.hint_type = nil
 			
 			if !ty_is_struct( decl.type ) {
 				log_spanned_errorf( &ex.span, "'{}' does not reference a struct or enum variant", ex.name )				
@@ -584,7 +590,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			struct_ty := decl.type.derived.(^StructType)
 			
 			if len( ex.vals ) != len( struct_ty.members ) {
-				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you only supplied {} values", ex.name, len( ex.vals ), len( struct_ty.members ) )
+				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you only supplied {} values", ex.name, len( struct_ty.members ), len( ex.vals ) )
 				return nil, .Invalid
 			}
 			
@@ -663,8 +669,24 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return struct_ty, .Value
 		case ^MemberAccessExpr:
-			log_spanned_error( &ex.span, "impl member access checking" )
-			return nil, .Invalid
+			owner_ty, owner_addr_mode := tc_check_expr( ctx, ex.val )
+			if owner_ty == nil do return nil, .Invalid
+
+			last_ctx_ty := ctx.hint_type
+			ctx.hint_type = last_ctx_ty
+			ctx.hint_type = owner_ty
+
+			member_ty, member_addr_mode := tc_check_expr( ctx, ex.member )
+			if member_ty == nil do return nil, .Invalid
+
+			if member_addr_mode != .Value && member_addr_mode != .Variable {
+				log_spanned_error( &ex.member.span, "expected value got 'TODO'" )
+				return nil, .Invalid
+			}
+			
+			ex.type = member_ty
+
+			return ex.type, .Value
 		case ^ImplicitSelectorExpr:
 			log_spanned_error( &ex.span, "impl implicit selector checking" )
 			return nil, .Invalid
@@ -676,6 +698,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			switch ex.variant {
 				case .Struct:
 					struct_type := new_type( StructType, ctx.mod )
+					struct_type.ast_scope = ex
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
 						if !mem_ok do return nil, .Invalid
@@ -687,6 +710,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return struct_type, .Value
 				case .Union:
 					union_type := new_type( UnionType, ctx.mod )
+					union_type.ast_scope = ex
 
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
@@ -705,6 +729,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return union_type, .Value
 				case .Enum:
 					enum_type := new_type( EnumType, ctx.mod )
+					enum_type.ast_scope = ex
 					enum_type.underlying = ty_builtin_usize
 
 					for m in ex.stmnts {
@@ -1157,6 +1182,18 @@ is_mutating_op :: proc( op: TokenKind ) -> bool
 lookup_ident :: proc( ctx: ^CheckerContext, ident_name: string ) -> ^Stmnt
 {
 	sc := ctx.curr_scope
+
+	if ctx.hint_type != nil {
+		#partial switch t in ctx.hint_type.derived {
+			case ^StructType:
+				sc = t.ast_scope
+			case ^EnumType:
+				sc = t.ast_scope
+			case ^UnionType:
+				sc = t.ast_scope
+		}
+	}
+
 	for sc != nil {
 		if ident_name in sc.symbols {
 			return sc.symbols[ident_name]
