@@ -1,16 +1,13 @@
-/*
 decl MyStruct := struct {
 	member_0: usize;
 	member_1: string;
 };
-*/
 
 decl MyEnum := enum {
 	VariantA;
 	VariantB;
 };
 
-/*
 decl MyUnion := union {
 	VariantA(a: i32, slice: [u32]);
 	VariantB(thing: MyStruct, name: string);
@@ -19,10 +16,8 @@ decl MyUnion := union {
 decl square := fn(n: isize) -> isize {
 	return n * n;
 };
-*/
 
 decl main := fn() {
-	/*
 	// Line comment.
 	let a: string = "haha";
 	let b := 10;
@@ -57,10 +52,7 @@ decl main := fn() {
 	let d: MyStruct = { 10, "Hello" };
 	let e: usize = d.member_0;
 	let f: string = d.member_1;
-	*/
 
 	let g: MyEnum = MyEnum.VariantB;
-	/*
 	let h: MyUnion = MyUnion.VariantB { d, "haha" };
-	*/
 };

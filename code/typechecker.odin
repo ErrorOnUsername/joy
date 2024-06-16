@@ -736,6 +736,10 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					enum_type.ast_scope = ex
 					enum_type.underlying = ty_builtin_usize
 
+					last_ctx_ty := ctx.hint_type
+					ctx.hint_type = enum_type
+					defer ctx.hint_type = last_ctx_ty
+
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
 						if !mem_ok do return nil, .Invalid
