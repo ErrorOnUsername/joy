@@ -315,6 +315,16 @@ ty_is_union :: proc( ty: ^Type ) -> bool
 	return false
 }
 
+ty_is_enum :: proc( ty: ^Type ) -> bool
+{
+	#partial switch t in ty.derived {
+		case ^EnumType:
+			return true
+	}
+
+	return false
+}
+
 ty_get_array_underlying :: proc( ty: ^Type ) -> ^Type
 {
 

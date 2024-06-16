@@ -339,8 +339,9 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 		case ^EnumVariantDecl:
 			sc := ctx.curr_scope
 			assert( sc.variant == .Enum, "Enum variant declared outside of enum scope" )
+			assert( ty_is_enum( ctx.hint_type ) )
 
-			s.type = ty_builtin_usize
+			s.type = ctx.hint_type
 		case ^UnionVariantDecl:
 			variant_type := new_type( StructType, ctx.mod )
 			variant_type.ast_scope = s.sc
@@ -546,6 +547,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					}
 
 				case ^EnumVariantDecl:
+					ty = st.type
+					addr_mode = .Value
+
 				case ^UnionVariantDecl:
 					ty = st.type
 					addr_mode = .Type
@@ -581,35 +585,35 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			last_ctx_ty := ctx.hint_type
 			defer ctx.hint_type = last_ctx_ty
 			ctx.hint_type = nil
-			
+
 			if !ty_is_struct( decl.type ) {
-				log_spanned_errorf( &ex.span, "'{}' does not reference a struct or enum variant", ex.name )				
+				log_spanned_errorf( &ex.span, "'{}' does not reference a struct or enum variant", ex.name )
 				return nil, .Invalid
 			}
 
 			struct_ty := decl.type.derived.(^StructType)
-			
+
 			if len( ex.vals ) != len( struct_ty.members ) {
 				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you supplied {} values", ex.name, len( struct_ty.members ), len( ex.vals ) )
 				return nil, .Invalid
 			}
-			
+
 			for i in 0..<len( ex.vals ) {
 				val_ty, val_addr_mode := tc_check_expr( ctx, ex.vals[i] )
 				if val_ty == nil do return nil, .Invalid
-				
+
 				if val_addr_mode != .Variable && val_addr_mode != .Value {
 					log_spanned_error( &ex.vals[i].span, "expected value, got 'TODO'" )
 					return nil, .Invalid
 				}
-				
+
 				if ty_is_untyped_builtin( val_ty ) {
 					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i] )
 					if !ok {
 						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
 						return nil, .Invalid
 					}
-					
+
 					val_ty = ex.vals[i].type
 				}
 
@@ -618,18 +622,18 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return nil, .Invalid
 				}
 			}
-			
-			ex.type = struct_ty
-			
-			return struct_ty, .Value
+
+			ex.type = struct_ty if !ty_is_union( last_ctx_ty ) else last_ctx_ty
+
+			return ex.type, .Value
 		case ^AnonStructLiteralExpr:
 			if ctx.hint_type == nil {
 				log_spanned_error( &ex.span, "Cannot infer structure literal type without hint" )
 				return nil, .Invalid
 			}
-			
+
 			if !ty_is_struct( ctx.hint_type ) {
-				log_spanned_error( &ex.span, "'TODO' is not a struct or enum variant" )				
+				log_spanned_error( &ex.span, "'TODO' is not a struct or enum variant" )
 				return nil, .Invalid
 			}
 
@@ -639,23 +643,23 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				log_spanned_errorf( &ex.span, "struct 'TODO' has {} members, but you supplied {} values", len( ex.vals ), len( struct_ty.members ) )
 				return nil, .Invalid
 			}
-			
+
 			for i in 0..<len( ex.vals ) {
 				val_ty, val_addr_mode := tc_check_expr( ctx, ex.vals[i] )
 				if val_ty == nil do return nil, .Invalid
-				
+
 				if val_addr_mode != .Variable && val_addr_mode != .Value {
 					log_spanned_error( &ex.vals[i].span, "expected value, got 'TODO'" )
 					return nil, .Invalid
 				}
-				
+
 				if ty_is_untyped_builtin( val_ty ) {
 					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i] )
 					if !ok {
 						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
 						return nil, .Invalid
 					}
-					
+
 					val_ty = ex.vals[i].type
 				}
 
@@ -664,7 +668,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return nil, .Invalid
 				}
 			}
-			
+
 			ex.type = struct_ty
 
 			return struct_ty, .Value
@@ -683,7 +687,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				log_spanned_error( &ex.member.span, "expected value got 'TODO'" )
 				return nil, .Invalid
 			}
-			
+
 			ex.type = member_ty
 
 			return ex.type, .Value
