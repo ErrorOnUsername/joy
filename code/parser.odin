@@ -746,6 +746,13 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			memb := parse_operand( file_data )
 			if memb == nil do return nil
 
+			#partial switch m in memb.derived_expr {
+				case ^Ident, ^ProcCallExpr, ^AnonStructLiteralExpr, ^NamedStructLiteralExpr:
+				case:
+					log_spanned_error( &memb.span, "not a valid member expression" )
+					return nil
+			}
+
 			ise.member = memb
 
 			return ise
@@ -955,6 +962,13 @@ parse_operand_postfix :: proc( file_data: ^FileData, prefix: ^Expr ) -> ^Expr
 
 			memb := parse_operand( file_data )
 			if memb == nil do return nil
+
+			#partial switch m in memb.derived_expr {
+				case ^Ident, ^ProcCallExpr, ^AnonStructLiteralExpr, ^NamedStructLiteralExpr:
+				case:
+					log_spanned_error( &memb.span, "not a valid member expression" )
+					return nil
+			}
 
 			access.member = memb
 			return access

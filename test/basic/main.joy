@@ -53,6 +53,6 @@ decl main := fn() {
 	let e: usize = d.member_0;
 	let f: string = d.member_1;
 
-	let g: MyEnum = MyEnum.VariantB;
-	let h: MyUnion = MyUnion.VariantB { d, "haha" };
+	let g: MyEnum = .VariantB;
+	let h: MyUnion = .VariantB { d, "haha" };
 };

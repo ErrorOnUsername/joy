@@ -575,7 +575,6 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.type = ty_builtin_untyped_int
 			return ex.type, .Value
 		case ^NamedStructLiteralExpr:
-
 			decl := lookup_ident( ctx, ex.name )
 			if decl == nil {
 				log_spanned_errorf( &ex.span, "undeclared struct or union variant '{}'", ex.name )
@@ -692,8 +691,13 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return ex.type, .Value
 		case ^ImplicitSelectorExpr:
-			log_spanned_error( &ex.span, "impl implicit selector checking" )
-			return nil, .Invalid
+			ctx_ty := ctx.hint_type
+			if ctx_ty == nil {
+				log_spanned_error( &ex.span, "ambiguous use of implicit selector" )
+				return nil, .Invalid
+			}
+
+			return tc_check_expr( ctx, ex.member )
 		case ^Scope:
 			last_scope := ctx.curr_scope
 			ctx.curr_scope = ex
