@@ -20,7 +20,7 @@ cg_emit_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 cg_emit_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> bool
 {
-    switch e in stmnt.derived_expr {
+    switch e in expr.derived_expr {
         case ^ProcProto:
         case ^Ident:
         case ^StringLiteralExpr:
