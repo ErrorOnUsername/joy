@@ -15,8 +15,15 @@ Function :: struct
 Node :: struct
 {
 	kind:   NodeKind,
-	type:   ^Type,
+	type:   Type,
 	inputs: []^Node,
+	outputs: ^NodeOutput,
+}
+
+NodeOutput :: struct
+{
+	user: ^Node,
+	next: ^NodeOutput,
 }
 
 NodeKind :: enum
@@ -75,3 +82,6 @@ NodeKind :: enum
 	Negate,
 }
 
+create_function :: proc(ctx: EpochContext) -> ^Function
+{
+}
