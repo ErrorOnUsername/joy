@@ -27,6 +27,10 @@ TY_MEM :: Type { .Memory, 0 }
 TY_TUPLE :: Type { .Tuple, 0 }
 TY_CTRL :: Type { .Control, 0 }
 
+ty_equal :: proc(a: Type, b: Type) -> bool {
+	return a.kind == b.kind && a.bitwidth == b.bitwidth
+}
+
 ty_is_void :: proc(t: Type) -> bool {
 	return t.kind == .Int && t.bitwidth == 0
 }

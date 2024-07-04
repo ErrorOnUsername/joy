@@ -22,17 +22,192 @@ AnySymbol :: union {
 	^Function,
 }
 
-new_symbol :: proc( ctx: EpochContext, $T: typeid, name: string ) -> ^T {
-	sym := mem.new( T, ctx.global_allocator )
+new_symbol :: proc(ctx: EpochContext, $T: typeid, name: string) -> ^T {
+	sym, _ := make(T, ctx.global_allocator)
 	sym.derived_symbol = sym
 	sym.name = name
-
 	return sym
 }
 
 
-new_node :: proc() -> Node {
-	return nil
+new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) -> ^Node {
+	n, _ := new(Node, fn.allocator)
+	n.kind = kind
+	n.type = type
+	inputs, _ := make([]^Node, input_count, fn.allocator)
+	n.inputs = inputs[:]
+	return n
+}
+
+
+insr_binop :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
+	assert(ty_equal(lhs.type, rhs.type), "binop operand type mismatch")
+	n := new_node(fn, kind, lhs.type, 3)
+	n.inputs[1] = lhs
+	n.inputs[2] = rhs
+	return n
+}
+
+insr_and :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .And, lhs, rhs)
+}
+
+insr_or :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Or, lhs, rhs)
+}
+
+insr_xor :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .XOr, lhs, rhs)
+}
+
+insr_add :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Add, lhs, rhs)
+}
+
+insr_sub :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Add, lhs, rhs)
+}
+
+insr_mul :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Add, lhs, rhs)
+}
+
+insr_shl :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Shl, lhs, rhs)
+}
+
+insr_shr :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Shr, lhs, rhs)
+}
+
+insr_sar :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Sar, lhs, rhs)
+}
+
+insr_rol :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Rol, lhs, rhs)
+}
+
+insr_ror :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .Ror, lhs, rhs)
+}
+
+insr_udiv :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .UDiv, lhs, rhs)
+}
+
+insr_sdiv :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .SDiv, lhs, rhs)
+}
+
+insr_umod :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .UMod, lhs, rhs)
+}
+
+insr_smod :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .SMod, lhs, rhs)
+}
+
+insr_fadd :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .FAdd, lhs, rhs)
+}
+
+insr_fsub :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .FSub, lhs, rhs)
+}
+
+insr_fmul :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .FMul, lhs, rhs)
+}
+
+insr_fdiv :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .FDiv, lhs, rhs)
+}
+
+insr_fmax :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .FMax, lhs, rhs)
+}
+
+insr_fmin :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_binop(fn, .FMin, lhs, rhs)
+}
+
+insr_cmp :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
+	assert(ty_equal(lhs.type, rhs.type), "compare operand type mismatch")
+	n := new_node(fn, kind, TY_BOOL, 3)
+	n.inputs[1] = lhs
+	n.inputs[2] = rhs
+	return n
+}
+
+insr_cmp_eq :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpEq, lhs, rhs)
+}
+
+insr_cmp_ne :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpNeq, lhs, rhs)
+}
+
+insr_cmp_ult :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpULt, lhs, rhs)
+}
+
+insr_cmp_ule :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpULe, lhs, rhs)
+}
+
+insr_cmp_ugt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpULt, rhs, lhs)
+}
+
+insr_cmp_uge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpULe, rhs, lhs)
+}
+
+insr_cmp_slt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpSLt, lhs, rhs)
+}
+
+insr_cmp_sle :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpSLe, lhs, rhs)
+}
+
+insr_cmp_sgt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpSLt, rhs, lhs)
+}
+
+insr_cmp_sge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpSLe, rhs, lhs)
+}
+
+insr_cmp_flt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpFLt, lhs, rhs)
+}
+
+insr_cmp_fle :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpFLe, lhs, rhs)
+}
+
+insr_cmp_fgt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpFLt, rhs, lhs)
+}
+
+insr_cmp_fge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
+	return insr_cmp(fn, .CmpFLe, rhs, lhs)
+}
+
+insr_unary :: proc(fn: ^Function, kind: NodeKind, type: Type, v: ^Node) -> ^Node {
+	n := new_node(fn, kind, type, 2)
+	n.inputs[1] = v
+	return n
+}
+
+insr_not :: proc(fn: ^Function, v: ^Node) -> ^Node {
+	return insr_unary(fn, .Not, v.type, v)
+}
+
+insr_neg :: proc(fn: ^Function, v: ^Node) -> ^Node {
+	return insr_unary(fn, .Negate, v.type, v)
 }
 
 
@@ -102,4 +277,3 @@ NodeKind :: enum {
 	Not,
 	Negate,
 }
-
