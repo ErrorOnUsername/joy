@@ -1,10 +1,11 @@
 package epoch
 
 import "core:mem"
+import "core:sync"
 
 
-Function :: struct
-{
+Function :: struct {
+	using symbol: Symbol,
 	arena: mem.Arena,
 	allocator: mem.Allocator,
 	start: ^Node,
@@ -12,22 +13,42 @@ Function :: struct
 	current_control: ^Node,
 }
 
-Node :: struct
-{
+Symbol :: struct {
+	name: string,
+	derived_symbol: AnySymbol,
+}
+
+AnySymbol :: union {
+	^Function,
+}
+
+new_symbol :: proc( ctx: EpochContext, $T: typeid, name: string ) -> ^T {
+	sym := mem.new( T, ctx.global_allocator )
+	sym.derived_symbol = sym
+	sym.name = name
+
+	return sym
+}
+
+
+new_node :: proc() -> Node {
+	return nil
+}
+
+
+Node :: struct {
 	kind:   NodeKind,
 	type:   Type,
 	inputs: []^Node,
 	outputs: ^NodeOutput,
 }
 
-NodeOutput :: struct
-{
+NodeOutput :: struct {
 	user: ^Node,
 	next: ^NodeOutput,
 }
 
-NodeKind :: enum
-{
+NodeKind :: enum {
 	Start,
 	End,
 
@@ -82,6 +103,3 @@ NodeKind :: enum
 	Negate,
 }
 
-create_function :: proc(ctx: EpochContext) -> ^Function
-{
-}

@@ -1,7 +1,6 @@
 package epoch
 
-TypeKind :: enum
-{
+TypeKind :: enum {
 	Int,
 	Float,
 	Ptr,
@@ -10,8 +9,7 @@ TypeKind :: enum
 	Control,
 }
 
-Type :: struct
-{
+Type :: struct {
 	kind: TypeKind,
 	bitwidth: u8,
 }
