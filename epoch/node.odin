@@ -23,10 +23,20 @@ AnySymbol :: union {
 }
 
 new_symbol :: proc(ctx: EpochContext, $T: typeid, name: string) -> ^T {
-	sym, _ := make(T, ctx.global_allocator)
+	sym, _ := new(T, ctx.global_allocator)
 	sym.derived_symbol = sym
 	sym.name = name
 	return sym
+}
+
+
+new_function :: proc(ctx: EpochContext, name: string) -> ^Function {
+	sym := new_symbol(ctx, Function, name)
+	return sym
+}
+
+new_function_proto :: proc(ctx: EpochContext, params: []FunctionParam) -> ^FunctionProto {
+	return nil
 }
 
 
