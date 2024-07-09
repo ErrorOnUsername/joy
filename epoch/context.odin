@@ -11,6 +11,7 @@ ListEntry :: struct ($T: typeid) {
 
 Module :: struct {
 	name: string,
+	allocator: mem.Allocator,
 	symbols: ^ListEntry(Symbol),
 }
 

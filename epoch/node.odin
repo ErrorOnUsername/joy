@@ -4,10 +4,17 @@ import "core:mem"
 import "core:sync"
 
 
+FunctionParam :: struct {
+}
+
+FunctionProto :: struct {
+}
+
 Function :: struct {
 	using symbol: Symbol,
 	arena: mem.Arena,
 	allocator: mem.Allocator,
+	proto: ^FunctionProto,
 	start: ^Node,
 	end: ^Node,
 	current_control: ^Node,
@@ -22,20 +29,20 @@ AnySymbol :: union {
 	^Function,
 }
 
-new_symbol :: proc(ctx: EpochContext, $T: typeid, name: string) -> ^T {
-	sym, _ := new(T, ctx.global_allocator)
+new_symbol :: proc(m: ^Module, $T: typeid, name: string) -> ^T {
+	sym, _ := new(T, m.allocator)
 	sym.derived_symbol = sym
 	sym.name = name
 	return sym
 }
 
 
-new_function :: proc(ctx: EpochContext, name: string) -> ^Function {
-	sym := new_symbol(ctx, Function, name)
+new_function :: proc(m: ^Module, name: string) -> ^Function {
+	sym := new_symbol(m, Function, name)
 	return sym
 }
 
-new_function_proto :: proc(ctx: EpochContext, params: []FunctionParam) -> ^FunctionProto {
+new_function_proto :: proc(m: ^Module, params: []^FunctionParam) -> ^FunctionProto {
 	return nil
 }
 
