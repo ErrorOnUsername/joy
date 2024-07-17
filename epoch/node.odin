@@ -5,9 +5,18 @@ import "core:sync"
 
 
 FunctionParam :: struct {
+	type: Type,
+	name: string,
 }
 
 FunctionProto :: struct {
+	params: []FunctionParam,
+	returns: []FunctionParam,
+}
+
+Linkage :: enum {
+	Public,
+	Private,
 }
 
 Function :: struct {
@@ -15,6 +24,7 @@ Function :: struct {
 	arena: mem.Arena,
 	allocator: mem.Allocator,
 	proto: ^FunctionProto,
+	params: []^Node,
 	start: ^Node,
 	end: ^Node,
 	current_control: ^Node,
@@ -22,6 +32,7 @@ Function :: struct {
 
 Symbol :: struct {
 	name: string,
+	linkage: Linkage,
 	derived_symbol: AnySymbol,
 }
 
@@ -37,7 +48,7 @@ new_symbol :: proc(m: ^Module, $T: typeid, name: string) -> ^T {
 }
 
 
-new_function :: proc(m: ^Module, name: string) -> ^Function {
+new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Function {
 	sym := new_symbol(m, Function, name)
 	return sym
 }
