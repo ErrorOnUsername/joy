@@ -49,12 +49,34 @@ new_symbol :: proc(m: ^Module, $T: typeid, name: string) -> ^T {
 
 
 new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Function {
-	sym := new_symbol(m, Function, name)
-	return sym
+	fn := new_symbol(m, Function, name)
+	fn.start = new_node(fn, .Start, TY_TUPLE, 0)
+
+	fn.proto = proto
+
+	fn.current_control = proj
+
+	fn.params = make([]^Node, len(proto.params) + 1, fn.allocator)
+	fn.params[0] = fn.current_control
+
+	for i in 0..<len(proto.params) {
+		fn.params[i + 1] = new_proj(fn, proto.params[i].type, fn.start, i + 1)
+	}
+
+	return fn
 }
 
-new_function_proto :: proc(m: ^Module, params: []^FunctionParam) -> ^FunctionProto {
-	return nil
+new_function_proto :: proc(m: ^Module, params: []^FunctionParam, returns: []^FunctionParam) -> ^FunctionProto {
+	proto, _ := new(FunctionProto, m.allocator)
+	proto.params = params
+	proto.returns = returns
+	return proto
+}
+
+new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
+	proj := new_node(fn, .Proj, type, 1)
+	proj.inputs[0] = src_node
+	return proj
 }
 
 
@@ -63,7 +85,7 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	n.kind = kind
 	n.type = type
 	inputs, _ := make([]^Node, input_count, fn.allocator)
-	n.inputs = inputs[:]
+	n.inputs = inputs
 	return n
 }
 
@@ -256,6 +278,7 @@ NodeKind :: enum {
 	End,
 
 	Region,
+	Proj,
 
 	Call,
 	Branch,
