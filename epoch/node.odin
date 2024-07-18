@@ -54,7 +54,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 
 	fn.proto = proto
 
-	fn.current_control = proj
+	fn.current_control = new_proj(fn, TY_CTRL, fn.start, 0)
 
 	fn.params = make([]^Node, len(proto.params) + 1, fn.allocator)
 	fn.params[0] = fn.current_control
@@ -66,7 +66,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
-new_function_proto :: proc(m: ^Module, params: []^FunctionParam, returns: []^FunctionParam) -> ^FunctionProto {
+new_function_proto :: proc(m: ^Module, params: []FunctionParam, returns: []FunctionParam) -> ^FunctionProto {
 	proto, _ := new(FunctionProto, m.allocator)
 	proto.params = params
 	proto.returns = returns
