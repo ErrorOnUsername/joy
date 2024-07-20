@@ -121,12 +121,21 @@ parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^ConstDecl
 	decl := new_node( ConstDecl, name_tk.span )
 	decl.name = name_tk.str
 
+	colon_tk := curr_tk( file_data )
 	if try_consume_tk( file_data, .Colon ) {
 		decl.type_hint = parse_type( file_data )
 		if decl.type_hint == nil do return nil
-	} else if try_consume_tk( file_data, .ColonAssign ) {
+
+		if try_consume_tk( file_data, .Assign ) {
+			decl.value = parse_expr( file_data, true )
+			if decl.value == nil do return nil
+		}
+	} else if try_consume_tk( file_data, .Assign ) {
 		decl.value = parse_expr( file_data )
 		if decl.value == nil do return nil
+	} else {
+		log_spanned_errorf( &colon_tk.span, "Expected ':' or '=', got: {}", colon_tk.kind )
+		return nil
 	}
 
 	if decl.type_hint != nil {
@@ -307,9 +316,12 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 			default_value = parse_expr( file_data, true )
 			if default_value == nil do return nil
 		}
-	} else if try_consume_tk( file_data, .ColonAssign ) {
+	} else if try_consume_tk( file_data, .Assign ) {
 		default_value = parse_expr( file_data, true )
 		if default_value == nil do return nil
+	} else {
+		log_spanned_errorf( &colon_tk.span, "Expected ':' or '=', got: {}", colon_tk.kind )
+		return nil
 	}
 
 	var := new_node( VarDecl, start_tk.span )

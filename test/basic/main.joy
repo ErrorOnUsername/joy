@@ -1,26 +1,26 @@
-decl MyStruct := struct {
+decl MyStruct = struct {
 	member_0: usize;
 	member_1: string;
 };
 
-decl MyEnum := enum {
+decl MyEnum = enum {
 	VariantA;
 	VariantB;
 };
 
-decl MyUnion := union {
+decl MyUnion = union {
 	VariantA(a: i32, slice: [u32]);
 	VariantB(thing: MyStruct, name: string);
 };
 
-decl square := fn(n: isize) -> isize {
+decl square = fn(n: isize) -> isize {
 	return n * n;
 };
 
-decl main := fn() {
+decl main = fn() {
 	// Line comment.
 	let a: string = "haha";
-	let b := 10;
+	let b = 10;
 
 	/* level 1
 		/* level 2
@@ -36,7 +36,7 @@ decl main := fn() {
 		b -= 1;
 	}
 
-	let fact := 2;
+	let fact = 2;
 	for i in [0..b) {
 		fact *= fact;
 	}
@@ -47,7 +47,7 @@ decl main := fn() {
 
 	loop { break; }
 
-	let c := square(b);
+	let c = square(b);
 
 	let d: MyStruct = { 10, "Hello" };
 	let e: usize = d.member_0;

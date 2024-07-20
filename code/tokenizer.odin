@@ -81,13 +81,8 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				return
 			case ':':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
-					token.kind = .ColonAssign
-					lex_assign_span( data, &token, 2 )
-				} else {
-					token.kind = .Colon
-					lex_assign_span( data, &token, 1 )
-				}
+				token.kind = .Colon
+				lex_assign_span( data, &token, 1 )
 				return
 			case '+':
 				data.read_idx += 1
@@ -578,7 +573,6 @@ TokenKind :: enum
 	Tilde,
 
 	Colon,
-	ColonAssign,
 
 	Plus,
 	PlusAssign,
