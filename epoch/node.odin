@@ -21,7 +21,7 @@ Linkage :: enum {
 
 Function :: struct {
 	using symbol: Symbol,
-	arena: mem.Arena,
+	pool: mem.Dynamic_Pool,
 	allocator: mem.Allocator,
 	proto: ^FunctionProto,
 	params: []^Node,
@@ -50,6 +50,9 @@ new_symbol :: proc(m: ^Module, $T: typeid, name: string) -> ^T {
 
 new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Function {
 	fn := new_symbol(m, Function, name)
+	mem.dynamic_pool_init(&fn.pool)
+	fn.allocator = mem.dynamic_pool_allocator(&fn.pool)
+
 	fn.start = new_node(fn, .Start, TY_TUPLE, 0)
 
 	fn.proto = proto
@@ -90,6 +93,36 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 }
 
 
+insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: []^Node) -> []^Node
+{
+	n := new_node(fn, .Call, TY_TUPLE, 3 + len(params))
+	n.inputs[0] = fn.current_control
+	n.inputs[2] = target
+	for p, i in params {
+		n.inputs[3 + i] = p
+	}
+
+	extra, _ := new(CallExtra, fn.allocator)
+	extra.projs = make([]^Node, max(len(proto.returns) + 1, 3), fn.allocator)
+	extra.proto = proto
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	extra.projs[0] = ctrl_proj
+	extra.projs[1] = mem_proj
+
+	for r, i in proto.returns {
+		extra.projs[i + 2] = new_proj(fn, r.type, n, 2 + i)
+	}
+
+	fn.current_control = ctrl_proj
+
+	return extra.projs[2:]
+}
+
+
+@(private = "file")
 insr_binop :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
 	assert(ty_equal(lhs.type, rhs.type), "binop operand type mismatch")
 	n := new_node(fn, kind, lhs.type, 3)
@@ -246,6 +279,7 @@ insr_cmp_fge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 	return insr_cmp(fn, .CmpFLe, rhs, lhs)
 }
 
+@(private = "file")
 insr_unary :: proc(fn: ^Function, kind: NodeKind, type: Type, v: ^Node) -> ^Node {
 	n := new_node(fn, kind, type, 2)
 	n.inputs[1] = v
@@ -266,6 +300,16 @@ Node :: struct {
 	type:   Type,
 	inputs: []^Node,
 	outputs: ^NodeOutput,
+	extra:   NodeExtra,
+}
+
+CallExtra :: struct {
+	proto: ^FunctionProto,
+	projs: []^Node,
+}
+
+NodeExtra :: union {
+	^CallExtra,
 }
 
 NodeOutput :: struct {

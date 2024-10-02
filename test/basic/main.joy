@@ -1,5 +1,5 @@
 decl MyStruct = struct {
-	member_0: usize;
+	member_0: uint;
 	member_1: string;
 };
 
@@ -13,7 +13,7 @@ decl MyUnion = union {
 	VariantB(thing: MyStruct, name: string);
 };
 
-decl square = fn(n: isize) -> isize {
+decl square = fn(n: int) -> int {
 	return n * n;
 };
 
@@ -50,7 +50,7 @@ decl main = fn() {
 	let c = square(b);
 
 	let d: MyStruct = { 10, "Hello" };
-	let e: usize = d.member_0;
+	let e: uint = d.member_0;
 	let f: string = d.member_1;
 
 	let g: MyEnum = .VariantB;

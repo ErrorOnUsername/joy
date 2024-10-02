@@ -5,11 +5,13 @@ import "core:math/bits"
 import "core:mem"
 
 
-new_type :: proc( $T: typeid, mod: ^Module ) -> ^T
+new_type :: proc( $T: typeid, mod: ^Module, name: string ) -> ^T
 {
 	new_type, _ := mem.new( T )
 	new_type.derived    = new_type
 	new_type.owning_mod = mod
+
+	new_type.name = name
 
 	return new_type
 }
@@ -30,6 +32,7 @@ Type :: struct
 {
 	owning_mod: ^Module,
 	derived: AnyType,
+	name: string,
 	size: u64,
 	alignment: u64,
 }
@@ -171,35 +174,35 @@ ty_builtin_cstring: ^Type
 ty_builtin_range: ^Type
 ty_builtin_rawptr: ^Type
 
-new_primitive_type :: proc( kind: PrimitiveKind ) -> ^Type
+new_primitive_type :: proc( kind: PrimitiveKind, name: string ) -> ^Type
 {
-	ty := new_type( PrimitiveType, nil )
+	ty := new_type( PrimitiveType, nil, name )
 	ty.kind = kind
 	return ty
 }
 
 init_builtin_types :: proc()
 {
-	ty_builtin_untyped_int = new_primitive_type( .UntypedInt )
-	ty_builtin_untyped_string = new_primitive_type( .UntypedString )
-	ty_builtin_void = new_primitive_type( .Void )
-	ty_builtin_bool = new_primitive_type( .Bool )
-	ty_builtin_usize = new_primitive_type( .USize )
-	ty_builtin_isize = new_primitive_type( .ISize )
-	ty_builtin_u8 = new_primitive_type( .U8 )
-	ty_builtin_i8 = new_primitive_type( .I8 )
-	ty_builtin_u16 = new_primitive_type( .U16 )
-	ty_builtin_i16 = new_primitive_type( .I16 )
-	ty_builtin_u32 = new_primitive_type( .U32 )
-	ty_builtin_i32 = new_primitive_type( .I32 )
-	ty_builtin_u64 = new_primitive_type( .U64 )
-	ty_builtin_i64 = new_primitive_type( .I64 )
-	ty_builtin_f32 = new_primitive_type( .F32 )
-	ty_builtin_f64 = new_primitive_type( .F64 )
-	ty_builtin_string = new_primitive_type( .String )
-	ty_builtin_cstring = new_primitive_type( .CString )
-	ty_builtin_range = new_primitive_type( .Range )
-	ty_builtin_rawptr = new_primitive_type( .RawPtr )
+	ty_builtin_untyped_int = new_primitive_type( .UntypedInt, "untyped int" )
+	ty_builtin_untyped_string = new_primitive_type( .UntypedString, "untyped string" )
+	ty_builtin_void = new_primitive_type( .Void, "void" )
+	ty_builtin_bool = new_primitive_type( .Bool, "bool" )
+	ty_builtin_usize = new_primitive_type( .USize, "uint" )
+	ty_builtin_isize = new_primitive_type( .ISize, "int" )
+	ty_builtin_u8 = new_primitive_type( .U8, "u8" )
+	ty_builtin_i8 = new_primitive_type( .I8, "i8" )
+	ty_builtin_u16 = new_primitive_type( .U16, "u16" )
+	ty_builtin_i16 = new_primitive_type( .I16, "i16" )
+	ty_builtin_u32 = new_primitive_type( .U32, "u32" )
+	ty_builtin_i32 = new_primitive_type( .I32, "i32" )
+	ty_builtin_u64 = new_primitive_type( .U64, "u64" )
+	ty_builtin_i64 = new_primitive_type( .I64, "i64" )
+	ty_builtin_f32 = new_primitive_type( .F32, "f32" )
+	ty_builtin_f64 = new_primitive_type( .F64, "f64" )
+	ty_builtin_string = new_primitive_type( .String, "string" )
+	ty_builtin_cstring = new_primitive_type( .CString, "cstring" )
+	ty_builtin_range = new_primitive_type( .Range, "range" )
+	ty_builtin_rawptr = new_primitive_type( .RawPtr, "rawptr" )
 }
 
 ty_is_untyped_builtin :: proc( ty: ^Type ) -> bool
@@ -337,4 +340,3 @@ ty_get_array_underlying :: proc( ty: ^Type ) -> ^Type
 
 	return nil
 }
-

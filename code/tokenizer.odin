@@ -468,8 +468,8 @@ keyword_map := map[string]TokenKind {
 	"i32"      = .I32,
 	"u64"      = .U64,
 	"i64"      = .I64,
-	"usize"    = .USize,
-	"isize"    = .ISize,
+	"uint"     = .USize,
+	"int"      = .ISize,
 	"f32"      = .F32,
 	"f64"      = .F64,
 	"string"   = .String,
@@ -646,4 +646,3 @@ TokenKind :: enum
 	RawPtr,
 	Range,
 }
-

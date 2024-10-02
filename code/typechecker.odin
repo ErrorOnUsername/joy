@@ -269,8 +269,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 				if s.type_hint != nil && s.type != ty {
 					if !ty_is_untyped_builtin( ty ) {
-						// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
-						log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+						log_spanned_errorf( &s.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
 						return false
 					}
 
@@ -309,15 +308,14 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				ty, addr_mode := tc_check_expr( ctx, s.default_value )
 				if ty == nil do return false
 
-				if addr_mode != .Value {
+				if addr_mode != .Value && addr_mode != .Variable {
 					log_spanned_error( &s.default_value.span, "Expression does not produce a value" )
 					return false
 				}
 
 				if s.type != nil && s.type != ty {
 					if !ty_is_untyped_builtin( ty ) {
-						// FIXME(RD): Print type names (ie "Cannot assign value of type 'typename' to identifier of type 'other_typename'")
-						log_spanned_error( &s.span, "Value assigned to identifier of incompatible type" )
+						log_spanned_errorf( &s.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
 						return false
 					}
 
@@ -343,7 +341,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 			s.type = ctx.hint_type
 		case ^UnionVariantDecl:
-			variant_type := new_type( StructType, ctx.mod )
+			variant_type := new_type( StructType, ctx.mod, s.name )
 			variant_type.ast_scope = s.sc
 
 			last_scope := ctx.curr_scope
@@ -362,7 +360,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
 
-			if addr_mode != .Value {
+			if addr_mode != .Value && addr_mode != .Variable {
 				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
 				return false
 			}
@@ -390,7 +388,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
 
-			if addr_mode != .Value {
+			if addr_mode != .Value && addr_mode != .Variable {
 				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
 				return false
 			}
@@ -468,7 +466,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ctx.curr_scope = ex.body
 			defer ctx.curr_scope = last_scope
 
-			ty := new_type( FnType, ctx.mod )
+			ty := new_type( FnType, ctx.mod, "fn" )
 
 			for p in ex.params {
 				if p.name in ex.body.symbols {
@@ -705,7 +703,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			switch ex.variant {
 				case .Struct:
-					struct_type := new_type( StructType, ctx.mod )
+					struct_type := new_type( StructType, ctx.mod, "struct" )
 					struct_type.ast_scope = ex
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
@@ -717,7 +715,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					ex.type = struct_type
 					return struct_type, .Value
 				case .Union:
-					union_type := new_type( UnionType, ctx.mod )
+					union_type := new_type( UnionType, ctx.mod, "union" )
 					union_type.ast_scope = ex
 
 					for m in ex.stmnts {
@@ -736,7 +734,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					ex.type = union_type
 					return union_type, .Value
 				case .Enum:
-					enum_type := new_type( EnumType, ctx.mod )
+					enum_type := new_type( EnumType, ctx.mod, "enum" )
 					enum_type.ast_scope = ex
 					enum_type.underlying = ty_builtin_usize
 
@@ -931,7 +929,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 						return nil, .Invalid
 					}
 
-					ptr_ty := new_type( PointerType, nil )
+					ptr_ty := new_type( PointerType, nil, "ptr (TODO)" )
 					ptr_ty.underlying = rand_ty
 
 					ex.type = ptr_ty
@@ -1091,7 +1089,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			underlying_ty := tc_check_type( ctx, ex.base_type )
 			if underlying_ty == nil do return nil, .Invalid
 
-			ptr_ty := new_type( PointerType, nil )
+			ptr_ty := new_type( PointerType, nil, "ptr (TODO)" )
 			ptr_ty.underlying = underlying_ty
 
 			ex.type = ptr_ty
@@ -1100,7 +1098,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			underlying_ty := tc_check_type( ctx, ex.base_type )
 			if underlying_ty == nil do return nil, .Invalid
 
-			slice_ty := new_type( SliceType, nil )
+			slice_ty := new_type( SliceType, nil, "slice (TODO)" )
 			slice_ty.underlying = underlying_ty
 
 			ex.type = slice_ty
