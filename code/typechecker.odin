@@ -705,12 +705,31 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				case .Struct:
 					struct_type := new_type( StructType, ctx.mod, "struct" )
 					struct_type.ast_scope = ex
+
+					align := 0
 					for m in ex.stmnts {
+						v, v_ok := m.derived_stmnt.(^VarDecl)
+						if !v_ok {
+							log_spanned_error( m.span, "Expected struct member to be a variable declaration" )
+							return nil, .Invalid
+						}
+
 						mem_ok := tc_check_stmnt( ctx, m )
 						if !mem_ok do return nil, .Invalid
 
+						align = max( align, m.type.alignment )
+
 						append( &struct_type.members, m.type )
 					}
+
+					size := 0
+					for m in ex.stmnts {
+						v := m.derived_stmnt.(^VarDecl)
+						size = (size % align) + m.type.size
+					}
+
+					struct_type.size = size
+					struct_type.alignment = align
 
 					ex.type = struct_type
 					return struct_type, .Value
