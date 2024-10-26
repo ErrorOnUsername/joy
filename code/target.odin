@@ -38,8 +38,10 @@ get_host_target_desc :: proc() -> TargetDesc {
 }
 
 target_get_word_size :: proc(target: TargetDesc) -> int {
-	switch target.arch {
+	#partial switch target.arch {
 		case .Amd64:
 			return 8
 	}
+
+	unreachable()
 }

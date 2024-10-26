@@ -49,11 +49,18 @@ SliceType :: struct
 	underlying: ^Type,
 }
 
+StructMember :: struct
+{
+	name: string,
+	ty: ^Type,
+	offset: int,
+}
+
 StructType :: struct
 {
 	using type: Type,
 	ast_scope: ^Scope,
-	members: [dynamic]^Type,
+	members: [dynamic]StructMember,
 }
 
 EnumType :: struct

@@ -348,12 +348,32 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			defer ctx.curr_scope = last_scope
 			ctx.curr_scope = s.sc
 
+			size := 0
+			align := 0
 			for stmnt in s.sc.stmnts {
 				mem_ok := tc_check_stmnt( ctx, stmnt )
 				if !mem_ok do return false
 
-				append( &variant_type.members, stmnt.type )
+				v, v_ok := stmnt.derived_stmnt.(^VarDecl)
+				if !v_ok {
+					log_spanned_error( &stmnt.span, "Expected enum variant member to be a variable declaration" )
+					return false
+				}
+
+				align = max( align, stmnt.type.alignment )
+
+				st_mem := StructMember { v.name, stmnt.type, size }
+				if (size + stmnt.type.size) / align == 0 {
+					size += stmnt.type.size
+				} else {
+					size += (align - size) + stmnt.type.size
+				}
+
+				append( &variant_type.members, st_mem )
 			}
+
+			variant_type.size = size
+			variant_type.alignment = align
 
 			s.type = variant_type
 		case ^ExprStmnt:
@@ -605,7 +625,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 
 				if ty_is_untyped_builtin( val_ty ) {
-					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i] )
+					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i].ty )
 					if !ok {
 						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
 						return nil, .Invalid
@@ -614,7 +634,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					val_ty = ex.vals[i].type
 				}
 
-				if val_ty != struct_ty.members[i] {
+				if val_ty != struct_ty.members[i].ty {
 					log_spanned_error( &ex.vals[i].span, "expected 'TODO' got 'TODO'" )
 					return nil, .Invalid
 				}
@@ -651,7 +671,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 
 				if ty_is_untyped_builtin( val_ty ) {
-					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i] )
+					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i].ty )
 					if !ok {
 						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
 						return nil, .Invalid
@@ -660,7 +680,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					val_ty = ex.vals[i].type
 				}
 
-				if val_ty != struct_ty.members[i] {
+				if val_ty != struct_ty.members[i].ty {
 					log_spanned_error( &ex.vals[i].span, "expected 'TODO' got 'TODO'" )
 					return nil, .Invalid
 				}
@@ -706,11 +726,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					struct_type := new_type( StructType, ctx.mod, "struct" )
 					struct_type.ast_scope = ex
 
+					size := 0
 					align := 0
 					for m in ex.stmnts {
 						v, v_ok := m.derived_stmnt.(^VarDecl)
 						if !v_ok {
-							log_spanned_error( m.span, "Expected struct member to be a variable declaration" )
+							log_spanned_error( &m.span, "Expected struct member to be a variable declaration" )
 							return nil, .Invalid
 						}
 
@@ -719,13 +740,15 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 						align = max( align, m.type.alignment )
 
-						append( &struct_type.members, m.type )
-					}
+						st_mem := StructMember { v.name, m.type, size }
 
-					size := 0
-					for m in ex.stmnts {
-						v := m.derived_stmnt.(^VarDecl)
-						size = (size % align) + m.type.size
+						if (size + m.type.size) / align == 0 {
+							size += m.type.size
+						} else {
+							size += (align - size) + m.type.size
+						}
+
+						append( &struct_type.members, st_mem )
 					}
 
 					struct_type.size = size
@@ -736,6 +759,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				case .Union:
 					union_type := new_type( UnionType, ctx.mod, "union" )
 					union_type.ast_scope = ex
+					union_type.size = 0
+					union_type.alignment = 0
 
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
@@ -747,6 +772,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 							return nil, .Invalid
 						}
 
+						union_type.size = max( union_type.size, struct_ty.size )
+						union_type.size = max( union_type.alignment, struct_ty.alignment )
+
 						append( &union_type.variants, struct_ty )
 					}
 
@@ -756,6 +784,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					enum_type := new_type( EnumType, ctx.mod, "enum" )
 					enum_type.ast_scope = ex
 					enum_type.underlying = ty_builtin_usize
+					enum_type.size = enum_type.underlying.size
+					enum_type.alignment = enum_type.underlying.alignment
 
 					last_ctx_ty := ctx.hint_type
 					ctx.hint_type = enum_type

@@ -16,8 +16,6 @@ main :: proc()
 	compiler_init()
 	defer compiler_deinit()
 
-	host_target := get_host_target_desc()
-
 	id, ok := fm_open( "test/basic" )
 	if !ok {
 		fmt.eprintln( "Could not load file" )
@@ -51,7 +49,9 @@ exec_phases :: proc( root_id: FileID ) -> int
 
 	c: Checker
 
-	init_builtin_types()
+	host_target := get_host_target_desc()
+
+	init_builtin_types(host_target)
 
 	tasks_failed = tc_initialize_scopes( &c, packages_to_check )
 	if tasks_failed != 0 do return tasks_failed
