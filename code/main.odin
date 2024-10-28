@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:sync"
 
+import "../epoch"
 
 main :: proc()
 {
@@ -52,6 +53,11 @@ exec_phases :: proc( root_id: FileID ) -> int
 	host_target := get_host_target_desc()
 
 	init_builtin_types(host_target)
+
+	cg_ctx: epoch.EpochContext
+	epoch.context_init(&cg_ctx)
+	cg_module := epoch.create_module(&cg_ctx, "code")
+	c.cg_module = cg_module
 
 	tasks_failed = tc_initialize_scopes( &c, packages_to_check )
 	if tasks_failed != 0 do return tasks_failed

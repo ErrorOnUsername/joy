@@ -4,6 +4,8 @@ import "core:sync"
 import "core:strings"
 import "core:fmt"
 
+import "../epoch"
+
 
 tc_cycle_check_rec :: proc( pkg: ^Package, cycle_checker: ^[dynamic]^Package ) -> ( found_cycle := false, cycle_report := "<none>" )
 {
@@ -98,6 +100,7 @@ Checker :: struct
 {
 	proc_work_mutex: sync.Mutex,
 	proc_bodies:     [dynamic]ProcBodyWorkData,
+	cg_module:       ^epoch.Module,
 }
 
 

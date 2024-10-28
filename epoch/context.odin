@@ -23,15 +23,13 @@ EpochContext :: struct {
 	modules: ^ListEntry(Module),
 }
 
-create_ctx :: proc() -> EpochContext {
-	ctx: EpochContext
+context_init :: proc(ctx: ^EpochContext) {
 	mem.dynamic_pool_init(&ctx.pool)
 	ctx.global_allocator = mem.dynamic_pool_allocator(&ctx.pool)
-	return ctx
 }
 
 module_list_get_tail :: proc(head: ^ListEntry(Module)) -> ^ListEntry(Module) {
-	if head.next != nil {
+	if head != nil && head.next != nil {
 		return module_list_get_tail(head.next)
 	}
 	return head
