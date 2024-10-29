@@ -272,7 +272,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 				if s.type_hint != nil && s.type != ty {
 					if !ty_is_untyped_builtin( ty ) {
-						log_spanned_errorf( &s.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
+						log_spanned_errorf( &s.value.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
 						return false
 					}
 
@@ -318,7 +318,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 				if s.type != nil && s.type != ty {
 					if !ty_is_untyped_builtin( ty ) {
-						log_spanned_errorf( &s.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
+						log_spanned_errorf( &s.default_value.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
 						return false
 					}
 
@@ -419,7 +419,8 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			proc_ty := ctx.curr_proc.type.derived.(^FnType)
 
 			if ty != proc_ty.return_type {
-				log_spanned_error( &s.span, "return expression's type does not match the return type of the function. Expected 'TODO' got 'TODO'" )
+				log_spanned_errorf( &s.span, "return expression's type does not match the return type of the function. Expected '{}' got '{}'", proc_ty.return_type.name, ty.name )
+				return false
 			}
 	}
 
@@ -623,14 +624,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				if val_ty == nil do return nil, .Invalid
 
 				if val_addr_mode != .Variable && val_addr_mode != .Value {
-					log_spanned_error( &ex.vals[i].span, "expected value, got 'TODO'" )
+					log_spanned_errorf( &ex.vals[i].span, "expected value, got '{}'", val_addr_mode )
 					return nil, .Invalid
 				}
 
 				if ty_is_untyped_builtin( val_ty ) {
 					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i].ty )
 					if !ok {
-						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
+						log_spanned_errorf( &ex.vals[i].span, "could not implicity cast '{}' to '{}'", ex.vals[i].type.name, struct_ty.members[i].ty.name )
 						return nil, .Invalid
 					}
 
@@ -638,7 +639,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 
 				if val_ty != struct_ty.members[i].ty {
-					log_spanned_error( &ex.vals[i].span, "expected 'TODO' got 'TODO'" )
+					log_spanned_errorf( &ex.vals[i].span, "expected '{}' got '{}'", struct_ty.members[i].ty.name, val_ty.name )
 					return nil, .Invalid
 				}
 			}
@@ -653,14 +654,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			if !ty_is_struct( ctx.hint_type ) {
-				log_spanned_error( &ex.span, "'TODO' is not a struct or enum variant" )
+				log_spanned_errorf( &ex.span, "'{}' is not a struct or enum variant", ctx.hint_type.name )
 				return nil, .Invalid
 			}
 
 			struct_ty := ctx.hint_type.derived.(^StructType)
 
 			if len( ex.vals ) != len( struct_ty.members ) {
-				log_spanned_errorf( &ex.span, "struct 'TODO' has {} members, but you supplied {} values", len( ex.vals ), len( struct_ty.members ) )
+				log_spanned_errorf( &ex.span, "struct '{}' has {} members, but you supplied {} values", struct_ty.name, len( ex.vals ), len( struct_ty.members ) )
 				return nil, .Invalid
 			}
 
@@ -669,14 +670,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				if val_ty == nil do return nil, .Invalid
 
 				if val_addr_mode != .Variable && val_addr_mode != .Value {
-					log_spanned_error( &ex.vals[i].span, "expected value, got 'TODO'" )
+					log_spanned_errorf( &ex.vals[i].span, "expected value, got '{}'", val_addr_mode )
 					return nil, .Invalid
 				}
 
 				if ty_is_untyped_builtin( val_ty ) {
 					ok := try_ellide_untyped_to_ty( ex.vals[i], struct_ty.members[i].ty )
 					if !ok {
-						log_spanned_error( &ex.vals[i].span, "could not implicity cast 'TODO' to 'TODO'" )
+						log_spanned_errorf( &ex.vals[i].span, "could not implicity cast '{}' to '{}'", val_ty.name, struct_ty.members[i].ty.name )
 						return nil, .Invalid
 					}
 
@@ -684,7 +685,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 
 				if val_ty != struct_ty.members[i].ty {
-					log_spanned_error( &ex.vals[i].span, "expected 'TODO' got 'TODO'" )
+					log_spanned_errorf( &ex.vals[i].span, "expected '{}' got '{}'", struct_ty.members[i].ty.name, val_ty.name )
 					return nil, .Invalid
 				}
 			}
@@ -704,7 +705,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			if member_ty == nil do return nil, .Invalid
 
 			if member_addr_mode != .Value && member_addr_mode != .Variable {
-				log_spanned_error( &ex.member.span, "expected value got 'TODO'" )
+				log_spanned_errorf( &ex.member.span, "expected value got '{}'", member_addr_mode )
 				return nil, .Invalid
 			}
 
@@ -816,8 +817,13 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
 				if cond_ty == nil do return nil, .Invalid
 
-				if cond_ty != ty_builtin_bool && addr_mode != .Value {
-					log_spanned_error( &ex.span, "if condition must be a boolean value" )
+				if addr_mode != .Value && addr_mode != .Variable {
+					log_spanned_errorf( &ex.cond.span, "expected value got {}", addr_mode )
+					return nil, .Invalid
+				}
+
+				if cond_ty != ty_builtin_bool {
+					log_spanned_errorf( &ex.cond.span, "expected 'bool' got '{}'", cond_ty.name )
 					return nil, .Invalid
 				}
 			}
@@ -864,7 +870,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			body_ty, body_addr_mode := tc_check_expr( ctx, ex.body )
 			if body_addr_mode != .Value {
-				log_spanned_error( &ex.body.span, "expected value, got 'TODO'" )
+				log_spanned_errorf( &ex.body.span, "expected value, got '{}'", body_addr_mode )
 				return nil, .Invalid
 			}
 
@@ -881,7 +887,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			if !ty_is_bool( cond_ty ) {
-				log_spanned_error( &ex.cond.span, "expected 'bool' got 'TODO'" )
+				log_spanned_errorf( &ex.cond.span, "expected 'bool' got '{}'", cond_ty.name )
 				return nil, .Invalid
 			}
 
@@ -919,7 +925,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			if !ty_is_integer( start_ty ) {
-				log_spanned_error( &ex.lhs.span, "expected an integer, got 'TODO'" )
+				log_spanned_errorf( &ex.lhs.span, "expected an integer, got '{}'", start_ty.name )
 				return nil, .Invalid
 			}
 
@@ -942,7 +948,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			if !ty_is_integer( end_ty ) {
-				log_spanned_error( &ex.rhs.span, "expected an integer, got 'TODO'" )
+				log_spanned_errorf( &ex.rhs.span, "expected an integer, got '{}'", end_ty.name )
 				return nil, .Invalid
 			}
 
@@ -959,12 +965,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			#partial switch ex.op.kind {
 				case .At:
 					if addr_mode != .Value && addr_mode != .Variable {
-						log_spanned_error( &ex.rand.span, "expected value, got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected value, got '{}'", addr_mode )
 						return nil, .Invalid
 					}
 
 					if !ty_is_pointer( rand_ty ) {
-						log_spanned_error( &ex.rand.span, "expected pointer type, got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected pointer type, got '{}'", rand_ty.name )
 						return nil, .Invalid
 					}
 
@@ -977,7 +983,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					fnl_addr_mode = .Value
 				case .Ampersand:
 					if addr_mode != .Variable {
-						log_spanned_error( &ex.rand.span, "expected variable, got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected variable, got '{}'", addr_mode )
 						return nil, .Invalid
 					}
 
@@ -990,12 +996,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					fnl_addr_mode = .Value
 				case .Bang:
 					if addr_mode != .Value && addr_mode != .Variable {
-						log_spanned_error( &ex.rand.span, "expected value, got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected value, got '{}'", addr_mode )
 						return nil, .Invalid
 					}
 
 					if !ty_is_bool( rand_ty ) {
-						log_spanned_error( &ex.rand.span, "expected type 'bool' got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected type 'bool' got '{}'", addr_mode )
 						return nil, .Invalid
 					}
 
@@ -1005,12 +1011,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					fnl_addr_mode = .Value
 				case .Tilde, .Minus:
 					if addr_mode != .Value && addr_mode != .Variable {
-						log_spanned_error( &ex.rand.span, "expected value, got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected value, got '{}'", addr_mode )
 						return nil, .Invalid
 					}
 
 					if !ty_is_integer( rand_ty ) {
-						log_spanned_error( &ex.rand.span, "expected integer, got 'TODO'" )
+						log_spanned_errorf( &ex.rand.span, "expected integer, got '{}'", rand_ty.name )
 						return nil, .Invalid
 					}
 
@@ -1051,8 +1057,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ty, ok := type_after_op( ex.op, ex.lhs.type, ex.rhs.type )
 			if !ok {
-				// TODO(rd): Print type names
-				log_spanned_error( &ex.op.span, "operation not allowed between operands" )
+				log_spanned_errorf( &ex.op.span, "operation not allowed between '{}' and '{}'", ex.lhs.type.name, ex.rhs.type.name )
 				return nil, .Invalid
 			}
 
@@ -1077,12 +1082,22 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				if param_ty == nil do return nil, .Invalid
 
 				if addr_mode != .Value && addr_mode != .Variable {
-					log_spanned_error( &ex.span, "expected value, got 'TODO'" )
+					log_spanned_errorf( &ex.span, "expected value, got '{}'", addr_mode )
 					return nil, .Invalid
 				}
 
+				if ty_is_untyped_builtin( param_ty ) {
+					ok := try_ellide_untyped_to_ty( ex.params[i], fn_ty.params[i] )
+					if !ok {
+						log_spanned_errorf( &ex.params[i].span, "could not implicity cast '{}' to '{}'", ex.params[i].type.name, fn_ty.params[i].name )
+						return nil, .Invalid
+					}
+
+					param_ty = ex.params[i].type
+				}
+
 				if param_ty != fn_ty.params[i] {
-					log_spanned_error( &ex.span, "parameter type mismatch, expected 'TODO' got 'TODO'" )
+					log_spanned_errorf( &ex.span, "parameter type mismatch, expected '{}' got '{}'", fn_ty.params[i].name, param_ty.name )
 					return nil, .Invalid
 				}
 			}

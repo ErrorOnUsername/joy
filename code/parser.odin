@@ -127,7 +127,7 @@ parse_decl :: proc( file_data: ^FileData, scope: ^Scope ) -> ^ConstDecl
 		if decl.type_hint == nil do return nil
 
 		if try_consume_tk( file_data, .Assign ) {
-			decl.value = parse_expr( file_data, true )
+			decl.value = parse_expr( file_data )
 			if decl.value == nil do return nil
 		}
 	} else if try_consume_tk( file_data, .Assign ) {
@@ -213,7 +213,7 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 			}
 
 			return_stmnt := new_node( ReturnStmnt, start_tk.span )
-			return_stmnt.expr = parse_expr( file_data, false )
+			return_stmnt.expr = parse_expr( file_data )
 
 			sc_tk := curr_tk( file_data )
 			if !try_consume_tk( file_data, .Semicolon ) {
@@ -313,11 +313,11 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 		if type_hint == nil do return nil
 
 		if try_consume_tk( file_data, .Assign ) {
-			default_value = parse_expr( file_data, true )
+			default_value = parse_expr( file_data )
 			if default_value == nil do return nil
 		}
 	} else if try_consume_tk( file_data, .Assign ) {
-		default_value = parse_expr( file_data, false )
+		default_value = parse_expr( file_data )
 		if default_value == nil do return nil
 	} else {
 		log_spanned_errorf( &colon_tk.span, "Expected ':' or '=', got: {}", colon_tk.kind )
@@ -335,13 +335,13 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 
 parse_type :: proc( file_data: ^FileData ) -> ^Expr
 {
-	return parse_expr( file_data, true )
+	return parse_expr( file_data, is_type = true, struct_literal_allowed = false )
 }
 
 
-parse_expr :: proc( file_data: ^FileData, is_type := false, last_prio := -1 ) -> ^Expr
+parse_expr :: proc( file_data: ^FileData, is_type := false, struct_literal_allowed := true, last_prio := -1 ) -> ^Expr
 {
-	lhs := parse_operand( file_data )
+	lhs := parse_operand( file_data, struct_literal_allowed )
 	if lhs == nil do return nil
 
 	op_tk := curr_tk( file_data )
@@ -354,18 +354,15 @@ parse_expr :: proc( file_data: ^FileData, is_type := false, last_prio := -1 ) ->
 
 		rhs: ^Expr
 		if op_prio >= last_prio {
-			rhs = parse_expr( file_data, false, last_prio = op_prio )
+			rhs = parse_expr( file_data, struct_literal_allowed = struct_literal_allowed, last_prio = op_prio )
 		} else {
-			rhs = parse_operand( file_data )
+			rhs = parse_operand( file_data, struct_literal_allowed )
 		}
 
 		if rhs == nil do return nil
 
 		span, ok := join_span( &lhs.span, &rhs.span )
-		if !ok {
-			// TODO(rd): maybe make this better
-			return nil // internal compiler error ig
-		}
+		assert( ok )
 
 		b_op := new_node( BinOpExpr, span )
 		b_op.lhs = lhs
@@ -378,15 +375,15 @@ parse_expr :: proc( file_data: ^FileData, is_type := false, last_prio := -1 ) ->
 	return lhs
 }
 
-parse_operand :: proc( file_data: ^FileData ) -> ^Expr
+parse_operand :: proc( file_data: ^FileData, struct_literal_allowed := true ) -> ^Expr
 {
-	pre := parse_operand_prefix( file_data )
+	pre := parse_operand_prefix( file_data, struct_literal_allowed )
 	if pre == nil do return nil
 
 	return parse_operand_postfix( file_data, pre )
 }
 
-parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
+parse_operand_prefix :: proc( file_data: ^FileData, struct_literal_allowed: bool ) -> ^Expr
 {
 	start_tk := curr_tk( file_data )
 
@@ -429,7 +426,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			if arrow_tk.kind == .SmolArrow {
 				file_data.tk_idx += 1
 
-				ret_ty := parse_expr( file_data, is_type = true )
+				ret_ty := parse_type( file_data )
 				if ret_ty == nil do return nil
 
 				proto.return_type = ret_ty
@@ -597,6 +594,11 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 
 			return union_expr
 		case .LCurly:
+			if !struct_literal_allowed {
+				log_spanned_error( &start_tk.span, "expected operand" )
+				return nil
+			}
+
 			file_data.tk_idx += 1
 
 			lit := new_node( AnonStructLiteralExpr, start_tk.span )
@@ -630,7 +632,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			curr_if := if_exp
 			for {
 				if try_consume_tk( file_data, .If ) {
-					cond := parse_expr( file_data )
+					cond := parse_expr( file_data, struct_literal_allowed = false )
 					if cond == nil do return nil
 
 					curr_if.cond = cond
@@ -680,7 +682,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 				return nil
 			}
 
-			range_expr := parse_expr( file_data )
+			range_expr := parse_expr( file_data, struct_literal_allowed = false )
 			if range_expr == nil do return nil
 
 			consume_newlines( file_data )
@@ -703,7 +705,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 		case .While:
 			file_data.tk_idx += 1
 
-			cond := parse_expr( file_data )
+			cond := parse_expr( file_data, struct_literal_allowed = false )
 			if cond == nil do return nil
 
 			consume_newlines( file_data )
@@ -886,7 +888,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 			file_data.tk_idx += 1
 
 			peek_tk := curr_tk( file_data )
-			if try_consume_tk( file_data, .LCurly ) {
+			if struct_literal_allowed && try_consume_tk( file_data, .LCurly ) {
 				lit := new_node( NamedStructLiteralExpr, start_tk.span )
 				lit.name = start_tk.str
 
