@@ -317,7 +317,7 @@ parse_var_decl :: proc( file_data: ^FileData, ctx_msg := "variable declaration" 
 			if default_value == nil do return nil
 		}
 	} else if try_consume_tk( file_data, .Assign ) {
-		default_value = parse_expr( file_data, true )
+		default_value = parse_expr( file_data, false )
 		if default_value == nil do return nil
 	} else {
 		log_spanned_errorf( &colon_tk.span, "Expected ':' or '=', got: {}", colon_tk.kind )
@@ -898,7 +898,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 						log_spanned_error( &tk.span, "expected ',' to separate structure literal member values" )
 						return nil
 					}
-					
+
 					consume_newlines( file_data )
 
 					v := parse_expr( file_data )
@@ -909,7 +909,7 @@ parse_operand_prefix :: proc( file_data: ^FileData ) -> ^Expr
 					consume_newlines( file_data )
 					tk = curr_tk( file_data )
 				}
-				
+
 				file_data.tk_idx += 1
 
 				return lit
