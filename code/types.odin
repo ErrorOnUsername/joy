@@ -40,6 +40,7 @@ Type :: struct
 PointerType :: struct
 {
 	using type: Type,
+	mutable: bool,
 	underlying: ^Type,
 }
 
@@ -106,6 +107,7 @@ PrimitiveKind :: enum
 	Range,
 	UntypedInt,
 	UntypedString,
+	TypeID,
 }
 
 type_prim_kind_from_tk :: proc( tk: TokenKind ) -> PrimitiveKind
@@ -159,6 +161,8 @@ PrimitiveType :: struct
 }
 
 
+ty_builtin_typeid: ^Type
+
 ty_builtin_untyped_int: ^Type
 ty_builtin_untyped_string: ^Type
 
@@ -194,6 +198,7 @@ init_builtin_types :: proc(target: TargetDesc)
 {
 	word_size := target_get_word_size(target)
 
+	ty_builtin_typeid = new_primitive_type( .TypeID, "type", -1, -1 )
 	ty_builtin_untyped_int = new_primitive_type( .UntypedInt, "untyped int", -1, -1 )
 	ty_builtin_untyped_string = new_primitive_type( .UntypedString, "untyped string", -1, -1 )
 	ty_builtin_void = new_primitive_type( .Void, "void", 0, 0 )

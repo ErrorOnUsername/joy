@@ -9,7 +9,7 @@ decl MyEnum = enum {
 };
 
 decl MyUnion = union {
-	VariantA(a: i32, slice: [u32]);
+	VariantA(a: i32, slice: [mut u32]);
 	VariantB(thing: MyStruct, name: string);
 };
 
@@ -20,7 +20,7 @@ decl square = fn(n: int) -> int {
 decl main = fn() {
 	// Line comment.
 	let a: string = "haha";
-	let b = 10;
+	let mut b = 10;
 
 	/* level 1
 		/* level 2
@@ -36,7 +36,7 @@ decl main = fn() {
 		b -= 1;
 	}
 
-	let fact = 2;
+	let mut fact = 2;
 	for i in [0..b) {
 		fact *= fact;
 	}
@@ -49,9 +49,11 @@ decl main = fn() {
 
 	let c = square(b);
 
-	let d: MyStruct = { 10, "Hello" };
+	let mut d: MyStruct = { 10, "Hello" };
 	let e: uint = d.member_0;
 	let f: string = d.member_1;
+
+	d.member_0 = 1;
 
 	let g: MyEnum = .VariantB;
 	let h: MyUnion = .VariantB { d, "haha" };

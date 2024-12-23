@@ -1,8 +1,8 @@
 package main
 
 
+import "base:intrinsics"
 import "core:mem"
-import "core:intrinsics"
 import "core:os"
 import "core:thread"
 

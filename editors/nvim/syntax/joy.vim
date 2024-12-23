@@ -16,7 +16,7 @@ syn keyword j_conditionals    if else switch
 syn keyword j_loops           while for loop
 syn keyword j_ctrl_flow       return break continue
 syn keyword j_boolean         true false
-syn keyword j_keyword         decl let as in is
+syn keyword j_keyword         decl let mut as in is
 syn keyword j_type            bool char u8 i8 u16 i16 u32 i32 u64 i64 usize isize f32 f64 string cstring rawptr
 syn keyword j_complex_type    struct enum union fn
 syn keyword j_todo            contained NOTE TODO FIXME BUG
@@ -42,13 +42,6 @@ syn region j_char_literal   matchgroup=j_char_delim start=+'+ skip=+\\\\\|\\'+ e
 syn match  j_escape         display contained /\\./
 
 "
-" Compile-Time Directives
-"
-syn match j_directive /#\w\+\_[[:space:]\r\n]/
-
-hi def link j_directive       j_directives
-
-"
 " Functions
 "
 syn match j_proc_call /\w\+\s*(/me=e-1,he=e-1
@@ -57,7 +50,7 @@ hi def link j_proc_call       j_proc
 "
 " Types
 "
-syn match j_const_decl /decl\s\+\w\+\s\+:/lc=4,he=e-1
+syn match j_const_decl /decl\s\+\w\+\s\+[:=]/lc=4,he=e-1
 
 hi def link j_const_decl       j_type
 

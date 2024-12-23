@@ -164,10 +164,17 @@ parse_stmnt :: proc( file_data: ^FileData, scope: ^Scope ) -> ^Stmnt
 				return nil
 			}
 
+			is_mutable := false
+			if try_consume_tk( file_data, .Mut ) {
+				is_mutable = true
+			}
+
 			var := parse_var_decl( file_data )
 			if var == nil {
 				return nil
 			}
+
+			var.is_mut = is_mutable
 
 			sc_tk := curr_tk( file_data )
 			if !try_consume_tk( file_data, .Semicolon ) {
@@ -745,11 +752,17 @@ parse_operand_prefix :: proc( file_data: ^FileData, struct_literal_allowed: bool
 		case .Star:
 			file_data.tk_idx += 1
 
+			is_mut := false
+			if try_consume_tk( file_data, .Mut ) {
+				is_mut = true
+			}
+
 			base_type := parse_expr( file_data )
 			if base_type == nil do return nil
 
 			ptr_ty := new_node( PointerTypeExpr, start_tk.span )
 			ptr_ty.base_type = base_type
+			ptr_ty.is_mut = is_mut
 
 			return ptr_ty
 		case .Dot:
@@ -784,11 +797,22 @@ parse_operand_prefix :: proc( file_data: ^FileData, struct_literal_allowed: bool
 		case .LSquare:
 			file_data.tk_idx += 1
 
+			mut_tk := curr_tk(file_data)
+			is_mut_slice := false
+			if try_consume_tk( file_data, .Mut ) {
+				is_mut_slice = true
+			}
+
 			lhs := parse_expr( file_data )
 			if lhs == nil do return nil
 
 			sep_tk := curr_tk( file_data )
 			if try_consume_tk( file_data, .Semicolon ) {
+				if is_mut_slice {
+					log_spanned_error( &mut_tk.span, "Fixed size arrays cannot specify their mutablility. These semantics are tied to the identifer it is stored in." )
+					return nil
+				}
+
 				size_expr := parse_expr( file_data )
 				if size_expr == nil do return nil
 

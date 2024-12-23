@@ -265,7 +265,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				ty, addr_mode := tc_check_expr( ctx, s.value )
 				if ty == nil do return false
 
-				if addr_mode != .Value {
+				if addr_mode == .Invalid {
 					log_spanned_error( &s.value.span, "Expression does produce a value" )
 					return false
 				}
@@ -311,7 +311,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				ty, addr_mode := tc_check_expr( ctx, s.default_value )
 				if ty == nil do return false
 
-				if addr_mode != .Value && addr_mode != .Variable {
+				if addr_mode == .Invalid {
 					log_spanned_error( &s.default_value.span, "Expression does not produce a value" )
 					return false
 				}
@@ -383,7 +383,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
 
-			if addr_mode != .Value && addr_mode != .Variable {
+			if addr_mode == .Invalid {
 				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
 				return false
 			}
@@ -411,7 +411,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 			ty, addr_mode := tc_check_expr( ctx, s.expr )
 			if ty == nil do return false
 
-			if addr_mode != .Value && addr_mode != .Variable {
+			if addr_mode == .Invalid {
 				log_spanned_error( &s.expr.span, "Expression does not produce a value" )
 				return false
 			}
@@ -473,12 +473,12 @@ tc_check_type :: proc( ctx: ^CheckerContext, type_expr: ^Expr ) -> ^Type
 	ty, addr_mode := tc_check_expr( ctx, type_expr )
 	if ty == nil do return nil
 
-	if addr_mode != .Type {
-		log_spanned_error( &type_expr.span, "Expression does not reference a type" )
+	if addr_mode == .Invalid || !ty_is_prim(ty, .TypeID) {
+		log_spanned_error( &type_expr.span, "Expression is not a type" )
 		return nil
 	}
 
-	return ty
+	return type_expr.to_ty
 }
 
 
@@ -507,13 +507,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			if ex.return_type != nil {
-				return_ty, addr_mode := tc_check_expr( ctx, ex.return_type )
+				return_ty := tc_check_type( ctx, ex.return_type )
 				if return_ty == nil do return nil, .Invalid
-
-				if addr_mode != .Type {
-					log_spanned_error( &ex.return_type.span, "Expression does not reference a type" )
-					return nil, .Invalid
-				}
 
 				ty.return_type = return_ty
 			} else {
@@ -521,6 +516,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			ex.type = ty
+
+			assert(ex.body != nil)
 
 			if ctx.defer_proc_bodies {
 				sync.mutex_lock( &ctx.checker.proc_work_mutex )
@@ -535,50 +532,39 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 			}
 
-			return ty, .Value if ex.body != nil else .Type
+			return ty, .RValue
 		case ^Ident:
-			stmnt := lookup_ident( ctx, ex.name )
-			if stmnt == nil {
+			def := lookup_ident( ctx, ex.name )
+			if def == nil {
 				log_spanned_errorf( &ex.span, "Undeclared identifier '{}'", ex.name )
 				return nil, .Invalid
 			}
 
-			if stmnt.check_state != .Resolved {
-				stmnt_ok := tc_check_stmnt( ctx, stmnt )
-				if !stmnt_ok do return nil, .Invalid
+			if def.check_state != .Resolved {
+				def_ok := tc_check_stmnt( ctx, def )
+				if !def_ok do return nil, .Invalid
 			}
 
 			ty: ^Type
-			addr_mode: AddressingMode
-
-			switch st in stmnt.derived_stmnt {
+			switch st in def.derived_stmnt {
 				case ^ConstDecl:
 					val := st.value
 					#partial switch v in val.derived_expr {
-						case ^ProcProto:
-							ty = st.type
-							addr_mode = .Constant // function pointer
 						case ^Scope:
 							assert( v.variant != .Logic, "Logic scope assigned to constant" )
 							assert( st.type != nil, "Statement doesn't have type" )
-							ty = st.type
-							addr_mode = .Type
+							ex.to_ty = st.type
+							ty = ty_builtin_typeid
 						case:
 							ty = st.type
-							addr_mode = .Constant
 					}
 
 				case ^EnumVariantDecl:
 					ty = st.type
-					addr_mode = .Value
-
 				case ^UnionVariantDecl:
 					ty = st.type
-					addr_mode = .Type
-
 				case ^VarDecl:
 					ty = st.type
-					addr_mode = .Variable
 
 				case ^ExprStmnt:
 				case ^ContinueStmnt:
@@ -589,13 +575,13 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = ty
 
-			return ty, addr_mode
+			return ty, .LValue
 		case ^StringLiteralExpr:
 			ex.type = ty_builtin_untyped_string
-			return ex.type, .Value
+			return ex.type, .RValue
 		case ^NumberLiteralExpr:
 			ex.type = ty_builtin_untyped_int
-			return ex.type, .Value
+			return ex.type, .RValue
 		case ^NamedStructLiteralExpr:
 			decl := lookup_ident( ctx, ex.name )
 			if decl == nil {
@@ -623,8 +609,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				val_ty, val_addr_mode := tc_check_expr( ctx, ex.vals[i] )
 				if val_ty == nil do return nil, .Invalid
 
-				if val_addr_mode != .Variable && val_addr_mode != .Value {
-					log_spanned_errorf( &ex.vals[i].span, "expected value, got '{}'", val_addr_mode )
+				if val_addr_mode == .Invalid {
+					log_spanned_error( &ex.vals[i].span, "expected value" )
 					return nil, .Invalid
 				}
 
@@ -646,7 +632,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = struct_ty if !ty_is_union( last_ctx_ty ) else last_ctx_ty
 
-			return ex.type, .Value
+			return ex.type, .RValue
 		case ^AnonStructLiteralExpr:
 			if ctx.hint_type == nil {
 				log_spanned_error( &ex.span, "Cannot infer structure literal type without hint" )
@@ -669,8 +655,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				val_ty, val_addr_mode := tc_check_expr( ctx, ex.vals[i] )
 				if val_ty == nil do return nil, .Invalid
 
-				if val_addr_mode != .Variable && val_addr_mode != .Value {
-					log_spanned_errorf( &ex.vals[i].span, "expected value, got '{}'", val_addr_mode )
+				if val_addr_mode == .Invalid {
+					log_spanned_error( &ex.vals[i].span, "expected value" )
 					return nil, .Invalid
 				}
 
@@ -692,10 +678,15 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = struct_ty
 
-			return struct_ty, .Value
+			return struct_ty, .RValue
 		case ^MemberAccessExpr:
 			owner_ty, owner_addr_mode := tc_check_expr( ctx, ex.val )
 			if owner_ty == nil do return nil, .Invalid
+
+			if owner_addr_mode == .Invalid {
+				log_spanned_error( &ex.val.span, "Expression does not produce a value" )
+				return nil, .Invalid
+			}
 
 			last_ctx_ty := ctx.hint_type
 			ctx.hint_type = last_ctx_ty
@@ -704,14 +695,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			member_ty, member_addr_mode := tc_check_expr( ctx, ex.member )
 			if member_ty == nil do return nil, .Invalid
 
-			if member_addr_mode != .Value && member_addr_mode != .Variable {
-				log_spanned_errorf( &ex.member.span, "expected value got '{}'", member_addr_mode )
+			if member_addr_mode == .Invalid {
+				log_spanned_error( &ex.member.span, "Expression does not produce a value" )
 				return nil, .Invalid
 			}
 
 			ex.type = member_ty
 
-			return ex.type, .Value
+			return ex.type, member_addr_mode
 		case ^ImplicitSelectorExpr:
 			ctx_ty := ctx.hint_type
 			if ctx_ty == nil {
@@ -759,7 +750,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					struct_type.alignment = align
 
 					ex.type = struct_type
-					return struct_type, .Value
+					return struct_type, .RValue
 				case .Union:
 					union_type := new_type( UnionType, ctx.mod, "union" )
 					union_type.ast_scope = ex
@@ -783,7 +774,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					}
 
 					ex.type = union_type
-					return union_type, .Value
+					return union_type, .RValue
 				case .Enum:
 					enum_type := new_type( EnumType, ctx.mod, "enum" )
 					enum_type.ast_scope = ex
@@ -801,7 +792,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					}
 
 					ex.type = enum_type
-					return enum_type, .Value
+					return enum_type, .RValue
 				case .Logic:
 					ex.type = ty_builtin_void
 
@@ -810,15 +801,15 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 						if !mem_ok do return nil, .Invalid
 					}
 
-					return ex.type, .Value
+					return ex.type, .RValue
 			}
 		case ^IfExpr:
 			if ex.cond != nil {
 				cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
 				if cond_ty == nil do return nil, .Invalid
 
-				if addr_mode != .Value && addr_mode != .Variable {
-					log_spanned_errorf( &ex.cond.span, "expected value got {}", addr_mode )
+				if addr_mode == .Invalid {
+					log_spanned_error( &ex.cond.span, "expected value" )
 					return nil, .Invalid
 				}
 
@@ -845,12 +836,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = yeild_ty
 
-			return yeild_ty, .Value
+			return yeild_ty, .RValue
 		case ^ForLoop:
 			range_ty, addr_mode := tc_check_expr( ctx, ex.range )
 			if range_ty == nil do return nil, .Invalid
 
-			if addr_mode != .Value {
+			if addr_mode == .Invalid {
 				log_spanned_error( &ex.range.span, "for loop range expression does not reference a value" )
 				return nil, .Invalid
 			}
@@ -869,19 +860,21 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ex.body.symbols[ex.iter.name] = ex.iter
 
 			body_ty, body_addr_mode := tc_check_expr( ctx, ex.body )
-			if body_addr_mode != .Value {
-				log_spanned_errorf( &ex.body.span, "expected value, got '{}'", body_addr_mode )
+			if body_ty == nil do return nil, .Invalid
+
+			if body_addr_mode == .Invalid {
+				log_spanned_error( &ex.body.span, "expected value" )
 				return nil, .Invalid
 			}
 
 			ex.type = body_ty
 
-			return body_ty, .Value
+			return body_ty, .RValue
 		case ^WhileLoop:
 			cond_ty, addr_mode := tc_check_expr( ctx, ex.cond )
 			if cond_ty == nil do return nil, .Invalid
 
-			if addr_mode != .Value {
+			if addr_mode == .Invalid {
 				log_spanned_error( &ex.cond.span, "while loop condition does not represent a value" )
 				return nil, .Invalid
 			}
@@ -896,20 +889,20 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = body_ty
 
-			return body_ty, .Value
+			return body_ty, .RValue
 		case ^InfiniteLoop:
 			body_ty, _ := tc_check_expr( ctx, ex.body )
 			if body_ty == nil do return nil, .Invalid
 
 			ex.type = body_ty
 
-			return body_ty, .Value
+			return body_ty, .RValue
 		case ^RangeExpr:
 			start_ty, s_addr_mode := tc_check_expr( ctx, ex.lhs )
 			if start_ty == nil do return nil, .Invalid
 
 			// FIXME(rd): Encapsulate this in a consistent function
-			if s_addr_mode != .Value && s_addr_mode != .Variable {
+			if s_addr_mode == .Invalid {
 				log_spanned_error( &ex.lhs.span, "range start expression is not a value" )
 				return nil, .Invalid
 			}
@@ -932,7 +925,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			end_ty, e_addr_mode := tc_check_expr( ctx, ex.rhs )
 			if end_ty == nil do return nil, .Invalid
 
-			if e_addr_mode != .Value && e_addr_mode != .Variable {
+			if e_addr_mode == .Invalid {
 				log_spanned_error( &ex.rhs.span, "range end expression is not a value" )
 				return nil, .Invalid
 			}
@@ -954,7 +947,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = ty_builtin_range
 
-			return ty_builtin_range, .Value
+			return ty_builtin_range, .RValue
 		case ^UnaryOpExpr:
 			rand_ty, addr_mode := tc_check_expr( ctx, ex.rand )
 			if rand_ty == nil do return nil, .Invalid
@@ -964,8 +957,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			#partial switch ex.op.kind {
 				case .At:
-					if addr_mode != .Value && addr_mode != .Variable {
-						log_spanned_errorf( &ex.rand.span, "expected value, got '{}'", addr_mode )
+					if addr_mode == .Invalid {
+						log_spanned_error( &ex.rand.span, "expected value" )
 						return nil, .Invalid
 					}
 
@@ -980,10 +973,10 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					ex.type = base
 
 					fnl_ty = base
-					fnl_addr_mode = .Value
+					fnl_addr_mode = .LValue
 				case .Ampersand:
-					if addr_mode != .Variable {
-						log_spanned_errorf( &ex.rand.span, "expected variable, got '{}'", addr_mode )
+					if addr_mode != .LValue {
+						log_spanned_error( &ex.rand.span, "expected addressable lvalue" )
 						return nil, .Invalid
 					}
 
@@ -993,25 +986,25 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					ex.type = ptr_ty
 
 					fnl_ty = ptr_ty
-					fnl_addr_mode = .Value
+					fnl_addr_mode = .RValue
 				case .Bang:
-					if addr_mode != .Value && addr_mode != .Variable {
-						log_spanned_errorf( &ex.rand.span, "expected value, got '{}'", addr_mode )
+					if addr_mode == .Invalid {
+						log_spanned_error( &ex.rand.span, "expected value" )
 						return nil, .Invalid
 					}
 
 					if !ty_is_bool( rand_ty ) {
-						log_spanned_errorf( &ex.rand.span, "expected type 'bool' got '{}'", addr_mode )
+						log_spanned_errorf( &ex.rand.span, "expected type 'bool' got '{}'", rand_ty.name )
 						return nil, .Invalid
 					}
 
 					ex.type = ty_builtin_bool
 
 					fnl_ty = ty_builtin_bool
-					fnl_addr_mode = .Value
+					fnl_addr_mode = .RValue
 				case .Tilde, .Minus:
-					if addr_mode != .Value && addr_mode != .Variable {
-						log_spanned_errorf( &ex.rand.span, "expected value, got '{}'", addr_mode )
+					if addr_mode == .Invalid {
+						log_spanned_error( &ex.rand.span, "expected value" )
 						return nil, .Invalid
 					}
 
@@ -1023,7 +1016,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					ex.type = rand_ty
 
 					fnl_ty = rand_ty
-					fnl_addr_mode = .Value
+					fnl_addr_mode = .RValue
 			}
 
 			assert( fnl_ty != nil )
@@ -1037,8 +1030,13 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			if rhs_ty == nil do return nil, .Invalid
 
 			if is_mutating_op( ex.op.kind ) {
-				if l_addr_mode != .Variable {
-					log_spanned_error( &ex.lhs.span, "expression does not reference a variable" )
+				if l_addr_mode != .LValue {
+					log_spanned_error( &ex.lhs.span, "expression does not produce an lvalue" )
+					return nil, .Invalid
+				}
+
+				if !is_mutable_lvalue( ctx, ex.lhs ) {
+					log_spanned_error( &ex.lhs.span, "Left-hand expression is not mutable" )
 					return nil, .Invalid
 				}
 			}
@@ -1062,7 +1060,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			ex.type = ty
-			return ty, .Value
+			return ty, .RValue
 		case ^ProcCallExpr:
 			decl := lookup_ident( ctx, ex.name )
 			if decl == nil {
@@ -1070,7 +1068,11 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				return nil, .Invalid
 			}
 
-			fn_ty := decl.type.derived.(^FnType)
+			fn_ty, is_fn := decl.type.derived.(^FnType)
+			if !is_fn {
+				log_spanned_errorf( &ex.span, "'{}' is not a function (maybe we need to implement generics now? otherwise, skill issue)", ex.name )
+				return nil, .Invalid
+			}
 
 			if len( ex.params ) != len( fn_ty.params ) {
 				log_spanned_errorf( &ex.span, "function '{}' takes {} parameters, got {}", ex.name, len( fn_ty.params ), len( ex.params ) )
@@ -1081,8 +1083,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				param_ty, addr_mode := tc_check_expr( ctx, ex.params[i] )
 				if param_ty == nil do return nil, .Invalid
 
-				if addr_mode != .Value && addr_mode != .Variable {
-					log_spanned_errorf( &ex.span, "expected value, got '{}'", addr_mode )
+				if addr_mode == .Invalid {
+					log_spanned_error( &ex.span, "expected value" )
 					return nil, .Invalid
 				}
 
@@ -1104,10 +1106,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.type = fn_ty.return_type
 
-			return fn_ty.return_type, .Value
+			return fn_ty.return_type, .RValue
 		case ^PrimitiveTypeExpr:
 			prim_ty: ^Type
 			switch ex.prim {
+				case .TypeID:
+					prim_ty = ty_builtin_typeid
 				case .Void:
 					prim_ty = ty_builtin_void
 				case .Bool:
@@ -1150,8 +1154,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					prim_ty = ty_builtin_untyped_string
 			}
 
-			ex.type = prim_ty
-			return prim_ty, .Type
+			ex.to_ty = prim_ty
+			ex.type = ty_builtin_typeid
+			return ex.type, .RValue
 		case ^PointerTypeExpr:
 			underlying_ty := tc_check_type( ctx, ex.base_type )
 			if underlying_ty == nil do return nil, .Invalid
@@ -1159,8 +1164,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			ptr_ty := new_type( PointerType, nil, "ptr (TODO)" )
 			ptr_ty.underlying = underlying_ty
 
-			ex.type = ptr_ty
-			return ptr_ty, .Type
+			ex.to_ty = ptr_ty
+			ex.type = ty_builtin_typeid
+			return ex.type, .RValue
 		case ^SliceTypeExpr:
 			underlying_ty := tc_check_type( ctx, ex.base_type )
 			if underlying_ty == nil do return nil, .Invalid
@@ -1168,8 +1174,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			slice_ty := new_type( SliceType, nil, "slice (TODO)" )
 			slice_ty.underlying = underlying_ty
 
-			ex.type = slice_ty
-			return slice_ty, .Type
+			ex.to_ty = slice_ty
+			ex.type = ty_builtin_typeid
+			return ex.type, .RValue
 		case ^ArrayTypeExpr:
 			log_spanned_error( &ex.span, "impl array type checking" )
 			return nil, .Invalid
@@ -1178,6 +1185,25 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 	assert( false )
 
 	return nil, .Invalid
+}
+
+is_mutable_lvalue :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
+{
+	#partial switch e in ex.derived_expr {
+		case ^Ident:
+			decl := lookup_ident( ctx, e.name )
+			assert( decl != nil )
+			#partial switch d in decl.derived_stmnt {
+				case ^VarDecl:
+					return d.is_mut
+				case ^ConstDecl:
+					return false
+			}
+		case ^MemberAccessExpr:
+		case ^UnaryOpExpr:
+	}
+
+	return false
 }
 
 is_bool_op :: proc( op: TokenKind ) -> bool
@@ -1280,6 +1306,12 @@ lookup_ident :: proc( ctx: ^CheckerContext, ident_name: string ) -> ^Stmnt
 	return nil
 }
 
+AddressingMode :: enum
+{
+	Invalid,
+	LValue,
+	RValue,
+}
 
 CheckerContext :: struct
 {

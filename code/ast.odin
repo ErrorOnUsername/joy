@@ -1,6 +1,6 @@
 package main
 
-import "core:intrinsics"
+import "base:intrinsics"
 import "core:mem"
 
 
@@ -39,16 +39,6 @@ ScopeVariant :: enum
 }
 
 
-AddressingMode :: enum
-{
-	Invalid,
-	Type,
-	Constant,
-	Variable,
-	Value,
-}
-
-
 //
 // Statements
 //
@@ -65,6 +55,7 @@ VarDecl :: struct
 {
 	using stmnt:   Stmnt,
 	name:          string,
+	is_mut:        bool,
 	type_hint:     ^Expr,
 	default_value: ^Expr,
 }
@@ -338,6 +329,7 @@ AnyExpr :: union
 Expr :: struct
 {
 	using node:   Node,
+	to_ty:        ^Type,
 	derived_expr: AnyExpr,
 }
 

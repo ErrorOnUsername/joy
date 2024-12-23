@@ -446,6 +446,7 @@ keyword_map := map[string]TokenKind {
 	"use"      = .Use,
 	"decl"     = .Decl,
 	"let"      = .Let,
+	"mut"      = .Mut,
 	"struct"   = .Struct,
 	"enum"     = .Enum,
 	"union"    = .Union,
@@ -553,6 +554,7 @@ TokenKind :: enum
 	Use,
 	Decl,
 	Let,
+	Mut,
 
 	Struct,
 	Enum,
