@@ -688,21 +688,50 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				return nil, .Invalid
 			}
 
+			base_ty := ty_get_base(owner_ty)
+
 			last_ctx_ty := ctx.hint_type
-			ctx.hint_type = last_ctx_ty
-			ctx.hint_type = owner_ty
+			defer ctx.hint_type = last_ctx_ty
 
-			member_ty, member_addr_mode := tc_check_expr( ctx, ex.member )
-			if member_ty == nil do return nil, .Invalid
-
-			if member_addr_mode == .Invalid {
-				log_spanned_error( &ex.member.span, "Expression does not produce a value" )
-				return nil, .Invalid
+			member_access_get_field_name :: proc(m: ^Expr) -> (string, ^Expr) {
+				assert(m != nil)
+				#partial switch f in m.derived_expr {
+					case ^Ident:
+						return f.name, f
+					case ^ProcCallExpr:
+						return f.name, f
+					case ^NamedStructLiteralExpr:
+						return f.name, f
+					case ^MemberAccessExpr:
+						return member_access_get_field_name( f.val )
+				}
+				return "", nil
 			}
 
-			ex.type = member_ty
+			cur_ty := owner_ty
+			addr_mode: AddressingMode
+			field := ex.member
+			for field != nil {
+				member_name, member_expr := member_access_get_field_name(field)
+				member_ty := ty_get_member(cur_ty, member_name)
+				if member_ty == nil {
+					log_spanned_errorf( &field.span, "field '{}' is not a member of type '{}'", member_name, cur_ty.name )
+					return nil, .Invalid
+				}
 
-			return ex.type, member_addr_mode
+				ctx.hint_type = cur_ty
+				c_mem_ty: ^Type
+				c_mem_ty, addr_mode = tc_check_expr( ctx, member_expr )
+				assert(c_mem_ty == member_ty)
+
+				chain_mem_access, is_mem_access := field.derived_expr.(^MemberAccessExpr)
+				field = chain_mem_access.member if is_mem_access else nil
+				cur_ty = c_mem_ty
+			}
+
+			ex.type = cur_ty
+
+			return ex.type, addr_mode
 		case ^ImplicitSelectorExpr:
 			ctx_ty := ctx.hint_type
 			if ctx_ty == nil {
@@ -1031,12 +1060,14 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			if is_mutating_op( ex.op.kind ) {
 				if l_addr_mode != .LValue {
-					log_spanned_error( &ex.lhs.span, "expression does not produce an lvalue" )
+					log_spanned_error( &ex.lhs.span, "expression does not produce an addressable value" )
 					return nil, .Invalid
 				}
 
-				if !is_mutable_lvalue( ctx, ex.lhs ) {
-					log_spanned_error( &ex.lhs.span, "Left-hand expression is not mutable" )
+				is_mut, offending_expr := is_mutable_lvalue( ctx, ex.lhs )
+				if !is_mut {
+					assert( offending_expr != nil )
+					log_spanned_error( &offending_expr.span, "binding is not mutable" )
 					return nil, .Invalid
 				}
 			}
@@ -1187,7 +1218,52 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 	return nil, .Invalid
 }
 
-is_mutable_lvalue :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
+is_mutable_lvalue_member_access :: proc( ctx: ^CheckerContext, m: ^MemberAccessExpr ) -> (bool, ^Expr)
+{
+	old_hint_ty := ctx.hint_type
+	defer ctx.hint_type = old_hint_ty
+
+	val := m.val
+	val_ty := val.type
+	is_mut_binding_ref :: proc(ctx: ^CheckerContext, ex: ^Expr) -> bool {
+		#partial switch e in ex.derived_expr {
+			// TODO(RD): Add array access expr when that's a thing
+			case ^Ident:
+				decl := lookup_ident(ctx, e.name)
+				assert( decl != nil )
+				#partial switch d in decl.derived_stmnt {
+					case ^VarDecl:
+						return d.is_mut
+					case ^ConstDecl:
+						return false
+				}
+		}
+		return false
+	}
+
+	if !ty_is_mut_pointer( val_ty ) && !is_mut_binding_ref( ctx, val ) {
+		return false, val
+	}
+
+	ctx.hint_type = val_ty
+	child_member_access, is_child_member_access := m.member.derived_expr.(^MemberAccessExpr)
+
+	if is_child_member_access {
+		child_is_mut, offending_expr := is_mutable_lvalue_member_access( ctx, child_member_access )
+		if !child_is_mut {
+			return false, offending_expr
+		}
+	}
+
+	return true, nil
+}
+
+is_mutable_lvalue_unary_op :: proc( ctx: ^CheckerContext, u: ^UnaryOpExpr ) -> (bool, ^Expr)
+{
+	return false, u
+}
+
+is_mutable_lvalue :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> (bool, ^Expr)
 {
 	#partial switch e in ex.derived_expr {
 		case ^Ident:
@@ -1195,15 +1271,17 @@ is_mutable_lvalue :: proc( ctx: ^CheckerContext, ex: ^Expr ) -> bool
 			assert( decl != nil )
 			#partial switch d in decl.derived_stmnt {
 				case ^VarDecl:
-					return d.is_mut
+					return d.is_mut, e
 				case ^ConstDecl:
-					return false
+					return false, e
 			}
 		case ^MemberAccessExpr:
+			return is_mutable_lvalue_member_access( ctx, e )
 		case ^UnaryOpExpr:
+			return is_mutable_lvalue_unary_op( ctx, e )
 	}
 
-	return false
+	return false, ex
 }
 
 is_bool_op :: proc( op: TokenKind ) -> bool

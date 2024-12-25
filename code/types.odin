@@ -356,3 +356,56 @@ ty_get_array_underlying :: proc( ty: ^Type ) -> ^Type
 
 	return nil
 }
+
+ty_get_base :: proc( ty: ^Type ) -> ^Type
+{
+	t := ty
+
+	loop: for t != nil {
+		#partial switch td in t.derived {
+			case ^PointerType:
+				t = td.underlying
+			case:
+				break loop
+		}
+	}
+
+	return t
+}
+
+ty_get_member :: proc( ty: ^Type, member_name: string ) -> ^Type
+{
+	switch t in ty.derived {
+		case ^PointerType, ^SliceType, ^PrimitiveType, ^FnType:
+			return nil
+		case ^StructType:
+			for m in &t.members {
+				if m.name == member_name {
+					return m.ty
+				}
+			}
+			return nil
+		case ^EnumType:
+			if !(member_name in t.ast_scope.symbols) {
+				return nil
+			}
+			return t
+		case ^UnionType:
+			for v in &t.variants {
+				if v.name == member_name {
+					return v
+				}
+			}
+			return nil
+	}
+	return nil
+}
+
+ty_is_mut_pointer :: proc( ty: ^Type ) -> bool {
+	#partial switch t in ty.derived {
+		case ^PointerType:
+			return t.mutable
+	}
+	return false
+}
+
