@@ -1248,11 +1248,15 @@ is_mutable_lvalue_member_access :: proc( ctx: ^CheckerContext, m: ^MemberAccessE
 	ctx.hint_type = val_ty
 	child_member_access, is_child_member_access := m.member.derived_expr.(^MemberAccessExpr)
 
-	if is_child_member_access {
-		child_is_mut, offending_expr := is_mutable_lvalue_member_access( ctx, child_member_access )
-		if !child_is_mut {
-			return false, offending_expr
+	for is_child_member_access {
+		child_v_ty := child_member_access.val.type
+
+		// TODO: Add case for slices once array access is implemented
+		if ty_is_pointer( child_v_ty ) && !ty_is_mut_pointer( child_v_ty ) {
+			return false, child_member_access.val
 		}
+
+		child_member_access, is_child_member_access = child_member_access.member.derived_expr.(^MemberAccessExpr)
 	}
 
 	return true, nil
