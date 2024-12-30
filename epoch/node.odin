@@ -93,6 +93,11 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 }
 
 
+add_local :: proc(fn: ^Function) -> ^Node {
+	n := new_node(fn, .Local, TY_PTR, 2)
+	return n
+}
+
 insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: []^Node) -> []^Node
 {
 	n := new_node(fn, .Call, TY_TUPLE, 3 + len(params))
@@ -119,6 +124,51 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	fn.current_control = ctrl_proj
 
 	return extra.projs[2:]
+}
+
+insr_br :: proc(fn: ^Function, to: ^Node) -> ^Node {
+	n := new_node(fn, .Branch, TY_CTRL, 3)
+	return n
+}
+
+insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
+	assert(ty_equal(a.type, b.type), "phi parameter type mismatch")
+	n := new_node(fn, .Phi, a.type, 4)
+	return n
+}
+
+insr_load :: proc(fn: ^Function, t: Type, addr: ^Node, is_volatile: bool) -> ^Node {
+	n: ^Node
+
+	if is_volatile {
+		n = new_node(fn, .VolatileRead, t, 3)
+	} else {
+		n = new_node(fn, .Load, t, 3)
+	}
+
+	return n
+}
+
+insr_store :: proc(fn: ^Function, addr: ^Node, val: ^Node, is_volatile: bool) -> ^Node {
+	n: ^Node
+
+	if is_volatile {
+		n = new_node(fn, .VolatileWrite, TY_MEM, 4)
+	} else {
+		n = new_node(fn, .Store, TY_MEM, 4)
+	}
+
+	return n
+}
+
+insr_memcpy :: proc(fn: ^Function, dst: ^Node, src: ^Node, count: ^Node) -> ^Node {
+	n := new_node(fn, .MemCpy, TY_MEM, 5)
+	return n
+}
+
+insr_memset :: proc(fn: ^Function, dst: ^Node, src: ^Node, count: ^Node, val: ^Node) -> ^Node {
+	n := new_node(fn, .MemSet, TY_MEM, 6)
+	return n
 }
 
 
@@ -215,6 +265,7 @@ insr_fmin :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 	return insr_binop(fn, .FMin, lhs, rhs)
 }
 
+@(private = "file")
 insr_cmp :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
 	assert(ty_equal(lhs.type, rhs.type), "compare operand type mismatch")
 	n := new_node(fn, kind, TY_BOOL, 3)
@@ -324,6 +375,8 @@ NodeKind :: enum {
 	Region,
 	Proj,
 
+	Local,
+
 	Call,
 	Branch,
 	Phi,
@@ -332,8 +385,8 @@ NodeKind :: enum {
 	Store,
 	MemCpy,
 	MemSet,
-	Read,
-	Write,
+	VolatileRead,
+	VolatileWrite,
 
 	And,
 	Or,

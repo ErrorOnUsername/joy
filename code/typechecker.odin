@@ -473,8 +473,13 @@ tc_check_type :: proc( ctx: ^CheckerContext, type_expr: ^Expr ) -> ^Type
 	ty, addr_mode := tc_check_expr( ctx, type_expr )
 	if ty == nil do return nil
 
-	if addr_mode == .Invalid || !ty_is_prim(ty, .TypeID) {
-		log_spanned_error( &type_expr.span, "Expression is not a type" )
+	if addr_mode == .Invalid {
+		log_spanned_error( &type_expr.span, "invalid expression" )
+		return nil
+	}
+
+	if !ty_is_prim(ty, .TypeID) {
+		log_spanned_error( &type_expr.span, "expression is not type" )
 		return nil
 	}
 
