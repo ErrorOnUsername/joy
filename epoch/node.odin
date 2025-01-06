@@ -92,9 +92,15 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	return n
 }
 
+add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
+	n := new_node(fn, .Local, TY_PTR, 1)
+	n.inputs[0] = fn.start
 
-add_local :: proc(fn: ^Function) -> ^Node {
-	n := new_node(fn, .Local, TY_PTR, 2)
+	local := new(LocalExtra, fn.allocator)
+	local.size = size
+	local.align = align
+
+	n.extra = local
 	return n
 }
 
@@ -120,6 +126,8 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	for r, i in proto.returns {
 		extra.projs[i + 2] = new_proj(fn, r.type, n, 2 + i)
 	}
+
+	n.extra = extra
 
 	fn.current_control = ctrl_proj
 
@@ -359,8 +367,14 @@ CallExtra :: struct {
 	projs: []^Node,
 }
 
+LocalExtra :: struct {
+	size: int,
+	align: int,
+}
+
 NodeExtra :: union {
 	^CallExtra,
+	^LocalExtra,
 }
 
 NodeOutput :: struct {
