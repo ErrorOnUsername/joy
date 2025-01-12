@@ -19,6 +19,13 @@ Linkage :: enum {
 	Private,
 }
 
+FunctionMetaState :: struct {
+	entry_ctrl: ^Node,
+
+	curr_ctrl: ^Node,
+	curr_mem: ^Node,
+}
+
 Function :: struct {
 	using symbol: Symbol,
 	pool: mem.Dynamic_Pool,
@@ -27,7 +34,7 @@ Function :: struct {
 	params: []^Node,
 	start: ^Node,
 	end: ^Node,
-	current_control: ^Node,
+	meta: FunctionMetaState,
 }
 
 Symbol :: struct {
@@ -57,13 +64,16 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 
 	fn.proto = proto
 
-	fn.current_control = new_proj(fn, TY_CTRL, fn.start, 0)
+	fn.params = make([]^Node, len(proto.params) + 2, fn.allocator)
+	fn.params[0] = new_proj(fn, TY_CTRL, fn.start, 0)
+	fn.params[1] = new_proj(fn, TY_MEM, fn.start, 1)
 
-	fn.params = make([]^Node, len(proto.params) + 1, fn.allocator)
-	fn.params[0] = fn.current_control
+	fn.meta.entry_ctrl = fn.params[0]
+	fn.meta.curr_ctrl = fn.params[0]
+	fn.meta.curr_mem = fn.params[1]
 
 	for i in 0..<len(proto.params) {
-		fn.params[i + 1] = new_proj(fn, proto.params[i].type, fn.start, i + 1)
+		fn.params[i + 2] = new_proj(fn, proto.params[i].type, fn.start, i + 1)
 	}
 
 	return fn
@@ -79,6 +89,12 @@ new_function_proto :: proc(m: ^Module, params: []FunctionParam, returns: []Funct
 new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
 	proj := new_node(fn, .Proj, type, 1)
 	proj.inputs[0] = src_node
+
+	extra := new(ProjExtra, fn.allocator)
+	extra.idx = proj_idx
+
+	proj.extra = extra
+
 	return proj
 }
 
@@ -104,21 +120,37 @@ add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
 	return n
 }
 
+@(private = "file")
+transfer_control :: proc(fn: ^Function, new_ctrl: ^Node) -> ^Node {
+	old := fn.meta.curr_ctrl
+	fn.meta.curr_ctrl = new_ctrl
+	return old
+}
+
+@(private = "file")
+insert_mem_effect :: proc(fn: ^Function, new_mem: ^Node) -> ^Node {
+	old := fn.meta.curr_mem
+	fn.meta.curr_mem = new_mem
+	return old
+}
+
 insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: []^Node) -> []^Node
 {
 	n := new_node(fn, .Call, TY_TUPLE, 3 + len(params))
-	n.inputs[0] = fn.current_control
-	n.inputs[2] = target
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	n.inputs[0] = transfer_control(fn, ctrl_proj)
+	n.inputs[1] = insert_mem_effect(fn, mem_proj)
+	n.inputs[2] = target // the symbol of the function we want to call
 	for p, i in params {
 		n.inputs[3 + i] = p
 	}
 
 	extra, _ := new(CallExtra, fn.allocator)
-	extra.projs = make([]^Node, max(len(proto.returns) + 1, 3), fn.allocator)
+	extra.projs = make([]^Node, len(proto.returns) + 2, fn.allocator)
 	extra.proto = proto
-
-	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
-	mem_proj := new_proj(fn, TY_MEM, n, 1)
 
 	extra.projs[0] = ctrl_proj
 	extra.projs[1] = mem_proj
@@ -128,8 +160,6 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	}
 
 	n.extra = extra
-
-	fn.current_control = ctrl_proj
 
 	return extra.projs[2:]
 }
@@ -146,13 +176,24 @@ insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
 }
 
 insr_load :: proc(fn: ^Function, t: Type, addr: ^Node, is_volatile: bool) -> ^Node {
-	n: ^Node
-
 	if is_volatile {
-		n = new_node(fn, .VolatileRead, t, 3)
-	} else {
-		n = new_node(fn, .Load, t, 3)
+		// volatile reads need to project out a new memory effect (mmap'd IO for instance)
+		n := new_node(fn, .VolatileRead, TY_TUPLE, 3)
+
+		mem := new_proj(fn, TY_MEM, n, 0)
+		data := new_proj(fn, t, n, 1)
+
+		n.inputs[0] = fn.meta.curr_ctrl
+		n.inputs[1] = insert_mem_effect(fn, mem)
+		n.inputs[2] = addr
+
+		return data
 	}
+
+	n := new_node(fn, .Load, t, 3)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = fn.meta.curr_mem
+	n.inputs[2] = addr
 
 	return n
 }
@@ -166,16 +207,39 @@ insr_store :: proc(fn: ^Function, addr: ^Node, val: ^Node, is_volatile: bool) ->
 		n = new_node(fn, .Store, TY_MEM, 4)
 	}
 
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = insert_mem_effect(fn, n)
+	n.inputs[2] = addr
+	n.inputs[3] = val
+
 	return n
 }
 
 insr_memcpy :: proc(fn: ^Function, dst: ^Node, src: ^Node, count: ^Node) -> ^Node {
+	assert(ty_is_ptr(dst.type))
+	assert(ty_is_ptr(src.type))
+
 	n := new_node(fn, .MemCpy, TY_MEM, 5)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = insert_mem_effect(fn, n)
+	n.inputs[2] = dst
+	n.inputs[3] = src
+	n.inputs[4] = count
+
 	return n
 }
 
-insr_memset :: proc(fn: ^Function, dst: ^Node, src: ^Node, count: ^Node, val: ^Node) -> ^Node {
-	n := new_node(fn, .MemSet, TY_MEM, 6)
+insr_memset :: proc(fn: ^Function, dst: ^Node, val: ^Node, count: ^Node) -> ^Node {
+	assert(ty_is_ptr(dst.type))
+	assert(ty_equal(val.type, TY_I8))
+
+	n := new_node(fn, .MemSet, TY_MEM, 5)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = insert_mem_effect(fn, n)
+	n.inputs[2] = dst
+	n.inputs[3] = val
+	n.inputs[4] = count
+
 	return n
 }
 
@@ -372,9 +436,14 @@ LocalExtra :: struct {
 	align: int,
 }
 
+ProjExtra :: struct {
+	idx: int,
+}
+
 NodeExtra :: union {
 	^CallExtra,
 	^LocalExtra,
+	^ProjExtra,
 }
 
 NodeOutput :: struct {
