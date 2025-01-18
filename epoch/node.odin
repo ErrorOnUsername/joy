@@ -108,6 +108,20 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	return n
 }
 
+new_int_const :: proc(fn: ^Function, type: Type, val: IntConst) -> ^Node {
+	n := new_node(fn, .IntConst, type, 1)
+	n.inputs[0] = fn.start
+	n.extra = val
+	return n
+}
+
+new_float_const :: proc(fn: ^Function, type: Type, val: FloatConst) -> ^Node {
+	n := new_node(fn, .IntConst, type, 1)
+	n.inputs[0] = fn.start
+	n.extra = val
+	return n
+}
+
 add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
 	n := new_node(fn, .Local, TY_PTR, 1)
 	n.inputs[0] = fn.start
@@ -426,6 +440,16 @@ Node :: struct {
 	extra:   NodeExtra,
 }
 
+IntConst :: union {
+	u64,
+	i64,
+}
+
+FloatConst :: union {
+	f32,
+	f64,
+}
+
 CallExtra :: struct {
 	proto: ^FunctionProto,
 	projs: []^Node,
@@ -444,6 +468,8 @@ NodeExtra :: union {
 	^CallExtra,
 	^LocalExtra,
 	^ProjExtra,
+	IntConst,
+	FloatConst,
 }
 
 NodeOutput :: struct {
@@ -457,6 +483,10 @@ NodeKind :: enum {
 
 	Region,
 	Proj,
+
+	IntConst,
+	F32Const,
+	F64Const,
 
 	Local,
 
