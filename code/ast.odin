@@ -1,5 +1,7 @@
 package main
 
+import "../epoch"
+
 import "base:intrinsics"
 import "core:mem"
 
@@ -343,6 +345,7 @@ Node :: struct
 {
 	span:        Span,
 	type:        ^Type,
+	cg_val:      ^epoch.Node,
 	derived:     AnyNode,
 	check_state: CheckState,
 }

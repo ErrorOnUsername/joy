@@ -186,6 +186,10 @@ insr_br :: proc(fn: ^Function, to: ^Node) -> ^Node {
 insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
 	assert(ty_equal(a.type, b.type), "phi parameter type mismatch")
 	n := new_node(fn, .Phi, a.type, 4)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = fn.meta.curr_mem
+	n.inputs[2] = a
+	n.inputs[3] = b
 	return n
 }
 
