@@ -15,7 +15,7 @@ cg_emit_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 		case ^ReturnStmnt:
 	}
 
-	log_error( "impl cg_emit_stmnt" )
+	log_spanned_error( &stmnt.span, "impl cg_emit_stmnt" )
 	return false
 }
 

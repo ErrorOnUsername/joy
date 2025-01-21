@@ -34,6 +34,7 @@ Scope :: struct
 
 ScopeVariant :: enum
 {
+	File,
 	Struct,
 	Enum,
 	Union,

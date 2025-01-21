@@ -426,6 +426,11 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 	stmnt.check_state = .Resolved
 
+	// only run codegen for statments at top-level or in a logic scope
+	if ctx.curr_scope.variant == .File || ctx.curr_scope.variant == .Logic {
+		cg_emit_stmnt( ctx, stmnt ) or_return
+	}
+
 	return true
 }
 
@@ -751,6 +756,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			defer ctx.curr_scope = last_scope;
 
 			switch ex.variant {
+				case .File:
+					unreachable()
 				case .Struct:
 					struct_type := new_type( StructType, ctx.mod, "struct" )
 					struct_type.ast_scope = ex
