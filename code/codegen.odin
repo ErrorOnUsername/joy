@@ -3,8 +3,16 @@ package main
 import "../epoch"
 
 cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
+	mod := ctx.checker.cg_module
+
 	switch s in stmnt.derived_stmnt {
 		case ^ConstDecl:
+			#partial switch v in s.value.derived_expr {
+				case ^ProcProto:
+					dbg_type := cg_get_debug_type(stmnt.type)
+					proto := epoch.get_proto_from_debug_type(dbg_type)
+					fn := epoch.new_function(mod, s.name)
+			}
 		case ^VarDecl:
 			var := epoch.add_local()
 			s.cg_val = var
@@ -32,6 +40,9 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 
 	log_spanned_error(&stmnt.span, "impl cg_emit_stmnt")
 	return false
+}
+
+cg_get_debug_type :: proc(t: ^Type) -> ^epoch.DebugType {
 }
 
 cg_get_loop_ctrl :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> ^epoch.Node {
