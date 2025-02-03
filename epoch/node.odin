@@ -40,7 +40,7 @@ Function :: struct {
 Symbol :: struct {
 	name: string,
 	linkage: Linkage,
-	derived_symbol: AnySymbol,
+	derived: AnySymbol,
 }
 
 AnySymbol :: union {
@@ -49,7 +49,7 @@ AnySymbol :: union {
 
 new_symbol :: proc(m: ^Module, $T: typeid, name: string) -> ^T {
 	sym, _ := new(T, m.allocator)
-	sym.derived_symbol = sym
+	sym.derived = sym
 	sym.name = name
 	return sym
 }
@@ -79,11 +79,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
-new_function_proto :: proc(m: ^Module, params: []FunctionParam, returns: []FunctionParam) -> ^FunctionProto {
-	proto, _ := new(FunctionProto, m.allocator)
-	proto.params = params
-	proto.returns = returns
-	return proto
+new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^FunctionProto {
 }
 
 new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
@@ -181,6 +177,10 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 insr_br :: proc(fn: ^Function, to: ^Node) -> ^Node {
 	n := new_node(fn, .Branch, TY_CTRL, 3)
 	return n
+}
+
+insr_ret :: proc(fn: ^Function, val: ^Node) {
+	unimplemented()
 }
 
 insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {

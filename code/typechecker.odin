@@ -213,6 +213,7 @@ pump_tc_check_proc_body :: proc( c: ^Checker, p: ^ProcProto, m: ^Module ) -> Pum
 	ctx.curr_proc = p
 	ctx.checker = c
 	ctx.mod = m
+	ctx.cg_fn = p.cg_val.(^epoch.Symbol).derived.(^epoch.Function)
 
 	for stmnt in p.body.stmnts {
 		stmnt_ok := tc_check_stmnt( &ctx, stmnt )
@@ -233,7 +234,6 @@ pump_tc_check_pkg :: proc( c: ^Checker, pkg: ^Package ) -> PumpResult
 		ctx: CheckerContext
 		ctx.checker = c
 		ctx.mod = m
-		ctx.defer_proc_bodies = true
 		ctx.curr_scope = m.file_scope
 
 		for stmnt in m.file_scope.stmnts {
@@ -393,12 +393,12 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 				return false
 			}
 		case ^ContinueStmnt:
-			if ctx.curr_loop != nil {
+			if ctx.curr_loop == nil {
 				log_spanned_error( &s.span, "'continue' statements are only prermitted within loops" )
 				return false
 			}
 		case ^BreakStmnt:
-			if ctx.curr_loop != nil {
+			if ctx.curr_loop == nil {
 				log_spanned_error( &s.span, "'break' statements are only prermitted within loops" )
 				return false
 			}
@@ -529,18 +529,11 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			assert(ex.body != nil)
 
-			if ctx.defer_proc_bodies {
-				sync.mutex_lock( &ctx.checker.proc_work_mutex )
-				defer sync.mutex_unlock( &ctx.checker.proc_work_mutex )
+			sync.mutex_lock( &ctx.checker.proc_work_mutex )
+			defer sync.mutex_unlock( &ctx.checker.proc_work_mutex )
 
-				data := ProcBodyWorkData { ex, ctx.mod }
-				append( &ctx.checker.proc_bodies, data )
-			} else {
-				for stmnt in ex.body.stmnts {
-					stmnt_ok := tc_check_stmnt( ctx, stmnt )
-					if !stmnt_ok do return nil, .Invalid
-				}
-			}
+			data := ProcBodyWorkData { ex, ctx.mod }
+			append( &ctx.checker.proc_bodies, data )
 
 			return ty, .RValue
 		case ^Ident:
@@ -900,6 +893,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			ex.body.symbols[ex.iter.name] = ex.iter
 
+			ctx.curr_loop = ex
+
 			body_ty, body_addr_mode := tc_check_expr( ctx, ex.body )
 			if body_ty == nil do return nil, .Invalid
 
@@ -925,6 +920,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				return nil, .Invalid
 			}
 
+			ctx.curr_loop = ex
+
 			body_ty, _ := tc_check_expr( ctx, ex.body )
 			if body_ty == nil do return nil, .Invalid
 
@@ -932,6 +929,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return body_ty, .RValue
 		case ^InfiniteLoop:
+			ctx.curr_loop = ex
+
 			body_ty, _ := tc_check_expr( ctx, ex.body )
 			if body_ty == nil do return nil, .Invalid
 
@@ -1411,10 +1410,10 @@ CheckerContext :: struct
 {
 	checker: ^Checker,
 	mod: ^Module,
-	defer_proc_bodies: bool,
 	curr_proc: ^ProcProto,
 	curr_scope: ^Scope,
-	curr_loop: ^Stmnt,
+	curr_loop: ^Expr,
 	addr_mode: AddressingMode,
 	hint_type: ^Type,
+	cg_fn: ^epoch.Function
 }
