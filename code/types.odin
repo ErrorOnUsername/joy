@@ -221,6 +221,11 @@ init_builtin_types :: proc(target: TargetDesc)
 	ty_builtin_rawptr = new_primitive_type( .RawPtr, "rawptr", word_size, word_size)
 }
 
+ty_is_typeid :: proc( ty: ^Type ) -> bool
+{
+	return ty == ty_builtin_typeid
+}
+
 ty_is_untyped_builtin :: proc( ty: ^Type ) -> bool
 {
 	return ty == ty_builtin_untyped_string ||

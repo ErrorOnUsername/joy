@@ -9,19 +9,31 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 		case ^ConstDecl:
 			#partial switch v in s.value.derived_expr {
 				case ^ProcProto:
-					dbg_type := cg_get_debug_type(s.type)
-					proto := epoch.new_function_proto_from_debug_type(mod, dbg_type)
+					dbg := cg_get_debug_type(v.type)
+					proto := epoch.new_function_proto_from_debug_type(mod, dbg)
 					fn := epoch.new_function(mod, s.name, proto)
 					v.cg_val = &fn.symbol
+				case:
+					cg_emit_expr(ctx, s.value)
 			}
 		case ^VarDecl:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
 			dbg := cg_get_debug_type(s.type)
 			var := epoch.add_local(ctx.cg_fn, dbg.size, dbg.align)
 			s.cg_val = var
-			cg_emit_expr(ctx, s.default_value) or_return
-			v := cg_get_node_val(s.default_value)
-			is_volatile := false // TODO(rd): Hook this into the type system once this is expressable (necessary for embedded devices)
-			epoch.insr_store(ctx.cg_fn, var, v, is_volatile)
+
+			if s.default_value != nil {
+				cg_emit_expr(ctx, s.default_value) or_return
+				v := cg_get_node_val(s.default_value)
+				is_volatile := false // TODO(rd): Hook this into the type system once this is expressable (necessary for embedded devices)
+				epoch.insr_store(fn, var, v, is_volatile)
+			} else {
+				v := epoch.new_int_const(fn, epoch.TY_I8, u64(0))
+				sz := epoch.new_int_const(fn, epoch.TY_I64, i64(dbg.size))
+				epoch.insr_memset(fn, var, v, sz)
+			}
 		case ^EnumVariantDecl:
 			unreachable()
 		case ^UnionVariantDecl:
@@ -45,8 +57,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			epoch.insr_ret(ctx.cg_fn, v)
 	}
 
-	log_spanned_error(&stmnt.span, "impl cg_emit_stmnt")
-	return false
+	return true
 }
 
 cg_get_node_val :: proc(n: ^Node) -> ^epoch.Node {
@@ -69,6 +80,20 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
 		case ^ProcProto:
 			unreachable()
 		case ^Ident:
+			assert(!ty_is_typeid(e.type))
+			decl := lookup_ident(ctx, e.name)
+			#partial switch d in decl.derived_stmnt {
+				case ^ConstDecl:
+					// For consts we want the actual value since they don't have
+					// actual symbols in the binary (except for functions)
+					assert(d.value)
+					e.cg_val = d.value.cg_val
+				case ^VarDecl:
+					// For vars we want the pointer to the stack slot
+					e.cg_val = d.cg_val
+				case:
+					unreachable() // there isn't a way to address anything else by name so just crash ig. This would be a bug in the typecheker otherwise
+			}
 		case ^StringLiteralExpr:
 		case ^NumberLiteralExpr:
 		case ^NamedStructLiteralExpr:
@@ -90,7 +115,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
 		case ^ArrayTypeExpr:
 	}
 
-	log_error( "impl cg_emit_expr" )
+	log_spanned_error(&expr.span, "impl cg_emit_expr")
 	return false
 }
 
