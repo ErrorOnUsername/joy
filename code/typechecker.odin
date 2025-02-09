@@ -1413,6 +1413,8 @@ CheckerContext :: struct
 	curr_proc: ^ProcProto,
 	curr_scope: ^Scope,
 	curr_loop: ^Expr,
+	loop_body: ^epoch.Node,
+	loop_exit: ^epoch.Node,
 	addr_mode: AddressingMode,
 	hint_type: ^Type,
 	cg_fn: ^epoch.Function

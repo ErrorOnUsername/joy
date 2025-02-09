@@ -9,47 +9,6 @@ TypeKind :: enum {
 	Control,
 }
 
-DebugType :: struct {
-	size: int,
-	align: int,
-	extra: DebugTypeExtra
-}
-
-DebugTypeExtra :: union {
-	^DebugTypeRecord,
-	^DebugTypeField,
-	^DebugTypeUnion,
-	^DebugTypePointer,
-	^DebugTypeArray,
-	^DebugTypeFnProto,
-}
-
-DebugTypeRecord :: struct {
-	fields: []^DebugTypeField,
-}
-
-DebugTypeField :: struct {
-	name: string,
-	field_ty: ^DebugType,
-}
-
-DebugTypeUnion :: struct {
-	variants: []^DebugTypeField
-}
-
-DebugTypePointer :: struct {
-	to_ty: ^DebugType,
-}
-
-DebugTypeArray :: struct {
-	elem_type: ^DebugType,
-}
-
-DebugTypeFnProto :: struct {
-	params: []^DebugType,
-	returns: []^DebugType,
-}
-
 Type :: struct {
 	kind: TypeKind,
 	bitwidth: u16,

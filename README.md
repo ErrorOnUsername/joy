@@ -16,8 +16,8 @@ decl main := fn() {
 
 - [x] Lexing
 - [x] Parsing (multithreaded)
-- [ ] Typechecking (in-progress. multithreaded)
-- [ ] Custom IR
-- [ ] Custom backend (maybe also llvm just to learn? not sure)
+- [x] Typechecking (multithreaded)
+- [ ] Custom IR (codegen in-progress. multithreaded)
+- [ ] Custom backend
 - [ ] Metaprogramming
 

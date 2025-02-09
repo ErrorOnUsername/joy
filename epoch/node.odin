@@ -79,9 +79,6 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
-new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^FunctionProto {
-}
-
 new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
 	proj := new_node(fn, .Proj, type, 1)
 	proj.inputs[0] = src_node

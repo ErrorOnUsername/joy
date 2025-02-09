@@ -1,8 +1,11 @@
 package main
 
+import "../epoch"
+
 import "core:fmt"
 import "core:math/bits"
 import "core:mem"
+import "core:sync"
 
 
 new_type :: proc( $T: typeid, mod: ^Module, name: string ) -> ^T
@@ -35,6 +38,9 @@ Type :: struct
 	name: string,
 	size: int,
 	alignment: int,
+
+	debug_type_mtx: sync.Recursive_Mutex, // This needs to be recursive so we don't deadlock due to self-referential type definitions (linked lists for example)
+	debug_type: ^epoch.DebugType,
 }
 
 PointerType :: struct
