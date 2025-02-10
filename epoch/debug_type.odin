@@ -200,7 +200,7 @@ new_debug_type_fn :: proc(mod: ^Module, name: string, param_count: int, return_c
 }
 
 ty_from_debug_type :: proc(ty: ^DebugType) -> Type {
-	switch t in ty.extra {
+	#partial switch t in ty.extra {
 		case ^DebugTypeVoid:
 			return TY_VOID
 		case ^DebugTypeBool:
