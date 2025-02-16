@@ -199,38 +199,87 @@ new_debug_type_fn :: proc(mod: ^Module, name: string, param_count: int, return_c
 	return f
 }
 
-ty_from_debug_type :: proc(ty: ^DebugType) -> Type {
-	#partial switch t in ty.extra {
-		case ^DebugTypeVoid:
-			return TY_VOID
-		case ^DebugTypeBool:
-			return TY_BOOL
-		case ^DebugTypeInt:
-			if t.int_bits <= 8 do return TY_I8
-			if t.int_bits <= 16 do return TY_I16
-			if t.int_bits <= 32 do return TY_I32
-			if t.int_bits <= 64 do return TY_I64
-			unreachable()
-		case ^DebugTypeUInt:
-			if t.int_bits <= 8 do return TY_I8
-			if t.int_bits <= 16 do return TY_I16
-			if t.int_bits <= 32 do return TY_I32
-			if t.int_bits <= 64 do return TY_I64
-			unreachable()
-		case ^DebugTypeF32:
-			return TY_F32
-		case ^DebugTypeF64:
-			return TY_F64
-		case ^DebugTypeStruct:
-			return TY_PTR
-		case ^DebugTypeUnion:
-			return TY_PTR
-		case ^DebugTypePointer:
-			return TY_PTR
-		case ^DebugTypeArray:
-			return TY_PTR
-		case ^DebugTypeFn:
+RegisterClass :: enum {
+	IntRegister, // rdi, rsi, etc...
+	VectorRegister, // xmm0...
+	StackSlot, // structs that can't fit / aggregate return
+}
+
+debug_type_is_float :: proc(dbg_ty: ^DebugType) -> bool {
+	#partial switch d in dbg_ty.extra {
+		case ^DebugTypeF32, ^DebugTypeF64:
+			return true
 	}
+	return false
+}
+
+debug_type_is_ptr :: proc(dbg_ty: ^DebugType) -> bool {
+	#partial switch d in dbg_ty.extra {
+		case ^DebugTypePointer:
+			return true
+	}
+	return false
+}
+
+debug_type_get_size :: proc(dbg_ty: ^DebugType) -> int {
+	switch d in dbg_ty.extra {
+		case ^DebugTypeVoid:
+			return 0
+		case ^DebugTypeBool:
+			return 1
+		case ^DebugTypeInt:
+			return d.int_bits / 8
+		case ^DebugTypeUInt:
+			return d.int_bits / 8
+		case ^DebugTypeF32:
+			return 4
+		case ^DebugTypeF64:
+			return 8
+		case ^DebugTypeStruct:
+			return d.size
+		case ^DebugTypeField:
+			unreachable()
+		case ^DebugTypeUnion:
+			return d.size
+		case ^DebugTypePointer:
+			return 8 // this is a problem if we want to run on 32-bit archs
+		case ^DebugTypeArray:
+			return 8
+		case ^DebugTypeFn:
+			return 8
+	}
+	unreachable()
+}
+
+get_debug_type_register_class :: proc(dbg_ty: ^DebugType) -> RegisterClass {
+	size := debug_type_get_size(dbg_ty)
+	if size == 1 || size == 2 || size == 4 || size == 8 { // this is according to msft so its probably fucked on sysv
+		return .VectorRegister if debug_type_is_float(dbg_ty) else .IntRegister
+	}
+	return .StackSlot
+}
+
+get_type_with_register_class :: proc(reg: RegisterClass, dt: ^DebugType) -> Type {
+	switch reg {
+		case .IntRegister:
+			if debug_type_is_ptr(dt) do return TY_PTR
+
+			sz := debug_type_get_size(dt)
+			if sz == 1 do return TY_I8
+			else if sz == 2 do return TY_I16
+			else if sz == 4 do return TY_I32
+			else if sz == 8 do return TY_I64
+			unreachable()
+		case .VectorRegister:
+			#partial switch t in dt.extra {
+				case ^DebugTypeF32: return TY_F32
+				case ^DebugTypeF64: return TY_F64
+			}
+			unreachable()
+		case .StackSlot:
+			return TY_PTR
+	}
+	unreachable()
 }
 
 new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^FunctionProto {
@@ -240,14 +289,20 @@ new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^F
 	proto, _ := new(FunctionProto, m.allocator)
 	proto.params = make([]FunctionParam, len(d.params), m.allocator)
 	for p, i in d.params {
+		reg := get_debug_type_register_class(p.field_ty)
+		t := get_type_with_register_class(reg, p.field_ty)
+
 		proto.params[i].name = p.name
-		proto.params[i].type = classify_parameter_type(p.field_ty)
+		proto.params[i].type = t
 	}
 
 	proto.returns = make([]FunctionParam, len(d.returns), m.allocator)
 	for r, i in d.returns {
-		proto.returns[i].name = "ret" // FIXME(RD): These should probably have better names
-		proto.returns[i].type = classify_return_type(r)
+		reg := get_debug_type_register_class(r)
+		t := get_type_with_register_class(reg, r)
+
+		proto.returns[i].name = "$ret" // FIXME(RD): These should probably have better names
+		proto.returns[i].type = t
 	}
 
 	return proto

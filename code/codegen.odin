@@ -16,7 +16,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 					fn := epoch.new_function(mod, s.name, proto)
 					v.cg_val = &fn.symbol
 				case:
-					cg_emit_expr(ctx, s.value)
+					cg_emit_expr(ctx, s.value) or_return
 			}
 		case ^VarDecl:
 			fn := ctx.cg_fn
