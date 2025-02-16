@@ -199,12 +199,6 @@ new_debug_type_fn :: proc(mod: ^Module, name: string, param_count: int, return_c
 	return f
 }
 
-RegisterClass :: enum {
-	IntRegister, // rdi, rsi, etc...
-	VectorRegister, // xmm0...
-	StackSlot, // structs that can't fit / aggregate return
-}
-
 debug_type_is_float :: proc(dbg_ty: ^DebugType) -> bool {
 	#partial switch d in dbg_ty.extra {
 		case ^DebugTypeF32, ^DebugTypeF64:
@@ -249,62 +243,5 @@ debug_type_get_size :: proc(dbg_ty: ^DebugType) -> int {
 			return 8
 	}
 	unreachable()
-}
-
-get_debug_type_register_class :: proc(dbg_ty: ^DebugType) -> RegisterClass {
-	size := debug_type_get_size(dbg_ty)
-	if size == 1 || size == 2 || size == 4 || size == 8 { // this is according to msft so its probably fucked on sysv
-		return .VectorRegister if debug_type_is_float(dbg_ty) else .IntRegister
-	}
-	return .StackSlot
-}
-
-get_type_with_register_class :: proc(reg: RegisterClass, dt: ^DebugType) -> Type {
-	switch reg {
-		case .IntRegister:
-			if debug_type_is_ptr(dt) do return TY_PTR
-
-			sz := debug_type_get_size(dt)
-			if sz == 1 do return TY_I8
-			else if sz == 2 do return TY_I16
-			else if sz == 4 do return TY_I32
-			else if sz == 8 do return TY_I64
-			unreachable()
-		case .VectorRegister:
-			#partial switch t in dt.extra {
-				case ^DebugTypeF32: return TY_F32
-				case ^DebugTypeF64: return TY_F64
-			}
-			unreachable()
-		case .StackSlot:
-			return TY_PTR
-	}
-	unreachable()
-}
-
-new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^FunctionProto {
-	d, is_fn := dbg_ty.extra.(^DebugTypeFn)
-	assert(is_fn)
-
-	proto, _ := new(FunctionProto, m.allocator)
-	proto.params = make([]FunctionParam, len(d.params), m.allocator)
-	for p, i in d.params {
-		reg := get_debug_type_register_class(p.field_ty)
-		t := get_type_with_register_class(reg, p.field_ty)
-
-		proto.params[i].name = p.name
-		proto.params[i].type = t
-	}
-
-	proto.returns = make([]FunctionParam, len(d.returns), m.allocator)
-	for r, i in d.returns {
-		reg := get_debug_type_register_class(r)
-		t := get_type_with_register_class(reg, r)
-
-		proto.returns[i].name = "$ret" // FIXME(RD): These should probably have better names
-		proto.returns[i].type = t
-	}
-
-	return proto
 }
 
