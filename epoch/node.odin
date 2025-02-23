@@ -179,9 +179,10 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	return extra.projs[2:]
 }
 
+// FIXME(RD): This stuff is assuming windows-amd64 abi. There's probably some fucked shit going on with sys-v that we should support
 get_debug_type_register_class :: proc(dbg_ty: ^DebugType) -> RegisterClass {
 	size := debug_type_get_size(dbg_ty)
-	if size == 1 || size == 2 || size == 4 || size == 8 { // this is according to msft so its probably fucked on sysv
+	if size == 1 || size == 2 || size == 4 || size == 8 {
 		return .VectorRegister if debug_type_is_float(dbg_ty) else .IntRegister
 	}
 	return .StackSlot
@@ -210,30 +211,47 @@ get_type_with_register_class :: proc(reg: RegisterClass, dt: ^DebugType) -> Type
 	unreachable()
 }
 
-// FIXME(RD): This is assuming win_amd64 abi. There's probably some fucked shit going on with sys-v that we should support
 new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^FunctionProto {
 	d, is_fn := dbg_ty.extra.(^DebugTypeFn)
 	assert(is_fn)
 
+	has_aggregate_return := false
+	additional_returns := 0
+	if len(d.returns) > 0 {
+		primary_return_reg := get_debug_type_register_class(d.returns[0])
+		has_aggregate_return = primary_return_reg == .StackSlot
+		additional_returns = len(d.returns) - 1
+	}
+
+	aggregate_return_offset := 1 if has_aggregate_return else 0
+
 	proto, _ := new(FunctionProto, m.allocator)
-	proto.params = make([]FunctionParam, len(d.params), m.allocator)
+	proto.params = make([]FunctionParam, len(d.params) + aggregate_return_offset + additional_returns, m.allocator)
 	for p, i in d.params {
 		reg := get_debug_type_register_class(p.field_ty)
 		t := get_type_with_register_class(reg, p.field_ty)
 
-		proto.params[i].name = p.name
-		proto.params[i].type = t
-		proto.params[i].debug_type = p.field_ty
+		proto.params[aggregate_return_offset + i].name = p.name
+		proto.params[aggregate_return_offset + i].type = t
+		proto.params[aggregate_return_offset + i].debug_type = p.field_ty
 	}
 
-	proto.returns = make([]FunctionParam, len(d.returns), m.allocator)
-	for r, i in d.returns {
+	for i in 0..< additional_returns {
+		proto.params[aggregate_return_offset + len(d.params) + i].name = "$in_ret"
+		proto.params[aggregate_return_offset + len(d.params) + i].type = TY_PTR
+		proto.params[aggregate_return_offset + len(d.params) + i].debug_type = d.returns[1 + i]
+	}
+
+	if len(d.returns) > 0 && !has_aggregate_return {
+		proto.returns = make([]FunctionParam, 1, m.allocator)
+		r := d.returns[0]
 		reg := get_debug_type_register_class(r)
+		assert(reg != .StackSlot)
 		t := get_type_with_register_class(reg, r)
 
-		proto.returns[i].name = "$ret" // FIXME(RD): These should probably have better names
-		proto.returns[i].type = t
-		proto.returns[i].debug_type = r
+		proto.returns[0].name = "$ret"
+		proto.returns[0].type = t
+		proto.returns[0].debug_type = r
 	}
 
 	return proto

@@ -15,11 +15,15 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 					proto := epoch.new_function_proto_from_debug_type(mod, dbg)
 					fn := epoch.new_function(mod, s.name, proto)
 					v.cg_val = &fn.symbol
+				case ^Scope:
+					assert(v.variant != .File && v.variant != .Logic)
+					_ = cg_get_debug_type(mod, v.type)
 				case:
 					cg_emit_expr(ctx, s.value) or_return
 			}
 		case ^VarDecl:
 			fn := ctx.cg_fn
+			log_spanned_error(&s.span, "test")
 			assert(fn != nil)
 
 			dbg := cg_get_debug_type(mod, s.type)
