@@ -152,12 +152,16 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type) -> ^epoch.DebugType {
 			}
 			dbg = d
 		case ^FnType:
-			d := epoch.new_debug_type_fn(mod, ty.name, len(ty.params), 1)
+			has_returns := ty.return_type != nil && !ty_is_void(ty.return_type)
+			return_count := 1 if has_returns else 0
+			d := epoch.new_debug_type_fn(mod, ty.name, len(ty.params), return_count)
 			for p, i in ty.params {
 				p_dbg := cg_get_debug_type(mod, p)
 				d.params[i] = epoch.new_debug_type_field(mod, p.name, p_dbg, 0)
 			}
-			d.returns[0] = cg_get_debug_type(mod, ty.return_type)
+			if has_returns {
+				d.returns[0] = cg_get_debug_type(mod, ty.return_type)
+			}
 			dbg = d
 	}
 	return dbg

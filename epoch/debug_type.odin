@@ -86,64 +86,33 @@ DebugTypeFn :: struct {
 	returns: []^DebugType,
 }
 
-@(private = "file")
-void_type := DebugTypeVoid { }
-
-get_void_debug_type :: proc() -> ^DebugType {
-	return &void_type
-}
-
-@(private = "file")
-bool_type := DebugTypeBool { }
-
-get_bool_debug_type :: proc() -> ^DebugType {
-	return &bool_type
-}
-
-@(private = "file")
-int_type_table := [?]DebugTypeInt {
-	{ int_bits = 8 },
-	{ int_bits = 16 },
-	{ int_bits = 32 },
-	{ int_bits = 64 },
-}
-
-@(private = "file")
-uint_type_table := [?]DebugTypeUInt {
-	{ int_bits = 8 },
-	{ int_bits = 16 },
-	{ int_bits = 32 },
-	{ int_bits = 64 },
-}
+dbg_ty_void: ^DebugType
+dbg_ty_bool: ^DebugType
+dbg_ty_int8: ^DebugType
+dbg_ty_int16: ^DebugType
+dbg_ty_int32: ^DebugType
+dbg_ty_int64: ^DebugType
+dbg_ty_uint8: ^DebugType
+dbg_ty_uint16: ^DebugType
+dbg_ty_uint32: ^DebugType
+dbg_ty_uint64: ^DebugType
 
 get_int_debug_type :: proc(bit_count: int, is_signed: bool) -> ^DebugType {
 	if is_signed {
-		if bit_count <= 8 do return &int_type_table[0]
-		if bit_count <= 16 do return &int_type_table[1]
-		if bit_count <= 32 do return &int_type_table[2]
-		if bit_count <= 64 do return &int_type_table[3]
+		if bit_count <= 8 do return dbg_ty_int8
+		if bit_count <= 16 do return dbg_ty_int16
+		if bit_count <= 32 do return dbg_ty_int32
+		if bit_count <= 64 do return dbg_ty_int64
 	}
-	if bit_count <= 8 do return &uint_type_table[0]
-	if bit_count <= 16 do return &uint_type_table[1]
-	if bit_count <= 32 do return &uint_type_table[2]
-	if bit_count <= 64 do return &uint_type_table[3]
+	if bit_count <= 8 do return dbg_ty_uint8
+	if bit_count <= 16 do return dbg_ty_uint16
+	if bit_count <= 32 do return dbg_ty_uint32
+	if bit_count <= 64 do return dbg_ty_uint64
 
 	unreachable()
 }
-
-@(private = "file")
-f32_type := DebugTypeF32 { }
-
-get_f32_debug_type :: proc() -> ^DebugType {
-	return &f32_type
-}
-
-@(private = "file")
-f64_type := DebugTypeF64 { }
-
-get_f64_debug_type :: proc() -> ^DebugType {
-	return &f64_type
-}
+f32_type := DebugType { DebugTypeF32 { } }
+f64_type := DebugType { DebugTypeF64 { } }
 
 @(private = "file")
 new_debug_type :: proc($T: typeid, mod: ^Module) -> ^T {

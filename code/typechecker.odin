@@ -508,8 +508,43 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return nil, .Invalid
 				}
 
-				param_ok := tc_check_stmnt( ctx, p )
-				if !param_ok do return nil, .Invalid
+				if p.type_hint != nil {
+					hint_ty := tc_check_type( ctx, p.type_hint )
+					if hint_ty == nil do return nil, .Invalid
+
+					p.type = hint_ty
+				}
+
+				last_hint_ty := ctx.hint_type
+				ctx.hint_type = p.type
+				defer ctx.hint_type = last_hint_ty
+
+				if p.default_value != nil {
+					v_ty, addr_mode := tc_check_expr( ctx, p.default_value )
+					if v_ty == nil do return nil, .Invalid
+
+					if addr_mode == .Invalid {
+						log_spanned_error( &p.default_value.span, "Expression does not produce a value" )
+						return nil, .Invalid
+					}
+
+					if p.type != nil && p.type != v_ty {
+						if !ty_is_untyped_builtin( v_ty ) {
+							log_spanned_errorf( &p.default_value.span, "Value of type '{}' cannot be assigned to parameter of type '{}'", v_ty.name, p.type.name )
+							return nil, .Invalid
+						}
+
+						ellide_ok := try_ellide_untyped_to_ty( p.default_value, p.type )
+						if !ellide_ok {
+							log_spanned_errorf( &p.span, "Could not ellide '{}' to '{}'", p.default_value.type.name, p.type.name )
+							return nil, .Invalid
+						}
+					} else if ty_is_untyped_builtin( v_ty ) {
+						v_ty = get_untyped_default_concrete_ty( v_ty )
+					}
+
+					p.type = v_ty
+				}
 
 				append( &ty.params, p.type )
 
