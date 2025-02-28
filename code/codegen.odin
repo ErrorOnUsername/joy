@@ -11,22 +11,21 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 		case ^ConstDecl:
 			#partial switch v in s.value.derived_expr {
 				case ^ProcProto:
-					dbg := cg_get_debug_type(mod, v.type)
+					dbg := cg_get_debug_type(mod, v.type, &v.span) or_return
 					proto := epoch.new_function_proto_from_debug_type(mod, dbg)
 					fn := epoch.new_function(mod, s.name, proto)
 					v.cg_val = &fn.symbol
 				case ^Scope:
 					assert(v.variant != .File && v.variant != .Logic)
-					_ = cg_get_debug_type(mod, v.type)
+					_ = cg_get_debug_type(mod, v.type, &v.span) or_return
 				case:
 					cg_emit_expr(ctx, s.value) or_return
 			}
 		case ^VarDecl:
 			fn := ctx.cg_fn
-			log_spanned_error(&s.span, "test")
 			assert(fn != nil)
 
-			dbg := cg_get_debug_type(mod, s.type)
+			dbg := cg_get_debug_type(mod, s.type, &s.span) or_return
 			var := epoch.add_local(ctx.cg_fn, s.type.size, s.type.alignment)
 			s.cg_val = var
 
@@ -41,9 +40,11 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 				epoch.insr_memset(fn, var, v, sz)
 			}
 		case ^EnumVariantDecl:
-			unreachable()
+			log_spanned_error(&s.span, "Internal Compiler Error: Got unexpected enum variant in cg_emit_expr (this should only be read in cg_get_debug_type)")
+			return false
 		case ^UnionVariantDecl:
-			unreachable()
+			log_spanned_error(&s.span, "Internal Compiler Error: Got unexpected union variant in cg_emit_expr (this should only be read in cg_get_debug_type)")
+			return false
 		case ^ExprStmnt:
 			cg_emit_expr(ctx, s.expr) or_return
 			v := cg_get_node_val(s.expr)
@@ -72,72 +73,79 @@ cg_get_node_val :: proc(n: ^Node) -> ^epoch.Node {
 	return n
 }
 
-cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type) -> ^epoch.DebugType {
+cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^epoch.DebugType, ok: bool) {
 	sync.recursive_mutex_lock(&t.debug_type_mtx)
 	defer sync.recursive_mutex_unlock(&t.debug_type_mtx)
 
 	if t.debug_type != nil {
-		return t.debug_type
+		return t.debug_type, true
 	}
 
-	dbg: ^epoch.DebugType
 	switch ty in t.derived {
 		case ^PointerType:
-			base_type := cg_get_debug_type(mod, ty.underlying)
+			base_type := cg_get_debug_type(mod, ty.underlying, span) or_return
 			d := epoch.new_debug_type_ptr(mod, base_type)
 
 			dbg = d
 		case ^SliceType:
 			d := epoch.new_debug_type_struct(mod, ty.name, 2, ty.size, ty.alignment)
-			
-			data_ptr_dbg := epoch.new_debug_type_ptr(mod, cg_get_debug_type(mod, ty.underlying))
+
+			underlying_dbg := cg_get_debug_type(mod, ty.underlying, span) or_return
+			data_ptr_dbg := epoch.new_debug_type_ptr(mod, underlying_dbg)
 			d.fields[0] = epoch.new_debug_type_field(mod, "data", data_ptr_dbg, 0)
 
-			count_dbg := cg_get_debug_type(mod, ty_builtin_usize)
+			count_dbg := cg_get_debug_type(mod, ty_builtin_usize, span) or_return
 			d.fields[1] = epoch.new_debug_type_field(mod, "count", count_dbg, ty_builtin_usize.size)
 
 			dbg = d
 		case ^PrimitiveType:
 			switch ty.kind {
 				case .Void:
-					dbg = epoch.get_void_debug_type()
+					dbg = epoch.dbg_ty_void
 				case .Bool:
-					dbg = epoch.get_bool_debug_type()
+					dbg = epoch.dbg_ty_bool
 				case .U8, .U16, .U32, .U64, .USize:
 					dbg = epoch.get_int_debug_type(ty.size * 8, false)
 				case .I8, .I16, .I32, .I64, .ISize:
 					dbg = epoch.get_int_debug_type(ty.size * 8, true)
 				case .F32:
-					dbg = epoch.get_f32_debug_type()
+					dbg = epoch.dbg_ty_f32
 				case .F64:
-					dbg = epoch.get_f64_debug_type()
+					dbg = epoch.dbg_ty_f64
 				case .String:
 					d := epoch.new_debug_type_struct(mod, "string", 2, ty.size, ty.alignment)
 
-					data_ptr_dbg := epoch.new_debug_type_ptr(mod, cg_get_debug_type(mod, ty_builtin_u8))
+					underlying_dbg := cg_get_debug_type(mod, ty_builtin_u8, span) or_return
+					data_ptr_dbg := epoch.new_debug_type_ptr(mod, underlying_dbg)
 					d.fields[0] = epoch.new_debug_type_field(mod, "data", data_ptr_dbg, 0)
 
-					count_dbg := cg_get_debug_type(mod, ty_builtin_usize)
+					count_dbg := cg_get_debug_type(mod, ty_builtin_usize, span) or_return
 					d.fields[1] = epoch.new_debug_type_field(mod, "count", count_dbg, ty_builtin_usize.size)
 
 					dbg = d
 				case .CString:
-					dbg = epoch.new_debug_type_ptr(mod, cg_get_debug_type(mod, ty_builtin_u8))
+					underlying_dbg := cg_get_debug_type(mod, ty_builtin_u8, span) or_return
+					dbg = epoch.new_debug_type_ptr(mod, underlying_dbg)
 				case .RawPtr:
-					dbg = epoch.new_debug_type_ptr(mod, cg_get_debug_type(mod, ty_builtin_void))
+					underlying_dbg := cg_get_debug_type(mod, ty_builtin_void, span) or_return
+					dbg = epoch.new_debug_type_ptr(mod, underlying_dbg)
 				case .Range:
 					d := epoch.new_debug_type_struct(mod, "range", 2, ty.size, ty.alignment)
-					range_bound_dbg := cg_get_debug_type(mod, ty_builtin_isize)
+					range_bound_dbg := cg_get_debug_type(mod, ty_builtin_isize, span) or_return
 					d.fields[0] = epoch.new_debug_type_field(mod, "start", range_bound_dbg, ty_builtin_isize.size)
 					d.fields[1] = epoch.new_debug_type_field(mod, "end", range_bound_dbg, ty_builtin_isize.size * 2)
 					dbg = d
-				case .UntypedInt, .UntypedString, .TypeID:
-					unreachable()
+				case .UntypedInt, .UntypedString:
+					log_spanned_errorf(span, "Internal Compiler Error: got unexpected '{}' expression after typechecking is complete", ty.name )
+					return nil, false
+				case .TypeID:
+					log_spanned_error(span, "Internal Compiler Error: got unexpected typeid expression after typechecking is complete")
+					return nil, false
 			}
 		case ^StructType:
 			d := epoch.new_debug_type_struct(mod, ty.name, len(ty.members), ty.size, ty.alignment)
 			for mem, i in ty.members {
-				mem_dbg := cg_get_debug_type(mod, mem.ty)
+				mem_dbg := cg_get_debug_type(mod, mem.ty, span) or_return
 				d.fields[i] = epoch.new_debug_type_field(mod, mem.name, mem_dbg, mem.offset)
 			}
 			dbg = d
@@ -146,7 +154,8 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type) -> ^epoch.DebugType {
 		case ^UnionType:
 			d := epoch.new_debug_type_union(mod, ty.name, len(ty.variants), ty.size, ty.alignment)
 			for v, i in ty.variants {
-				v_dbg, is_struct := cg_get_debug_type(mod, v).extra.(^epoch.DebugTypeStruct)
+				var_dbg := cg_get_debug_type(mod, v, span) or_return
+				v_dbg, is_struct := var_dbg.extra.(^epoch.DebugTypeStruct)
 				assert(is_struct)
 				d.variants[i] = v_dbg
 			}
@@ -156,15 +165,15 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type) -> ^epoch.DebugType {
 			return_count := 1 if has_returns else 0
 			d := epoch.new_debug_type_fn(mod, ty.name, len(ty.params), return_count)
 			for p, i in ty.params {
-				p_dbg := cg_get_debug_type(mod, p)
+				p_dbg := cg_get_debug_type(mod, p, span) or_return
 				d.params[i] = epoch.new_debug_type_field(mod, p.name, p_dbg, 0)
 			}
 			if has_returns {
-				d.returns[0] = cg_get_debug_type(mod, ty.return_type)
+				d.returns[0] = cg_get_debug_type(mod, ty.return_type, span) or_return
 			}
 			dbg = d
 	}
-	return dbg
+	return dbg, true
 }
 
 cg_get_loop_exit_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {

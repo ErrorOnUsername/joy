@@ -26,6 +26,8 @@ EpochContext :: struct {
 context_init :: proc(ctx: ^EpochContext) {
 	mem.dynamic_pool_init(&ctx.pool)
 	ctx.global_allocator = mem.dynamic_pool_allocator(&ctx.pool)
+
+	init_builtin_types(ctx)
 }
 
 module_list_get_tail :: proc(head: ^ListEntry(Module)) -> ^ListEntry(Module) {

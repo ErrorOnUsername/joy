@@ -546,6 +546,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					p.type = v_ty
 				}
 
+				p.check_state = .Resolved
 				append( &ty.params, p.type )
 
 				ex.body.symbols[p.name] = p

@@ -1,5 +1,8 @@
 package epoch
 
+import "core:mem"
+import "core:sync"
+
 DebugType :: struct {
 	extra: DebugTypeExtra,
 }
@@ -111,18 +114,56 @@ get_int_debug_type :: proc(bit_count: int, is_signed: bool) -> ^DebugType {
 
 	unreachable()
 }
-f32_type := DebugType { DebugTypeF32 { } }
-f64_type := DebugType { DebugTypeF64 { } }
+
+dbg_ty_f32: ^DebugType
+dbg_ty_f64: ^DebugType
 
 @(private = "file")
-new_debug_type :: proc($T: typeid, mod: ^Module) -> ^T {
-	t, _ := new(T, mod.allocator)
+new_debug_type :: proc($T: typeid, a: mem.Allocator) -> ^T {
+	t, _ := new(T, a)
 	t.extra = t
 	return t
 }
 
+init_builtin_types :: proc(ctx: ^EpochContext) {
+	sync.mutex_lock(&ctx.global_alloc_lock)
+	defer sync.mutex_unlock(&ctx.global_alloc_lock)
+
+	dbg_ty_void = new_debug_type(DebugTypeVoid, ctx.global_allocator)
+
+	dbg_ty_bool = new_debug_type(DebugTypeBool, ctx.global_allocator)
+
+	dbg_ty_int8 = new_debug_type(DebugTypeInt, ctx.global_allocator)
+	dbg_ty_int8.extra.(^DebugTypeInt).int_bits = 8
+
+	dbg_ty_int16 = new_debug_type(DebugTypeInt, ctx.global_allocator)
+	dbg_ty_int16.extra.(^DebugTypeInt).int_bits = 16
+
+	dbg_ty_int32 = new_debug_type(DebugTypeInt, ctx.global_allocator)
+	dbg_ty_int32.extra.(^DebugTypeInt).int_bits = 32
+
+	dbg_ty_int64 = new_debug_type(DebugTypeInt, ctx.global_allocator)
+	dbg_ty_int64.extra.(^DebugTypeInt).int_bits = 64
+
+	dbg_ty_uint8 = new_debug_type(DebugTypeUInt, ctx.global_allocator)
+	dbg_ty_uint8.extra.(^DebugTypeUInt).int_bits = 8
+
+	dbg_ty_uint16 = new_debug_type(DebugTypeUInt, ctx.global_allocator)
+	dbg_ty_uint16.extra.(^DebugTypeUInt).int_bits = 16
+
+	dbg_ty_uint32 = new_debug_type(DebugTypeUInt, ctx.global_allocator)
+	dbg_ty_uint32.extra.(^DebugTypeUInt).int_bits = 32
+
+	dbg_ty_uint64 = new_debug_type(DebugTypeUInt, ctx.global_allocator)
+	dbg_ty_uint64.extra.(^DebugTypeUInt).int_bits = 64
+
+	dbg_ty_f32 = new_debug_type(DebugTypeF32, ctx.global_allocator)
+
+	dbg_ty_f64 = new_debug_type(DebugTypeF64, ctx.global_allocator)
+}
+
 new_debug_type_struct :: proc(mod: ^Module, name: string, field_count: int, size: int, align: int) -> ^DebugTypeStruct {
-	s := new_debug_type(DebugTypeStruct, mod)
+	s := new_debug_type(DebugTypeStruct, mod.allocator)
 	s.size = size
 	s.align = align
 	s.name = name
@@ -131,7 +172,7 @@ new_debug_type_struct :: proc(mod: ^Module, name: string, field_count: int, size
 }
 
 new_debug_type_field :: proc(mod: ^Module, name: string, ty: ^DebugType, offset: int) -> ^DebugTypeField {
-	f := new_debug_type(DebugTypeField, mod)
+	f := new_debug_type(DebugTypeField, mod.allocator)
 	f.name = name
 	f.field_ty = ty
 	f.offset = offset
@@ -139,7 +180,7 @@ new_debug_type_field :: proc(mod: ^Module, name: string, ty: ^DebugType, offset:
 }
 
 new_debug_type_union :: proc(mod: ^Module, name: string, variant_count: int, size: int, align: int) -> ^DebugTypeUnion {
-	u := new_debug_type(DebugTypeUnion, mod)
+	u := new_debug_type(DebugTypeUnion, mod.allocator)
 	u.size = size
 	u.align = align
 	u.name = name
@@ -148,20 +189,20 @@ new_debug_type_union :: proc(mod: ^Module, name: string, variant_count: int, siz
 }
 
 new_debug_type_ptr :: proc(mod: ^Module, underlying: ^DebugType) -> ^DebugTypePointer {
-	p := new_debug_type(DebugTypePointer, mod)
+	p := new_debug_type(DebugTypePointer, mod.allocator)
 	p.underlying = underlying
 	return p
 }
 
 new_debug_type_array :: proc(mod: ^Module, underlying: ^DebugType, count: uint) -> ^DebugTypeArray {
-	a := new_debug_type(DebugTypeArray, mod)
+	a := new_debug_type(DebugTypeArray, mod.allocator)
 	a.elem_type = underlying
 	a.count = count
 	return a
 }
 
 new_debug_type_fn :: proc(mod: ^Module, name: string, param_count: int, return_count: int) -> ^DebugTypeFn {
-	f := new_debug_type(DebugTypeFn, mod)
+	f := new_debug_type(DebugTypeFn, mod.allocator)
 	f.name = name
 	f.params = make([]^DebugTypeField, param_count, mod.allocator)
 	f.returns = make([]^DebugType, return_count, mod.allocator)
