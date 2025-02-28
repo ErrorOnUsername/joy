@@ -329,9 +329,8 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					}
 				} else if ty_is_untyped_builtin( ty ) {
 					ty = get_untyped_default_concrete_ty( ty )
+					s.type = ty
 				}
-
-				s.type = ty
 			}
 
 			assert( s.type_hint != nil || s.default_value != nil, "Internal Compiler Error: VarDecl must have at least a type hint or a default value" )
