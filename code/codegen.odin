@@ -189,7 +189,8 @@ cg_get_loop_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {
 cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
 	switch e in expr.derived_expr {
 		case ^ProcProto:
-			unreachable()
+			log_spanned_error(&e.span, "Internal Compiler Error: encountered proc proto during expr emit. Get dat closure out this bitch")
+			return false
 		case ^Ident:
 			assert(!ty_is_typeid(e.type))
 			decl := lookup_ident(ctx, e.name)
@@ -203,7 +204,8 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
 					// For vars we want the pointer to the stack slot
 					e.cg_val = d.cg_val
 				case:
-					unreachable() // there isn't a way to address anything else by name so just crash ig. This would be a bug in the typecheker otherwise
+					log_spanned_error(&e.span, "Internal Compiler Error: Ident doesn't reference a var or const.")
+					return false
 			}
 		case ^StringLiteralExpr:
 		case ^NumberLiteralExpr:
