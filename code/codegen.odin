@@ -186,11 +186,11 @@ cg_get_loop_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {
 	return ctx.loop_body
 }
 
-cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
+cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (node: ^epoch.Node, ok: bool) {
 	switch e in expr.derived_expr {
 		case ^ProcProto:
 			log_spanned_error(&e.span, "Internal Compiler Error: encountered proc proto during expr emit. Get dat closure out this bitch")
-			return false
+			return nil, false
 		case ^Ident:
 			assert(!ty_is_typeid(e.type))
 			decl := lookup_ident(ctx, e.name)
@@ -205,7 +205,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
 					e.cg_val = d.cg_val
 				case:
 					log_spanned_error(&e.span, "Internal Compiler Error: Ident doesn't reference a var or const.")
-					return false
+					return nil, false
 			}
 		case ^StringLiteralExpr:
 		case ^NumberLiteralExpr:
@@ -223,12 +223,20 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> bool {
 		case ^BinOpExpr:
 		case ^ProcCallExpr:
 		case ^PrimitiveTypeExpr:
+			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected primitive type expression in cg_emit_expr")
+			return nil, false
 		case ^PointerTypeExpr:
+			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected pointer type expression in cg_emit_expr")
+			return nil, false
 		case ^SliceTypeExpr:
+			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected slice type expression in cg_emit_expr")
+			return nil, false
 		case ^ArrayTypeExpr:
+			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected array type expression in cg_emit_expr")
+			return nil, false
 	}
 
 	log_spanned_error(&expr.span, "impl cg_emit_expr")
-	return false
+	return nil, false
 }
 
