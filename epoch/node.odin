@@ -128,6 +128,18 @@ add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
 	return n
 }
 
+add_sym :: proc(fn: ^Function, s: ^Symbol) -> ^Node {
+	n := new_node(fn, .Symbol, TY_PTR, 1)
+	n.inputs[0] = fn.start
+
+	symbol := new(SymbolExtra, fn.allocator)
+	symbol.sym = s
+
+	n.extra = symbol
+
+	return n
+}
+
 @(private = "file")
 transfer_control :: proc(fn: ^Function, new_ctrl: ^Node) -> ^Node {
 	old := fn.meta.curr_ctrl
@@ -547,6 +559,10 @@ LocalExtra :: struct {
 	align: int,
 }
 
+SymbolExtra :: struct {
+	sym: ^Symbol,
+}
+
 ProjExtra :: struct {
 	idx: int,
 }
@@ -554,6 +570,7 @@ ProjExtra :: struct {
 NodeExtra :: union {
 	^CallExtra,
 	^LocalExtra,
+	^SymbolExtra,
 	^ProjExtra,
 	IntConst,
 	FloatConst,
@@ -576,6 +593,7 @@ NodeKind :: enum {
 	F64Const,
 
 	Local,
+	Symbol,
 
 	Call,
 	Branch,

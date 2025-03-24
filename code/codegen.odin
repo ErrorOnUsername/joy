@@ -14,7 +14,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 					dbg := cg_get_debug_type(mod, v.type, &v.span) or_return
 					proto := epoch.new_function_proto_from_debug_type(mod, dbg)
 					fn := epoch.new_function(mod, s.name, proto)
-					v.cg_val = &fn.symbol
+					v.cg_val = epoch.add_sym(fn, &fn.symbol)
 				case ^Scope:
 					assert(v.variant != .File && v.variant != .Logic)
 					_ = cg_get_debug_type(mod, v.type, &v.span) or_return
@@ -30,8 +30,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			s.cg_val = var
 
 			if s.default_value != nil {
-				cg_emit_expr(ctx, s.default_value) or_return
-				v := cg_get_node_val(s.default_value)
+				v := cg_emit_expr(ctx, s.default_value) or_return
 				is_volatile := false // TODO(rd): Hook this into the type system once this is expressable (necessary for embedded devices)
 				epoch.insr_store(fn, var, v, is_volatile)
 			} else {
@@ -46,8 +45,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			log_spanned_error(&s.span, "Internal Compiler Error: Got unexpected union variant in cg_emit_expr (this should only be read in cg_get_debug_type)")
 			return false
 		case ^ExprStmnt:
-			cg_emit_expr(ctx, s.expr) or_return
-			v := cg_get_node_val(s.expr)
+			v := cg_emit_expr(ctx, s.expr) or_return
 			assert(epoch.ty_is_void(v.type))
 			s.cg_val = s.expr.cg_val
 		case ^ContinueStmnt:
@@ -59,18 +57,11 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			ctrl := cg_get_loop_exit_ctrl(ctx, ctx.curr_loop)
 			epoch.insr_br(ctx.cg_fn, ctrl)
 		case ^ReturnStmnt:
-			cg_emit_expr(ctx, s.expr) or_return
-			v := cg_get_node_val(s.expr)
+			v := cg_emit_expr(ctx, s.expr) or_return
 			epoch.insr_ret(ctx.cg_fn, v)
 	}
 
 	return true
-}
-
-cg_get_node_val :: proc(n: ^Node) -> ^epoch.Node {
-	n, is_n := n.cg_val.(^epoch.Node)
-	assert(is_n)
-	return n
 }
 
 cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^epoch.DebugType, ok: bool) {
@@ -186,7 +177,7 @@ cg_get_loop_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {
 	return ctx.loop_body
 }
 
-cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (node: ^epoch.Node, ok: bool) {
+cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 	switch e in expr.derived_expr {
 		case ^ProcProto:
 			log_spanned_error(&e.span, "Internal Compiler Error: encountered proc proto during expr emit. Get dat closure out this bitch")
@@ -207,6 +198,8 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (node: ^epoch.Node, o
 					log_spanned_error(&e.span, "Internal Compiler Error: Ident doesn't reference a var or const.")
 					return nil, false
 			}
+
+			return e.cg_val, true
 		case ^StringLiteralExpr:
 		case ^NumberLiteralExpr:
 		case ^NamedStructLiteralExpr:

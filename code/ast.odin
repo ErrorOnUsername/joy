@@ -342,16 +342,11 @@ AnyNode :: union
 	^Expr,
 }
 
-CGValue :: union {
-	^epoch.Node,
-	^epoch.Symbol,
-}
-
 Node :: struct
 {
 	span:        Span,
 	type:        ^Type,
-	cg_val:      CGValue,
+	cg_val:      ^epoch.Node,
 	derived:     AnyNode,
 	check_state: CheckState,
 }

@@ -213,7 +213,11 @@ pump_tc_check_proc_body :: proc( c: ^Checker, p: ^ProcProto, m: ^Module ) -> Pum
 	ctx.curr_proc = p
 	ctx.checker = c
 	ctx.mod = m
-	ctx.cg_fn = p.cg_val.(^epoch.Symbol).derived.(^epoch.Function)
+	fn_node := p.cg_val
+	assert(fn_node.kind == .Symbol)
+	sym, is_sym := fn_node.extra.(^epoch.SymbolExtra)
+	assert(is_sym)
+	ctx.cg_fn = sym.sym.derived.(^epoch.Function)
 
 	for stmnt in p.body.stmnts {
 		stmnt_ok := tc_check_stmnt( &ctx, stmnt )
