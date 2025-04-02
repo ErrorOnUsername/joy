@@ -23,6 +23,7 @@ new_type :: proc( $T: typeid, mod: ^Module, name: string ) -> ^T
 AnyType :: union
 {
 	^PointerType,
+	^ArrayType,
 	^SliceType,
 	^PrimitiveType,
 	^StructType,
@@ -48,6 +49,13 @@ PointerType :: struct
 	using type: Type,
 	mutable: bool,
 	underlying: ^Type,
+}
+
+ArrayType :: struct
+{
+	using type: Type,
+	underlying: ^Type,
+	count: uint,
 }
 
 SliceType :: struct
@@ -227,6 +235,45 @@ init_builtin_types :: proc(target: TargetDesc)
 	ty_builtin_rawptr = new_primitive_type( .RawPtr, "rawptr", word_size, word_size)
 }
 
+ty_eq :: proc(l_ty: ^Type, r_ty: ^Type) -> bool {
+	switch l in l_ty.derived {
+		case ^PointerType:
+			r, is_ptr := r_ty.derived.(^PointerType)
+			return is_ptr && (l.mutable == r.mutable) && ty_eq(l.underlying, r.underlying)
+		case ^ArrayType:
+			r, is_arr := r_ty.derived.(^ArrayType)
+			return is_arr && ty_eq(l.underlying, r.underlying)
+		case ^SliceType:
+			r, is_slice := r_ty.derived.(^SliceType)
+			return is_slice && ty_eq(l.underlying, r.underlying)
+		case ^PrimitiveType:
+			return l_ty == r_ty
+		case ^StructType, ^EnumType, ^UnionType:
+			return l_ty == r_ty // These are made unique due to the fact they're genereated when the struct is checked
+		case ^FnType:
+			r := r_ty.derived.(^FnType) or_return
+			
+			if len(l.params) != len(r.params) {
+				return false
+			}
+
+			if !ty_eq(l.return_type, r.return_type) {
+				return false
+			}
+
+			for lp, i in l.params {
+				rp := r.params[i]
+				if !ty_eq(lp, rp) {
+					return false
+				}
+			}
+
+			return true
+	}
+
+	return false
+}
+
 ty_is_typeid :: proc( ty: ^Type ) -> bool
 {
 	return ty == ty_builtin_typeid
@@ -250,12 +297,9 @@ ty_is_bool :: proc( ty: ^Type ) -> bool
 
 ty_is_prim :: proc( ty: ^Type, kind: PrimitiveKind ) -> bool
 {
-	switch t in ty.derived {
+	#partial switch t in ty.derived {
 		case ^PrimitiveType:
 			return t.kind == kind
-		case ^PointerType, ^SliceType, ^StructType,
-		     ^EnumType, ^UnionType, ^FnType:
-			return false
 	}
 
 	return false
@@ -263,7 +307,7 @@ ty_is_prim :: proc( ty: ^Type, kind: PrimitiveKind ) -> bool
 
 ty_is_number :: proc( ty: ^Type ) -> bool
 {
-	switch t in ty.derived {
+	#partial switch t in ty.derived {
 		case ^PrimitiveType:
 			#partial switch t.kind {
 				case .U8, .I8, .U16, .I16, .U32,
@@ -271,9 +315,6 @@ ty_is_number :: proc( ty: ^Type ) -> bool
 				     .ISize, .F32, .F64:
 					return true
 			}
-		case ^PointerType, ^SliceType, ^StructType,
-		     ^EnumType, ^UnionType, ^FnType:
-			return false
 	}
 
 	return false
@@ -281,7 +322,7 @@ ty_is_number :: proc( ty: ^Type ) -> bool
 
 ty_is_integer :: proc( ty: ^Type ) -> bool
 {
-	switch t in ty.derived {
+	#partial switch t in ty.derived {
 		case ^PrimitiveType:
 			#partial switch t.kind {
 				case .U8, .I8, .U16, .I16, .U32,
@@ -289,9 +330,6 @@ ty_is_integer :: proc( ty: ^Type ) -> bool
 				     .ISize:
 					return true
 			}
-		case ^PointerType, ^SliceType, ^StructType,
-		     ^EnumType, ^UnionType, ^FnType:
-			return false
 	}
 
 	return false
@@ -302,14 +340,17 @@ ty_is_range :: proc( ty: ^Type ) -> bool
 	return ty == ty_builtin_range
 }
 
+ty_is_array :: proc(ty: ^Type) -> bool {
+	#partial switch t in ty.derived {
+		case ^ArrayType: return true
+	}
+	return false
+}
+
 ty_is_array_or_slice :: proc( ty: ^Type ) -> bool
 {
-	switch t in ty.derived {
-		case ^SliceType:
-			return true
-		case ^PointerType, ^PrimitiveType, ^StructType,
-		     ^EnumType, ^UnionType, ^FnType:
-			return false
+	#partial switch t in ty.derived {
+		case ^SliceType: return true
 	}
 
 	return false
@@ -357,12 +398,12 @@ ty_is_enum :: proc( ty: ^Type ) -> bool
 
 ty_get_array_underlying :: proc( ty: ^Type ) -> ^Type
 {
-
+	assert(ty_is_array_or_slice(ty))
 	#partial switch t in ty.derived {
+		case ^ArrayType:
+			return t.underlying
 		case ^SliceType:
 			return t.underlying
-		case:
-			assert( false, "type is not an array or slice" )
 	}
 
 	return nil
@@ -386,9 +427,7 @@ ty_get_base :: proc( ty: ^Type ) -> ^Type
 
 ty_get_member :: proc( ty: ^Type, member_name: string ) -> ^Type
 {
-	switch t in ty.derived {
-		case ^PointerType, ^SliceType, ^PrimitiveType, ^FnType:
-			return nil
+	#partial switch t in ty.derived {
 		case ^StructType:
 			for m in &t.members {
 				if m.name == member_name {

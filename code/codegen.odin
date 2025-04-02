@@ -89,6 +89,11 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^e
 			d.fields[1] = epoch.new_debug_type_field(mod, "count", count_dbg, ty_builtin_usize.size)
 
 			dbg = d
+		case ^ArrayType:
+			underlying_dbg := cg_get_debug_type(mod, ty.underlying, span) or_return
+			d := epoch.new_debug_type_array(mod, underlying_dbg, ty.count)
+
+			dbg = d
 		case ^PrimitiveType:
 			switch ty.kind {
 				case .Void:
@@ -193,7 +198,12 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 					e.cg_val = d.value.cg_val
 				case ^VarDecl:
 					// For vars we want the pointer to the stack slot
-					e.cg_val = d.cg_val
+					v := d.cg_val
+					if v == nil {
+						log_spanned_errorf( &e.span, "Internal Compiler Error: variable '{}' is used before its value has been codegen'd", e.name )
+						return nil, false
+					}
+					e.cg_val = v
 				case:
 					log_spanned_error(&e.span, "Internal Compiler Error: Ident doesn't reference a var or const.")
 					return nil, false
@@ -213,7 +223,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 		case ^InfiniteLoop:
 		case ^RangeExpr:
 		case ^UnaryOpExpr:
-		case ^BinOpExpr:
+		case ^BinOpExpr: return cg_emit_binop(ctx, e)
 		case ^ProcCallExpr:
 		case ^PrimitiveTypeExpr:
 			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected primitive type expression in cg_emit_expr")
@@ -230,6 +240,60 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 	}
 
 	log_spanned_error(&expr.span, "impl cg_emit_expr")
+	return nil, false
+}
+
+cg_emit_binop_array :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
+	assert(ty_is_array(binop.type))
+	// Only the basics are supported for arrays
+	#partial switch binop.op.kind {
+		case .Star:
+		case .Slash:
+		case .Plus:
+		case .Minus:
+	}
+
+	log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen got an invalid binary expression on arrays")
+	return nil, false
+}
+
+cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
+	#partial switch binop.op.kind {
+		case .Star:
+		case .Slash:
+		case .Percent:
+		case .Plus:
+		case .Minus:
+		case .LShift:
+		case .RShift:
+		case .LessThanOrEqual:
+		case .LAngle:
+		case .GreaterThanOrEqual:
+		case .RAngle:
+		case .Equal:
+		case .NotEqual:
+		case .Ampersand:
+		case .Pipe:
+		case .Caret:
+		case .DoubleAmpersand:
+		case .DoublePipe:
+		case .DoubleCaret:
+		case .Assign:
+		case .PlusAssign:
+		case .MinusAssign:
+		case .StarAssign:
+		case .SlashAssign:
+		case .PercentAssign:
+		case .AmpersandAssign:
+		case .PipeAssign:
+		case .CaretAssign:
+	}
+	log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen for binary op is unimplemented")
+	return nil, false
+}
+
+cg_emit_binop :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
+	log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen revieved a binary op of invalid type")
 	return nil, false
 }
 

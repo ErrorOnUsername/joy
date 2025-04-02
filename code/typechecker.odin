@@ -274,7 +274,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					return false
 				}
 
-				if s.type_hint != nil && s.type != ty {
+				if s.type_hint != nil && !ty_eq(s.type, ty) {
 					if !ty_is_untyped_builtin( ty ) {
 						log_spanned_errorf( &s.value.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
 						return false
@@ -320,7 +320,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					return false
 				}
 
-				if s.type != nil && s.type != ty {
+				if s.type != nil && !ty_eq(s.type, ty) {
 					if !ty_is_untyped_builtin( ty ) {
 						log_spanned_errorf( &s.default_value.span, "Value of type '{}' cannot be assigned to identifier of type '{}'", ty.name, s.type.name )
 						return false
@@ -421,7 +421,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 			proc_ty := ctx.curr_proc.type.derived.(^FnType)
 
-			if ty != proc_ty.return_type {
+			if !ty_eq(ty, proc_ty.return_type) {
 				log_spanned_errorf( &s.span, "return expression's type does not match the return type of the function. Expected '{}' got '{}'", proc_ty.return_type.name, ty.name )
 				return false
 			}
@@ -531,7 +531,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 						return nil, .Invalid
 					}
 
-					if p.type != nil && p.type != v_ty {
+					if p.type != nil && !ty_eq(p.type, v_ty) {
 						if !ty_is_untyped_builtin( v_ty ) {
 							log_spanned_errorf( &p.default_value.span, "Value of type '{}' cannot be assigned to parameter of type '{}'", v_ty.name, p.type.name )
 							return nil, .Invalid
@@ -666,7 +666,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					val_ty = ex.vals[i].type
 				}
 
-				if val_ty != struct_ty.members[i].ty {
+				if !ty_eq(val_ty, struct_ty.members[i].ty) {
 					log_spanned_errorf( &ex.vals[i].span, "expected '{}' got '{}'", struct_ty.members[i].ty.name, val_ty.name )
 					return nil, .Invalid
 				}
@@ -712,7 +712,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					val_ty = ex.vals[i].type
 				}
 
-				if val_ty != struct_ty.members[i].ty {
+				if !ty_eq(val_ty, struct_ty.members[i].ty) {
 					log_spanned_errorf( &ex.vals[i].span, "expected '{}' got '{}'", struct_ty.members[i].ty.name, val_ty.name )
 					return nil, .Invalid
 				}
@@ -764,7 +764,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				ctx.hint_type = cur_ty
 				c_mem_ty: ^Type
 				c_mem_ty, addr_mode = tc_check_expr( ctx, member_expr )
-				assert(c_mem_ty == member_ty)
+				assert(ty_eq(c_mem_ty, member_ty))
 
 				chain_mem_access, is_mem_access := field.derived_expr.(^MemberAccessExpr)
 				field = chain_mem_access.member if is_mem_access else nil
@@ -886,7 +886,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					return nil, .Invalid
 				}
 
-				if cond_ty != ty_builtin_bool {
+				if !ty_is_bool(cond_ty)  {
 					log_spanned_errorf( &ex.cond.span, "expected 'bool' got '{}'", cond_ty.name )
 					return nil, .Invalid
 				}
@@ -901,7 +901,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				else_ty, addr_mode := tc_check_expr( ctx, ex.else_block )
 				if else_ty == nil do return nil, .Invalid
 
-				if then_ty != else_ty {
+				if !ty_eq(then_ty, else_ty) {
 					log_spanned_error( &ex.else_block.span, "not all branches yeild the same type" )
 					return nil, .Invalid
 				}
@@ -1179,7 +1179,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					param_ty = ex.params[i].type
 				}
 
-				if param_ty != fn_ty.params[i] {
+				if !ty_eq(param_ty, fn_ty.params[i]) {
 					log_spanned_errorf( &ex.span, "parameter type mismatch, expected '{}' got '{}'", fn_ty.params[i].name, param_ty.name )
 					return nil, .Invalid
 				}
@@ -1362,7 +1362,7 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 				return nil, false
 			}
 
-			if l_ty != r_ty {
+			if !ty_eq(l_ty, r_ty) {
 				return nil, false
 			}
 
@@ -1376,21 +1376,18 @@ type_after_op :: proc( op: Token, l_ty: ^Type, r_ty: ^Type ) -> ( ^Type, bool )
 			_ = ret_ty
 
 			return ret_ty, true
-		case .DoubleAmpersand:
-		case .DoublePipe:
-		case .DoubleCaret:
+		case .DoubleAmpersand, .DoublePipe, .DoubleCaret:
 			if !ty_is_bool( l_ty ) || !ty_is_bool( r_ty ) {
 				return nil, false
 			}
 
 			return l_ty, true
-
 		case .AmpersandAssign, .PipeAssign, .CaretAssign:
 			if !( ty_is_number( l_ty ) && ty_is_number( r_ty ) ) && !( ty_is_bool( l_ty ) && ty_is_bool( r_ty ) ) {
 				return nil, false
 			}
 
-			if l_ty != r_ty {
+			if !ty_eq(l_ty, r_ty) {
 				return nil, false
 			}
 
