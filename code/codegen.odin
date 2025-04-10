@@ -38,6 +38,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			var := epoch.add_local(ctx.cg_fn, s.type.size, s.type.alignment)
 			s.cg_val = var
 
+			// FIXME(RD): Params are just zeroed out by default. that's dumb as shit
 			if s.default_value != nil {
 				v := cg_emit_expr(ctx, s.default_value) or_return
 				is_volatile := false // TODO(rd): Hook this into the type system once this is expressable (necessary for embedded devices)
@@ -530,7 +531,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 			log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen for binary op is unimplemented")
 			return nil, false
 	}
-	
+
 	return binop.cg_val, true
 }
 
