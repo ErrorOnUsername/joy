@@ -275,7 +275,10 @@ insr_br :: proc(fn: ^Function, to: ^Node) -> ^Node {
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {
-	unimplemented()
+	n := new_node(fn, .Return, TY_CTRL, 3)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = fn.meta.curr_mem
+	n.inputs[2] = val
 }
 
 insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
@@ -595,6 +598,7 @@ NodeKind :: enum {
 	Local,
 	Symbol,
 
+	Return,
 	Call,
 	Branch,
 	Phi,

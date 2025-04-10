@@ -15,6 +15,15 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 					proto := epoch.new_function_proto_from_debug_type(mod, dbg)
 					fn := epoch.new_function(mod, s.name, proto)
 					v.cg_val = epoch.add_sym(fn, &fn.symbol)
+
+					last_fn := ctx.cg_fn
+					defer ctx.cg_fn = last_fn
+					ctx.cg_fn = fn
+
+					for p in v.params {
+						cg_emit_stmnt(ctx, p) or_return
+					}
+
 				case ^Scope:
 					assert(v.variant != .File && v.variant != .Logic)
 					_ = cg_get_debug_type(mod, v.type, &v.span) or_return
@@ -243,6 +252,25 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 	return nil, false
 }
 
+cg_emit_binop :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
+	l_ty := binop.lhs.type
+	r_ty := binop.rhs.type
+
+	if !ty_eq(l_ty, r_ty) {
+		log_spanned_errorf(&binop.span, "Internal Compiler Error: codegen received a binop with two different types '{}' and '{}'", l_ty.name, r_ty.name)
+		return nil, false
+	}
+
+	if ty_is_number(l_ty) {
+		return cg_emit_binop_number(ctx, binop)
+	} else if ty_is_array(l_ty) {
+		return cg_emit_binop_array(ctx, binop)
+	}
+
+	log_spanned_errorf(&binop.op.span, "Internal Compiler Error: codegen received a binary op of invalid type '{}'", l_ty.name)
+	return nil, false
+}
+
 cg_emit_binop_array :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
 	assert(ty_is_array(binop.type))
 	// Only the basics are supported for arrays
@@ -257,43 +285,252 @@ cg_emit_binop_array :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.
 	return nil, false
 }
 
-cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
-	#partial switch binop.op.kind {
-		case .Star:
-		case .Slash:
-		case .Percent:
-		case .Plus:
-		case .Minus:
-		case .LShift:
-		case .RShift:
-		case .LessThanOrEqual:
-		case .LAngle:
-		case .GreaterThanOrEqual:
-		case .RAngle:
-		case .Equal:
-		case .NotEqual:
-		case .Ampersand:
-		case .Pipe:
-		case .Caret:
-		case .DoubleAmpersand:
-		case .DoublePipe:
-		case .DoubleCaret:
-		case .Assign:
-		case .PlusAssign:
-		case .MinusAssign:
-		case .StarAssign:
-		case .SlashAssign:
-		case .PercentAssign:
-		case .AmpersandAssign:
-		case .PipeAssign:
-		case .CaretAssign:
-	}
-	log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen for binary op is unimplemented")
-	return nil, false
+cg_load_number_val :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (n: ^epoch.Node, ok: bool) {
+	fn := ctx.cg_fn
+	rand := expr.cg_val
+
+	assert(epoch.ty_is_ptr(rand.type))
+
+	debug_type := cg_get_debug_type(ctx.checker.cg_module, expr.type, &expr.span) or_return
+	dbg_ty_reg := epoch.get_debug_type_register_class(debug_type)
+	reg_ty := epoch.get_type_with_register_class(dbg_ty_reg, debug_type)
+
+	// TODO(RD): Hook this up with the type system (probably not a problem for this
+	//           but will be for explicit deref)
+	is_volatile := false
+
+	return epoch.insr_load(fn, reg_ty, expr.cg_val, is_volatile), true
 }
 
-cg_emit_binop :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (^epoch.Node, bool) {
-	log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen revieved a binary op of invalid type")
-	return nil, false
+cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^epoch.Node, ok: bool) {
+	assert(ty_eq(binop.lhs.type, binop.rhs.type))
+	assert(ty_is_number(binop.lhs.type))
+
+	lhs := cg_emit_expr(ctx, binop.lhs) or_return
+	rhs := cg_emit_expr(ctx, binop.rhs) or_return
+
+	// We need to load the lhs value if its not the dst for a store (ie any non-assigning op)
+	if !is_mutating_op(binop.op.kind) && epoch.ty_is_ptr(lhs.type) {
+		lhs = cg_load_number_val(ctx, binop.lhs) or_return
+	}
+
+	// Always load the value for the rhs since its going to be copied over
+	if epoch.ty_is_ptr(rhs.type) {
+		rhs = cg_load_number_val(ctx, binop.rhs) or_return
+	}
+
+	is_float := epoch.ty_is_float(lhs.type)
+	is_signed_int := ty_is_signed_integer(binop.lhs.type)
+
+	fn := ctx.cg_fn
+	assert(fn != nil)
+
+	#partial switch binop.op.kind {
+		case .Star:
+			if is_float {
+				binop.cg_val = epoch.insr_fmul(fn, lhs, rhs)
+			} else {
+				binop.cg_val = epoch.insr_mul(fn, lhs, rhs)
+			}
+		case .Slash:
+			if is_float {
+				binop.cg_val = epoch.insr_fdiv(fn, lhs, rhs)
+			} else {
+				if is_signed_int {
+					binop.cg_val = epoch.insr_sdiv(fn, lhs, rhs)
+				} else {
+					binop.cg_val = epoch.insr_udiv(fn, lhs, rhs)
+				}
+			}
+		case .Percent:
+			if is_float {
+				log_spanned_error(&binop.op.span, "Internal Compiler Error: fmod instruction emission is not implemented :'(")
+				return nil, false
+			} else {
+				if is_signed_int {
+					binop.cg_val = epoch.insr_smod(fn, lhs, rhs)
+				} else {
+					binop.cg_val = epoch.insr_umod(fn, lhs, rhs)
+				}
+			}
+		case .Plus:
+			if is_float {
+				binop.cg_val = epoch.insr_fadd(fn, lhs, rhs)
+			} else {
+				binop.cg_val = epoch.insr_add(fn, lhs, rhs)
+			}
+		case .Minus:
+			if is_float {
+				binop.cg_val = epoch.insr_fsub(fn, lhs, rhs)
+			} else {
+				binop.cg_val = epoch.insr_sub(fn, lhs, rhs)
+			}
+		case .LShift:
+			assert(!is_float)
+			binop.cg_val = epoch.insr_shl(fn, lhs, rhs)
+		case .RShift:
+			assert(!is_float)
+			binop.cg_val = epoch.insr_shr(fn, lhs, rhs)
+		case .LessThanOrEqual:
+			if is_float {
+				binop.cg_val = epoch.insr_cmp_fle(fn, lhs, rhs)
+			} else {
+				if is_signed_int {
+					binop.cg_val = epoch.insr_cmp_sle(fn, lhs, rhs)
+				} else {
+					binop.cg_val = epoch.insr_cmp_ule(fn, lhs, rhs)
+				}
+			}
+		case .LAngle:
+			if is_float {
+				binop.cg_val = epoch.insr_cmp_flt(fn, lhs, rhs)
+			} else {
+				if is_signed_int {
+					binop.cg_val = epoch.insr_cmp_slt(fn, lhs, rhs)
+				} else {
+					binop.cg_val = epoch.insr_cmp_ult(fn, lhs, rhs)
+				}
+			}
+		case .GreaterThanOrEqual:
+			if is_float {
+				binop.cg_val = epoch.insr_cmp_fge(fn, lhs, rhs)
+			} else {
+				if is_signed_int {
+					binop.cg_val = epoch.insr_cmp_sge(fn, lhs, rhs)
+				} else {
+					binop.cg_val = epoch.insr_cmp_uge(fn, lhs, rhs)
+				}
+			}
+		case .RAngle:
+			if is_float {
+				binop.cg_val = epoch.insr_cmp_fgt(fn, lhs, rhs)
+			} else {
+				if is_signed_int {
+					binop.cg_val = epoch.insr_cmp_sgt(fn, lhs, rhs)
+				} else {
+					binop.cg_val = epoch.insr_cmp_ugt(fn, lhs, rhs)
+				}
+			}
+		case .Equal:
+			binop.cg_val = epoch.insr_cmp_eq(fn, lhs, rhs)
+		case .NotEqual:
+			binop.cg_val = epoch.insr_cmp_ne(fn, lhs, rhs)
+		case .Ampersand, .DoubleAmpersand:
+			assert(!is_float)
+			binop.cg_val = epoch.insr_and(fn, lhs, rhs)
+		case .Pipe, .DoublePipe:
+			assert(!is_float)
+			binop.cg_val = epoch.insr_or(fn, lhs, rhs)
+		case .Caret, .DoubleCaret:
+			assert(!is_float)
+			binop.cg_val = epoch.insr_xor(fn, lhs, rhs)
+		case .Assign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+			// TODO(RD): Volatile bullshit for embedded cringelords (me)
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, rhs, is_volatile)
+		case .PlusAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Plus
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .PlusAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .MinusAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Minus
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .MinusAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .StarAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Star
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .StarAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .SlashAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Slash
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .SlashAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .PercentAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Percent
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .PercentAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .AmpersandAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Ampersand
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .AmpersandAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .PipeAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Pipe
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .PipeAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case .CaretAssign:
+			assert(epoch.ty_is_ptr(lhs.type))
+			assert(!epoch.ty_is_ptr(rhs.type))
+
+			// suck my balls this shit's funny
+			binop.op.kind = .Caret
+			sum_v := cg_emit_binop_number(ctx, binop) or_return
+			binop.op.kind = .CaretAssign // None the wiser :D
+
+			// TODO(RD): Volatile fuck shit
+			is_volatile := false
+			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+		case:
+			log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen for binary op is unimplemented")
+			return nil, false
+	}
+	
+	return binop.cg_val, true
 }
 

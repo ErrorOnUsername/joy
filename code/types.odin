@@ -335,6 +335,18 @@ ty_is_integer :: proc( ty: ^Type ) -> bool
 	return false
 }
 
+ty_is_signed_integer :: proc(ty: ^Type) -> bool {
+	#partial switch t in ty.derived {
+		case ^PrimitiveType:
+			#partial switch t.kind {
+				case .I8, .I16, .I32, .I64, .ISize:
+					return true
+			}
+	}
+
+	return false
+}
+
 ty_is_range :: proc( ty: ^Type ) -> bool
 {
 	return ty == ty_builtin_range
