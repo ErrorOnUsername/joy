@@ -12,6 +12,7 @@ ListEntry :: struct ($T: typeid) {
 Module :: struct {
 	name: string,
 	pool: mem.Dynamic_Pool,
+	allocator_lock: sync.Mutex,
 	allocator: mem.Allocator,
 	symbols: ^ListEntry(Symbol),
 }

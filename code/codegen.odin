@@ -3,6 +3,8 @@ package main
 import "../epoch"
 
 import "core:sync"
+import "core:fmt"
+import "core:hash"
 
 cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 	mod := ctx.checker.cg_module
@@ -221,7 +223,23 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 
 			return e.cg_val, true
 		case ^StringLiteralExpr:
+			mod := ctx.checker.cg_module
+			hash := hash.crc32(e.val)
+
+			sync.lock(&mod.allocator_lock)
+			literal_name := fmt.aprintf("gsl${}", hash, mod.allocator)
+			sync.unlock(&mod.allocator_lock)
+
+			// FIXME: Deduplicate these since otherwise we'll get duplicate symbol errors
+			g := epoch.new_global(mod, literal_name, .Private)
+			epoch.global_set_data(mod, g, e.val)
+
+			n := epoch.add_sym(ctx.cg_fn, g)
+			e.cg_val = n
+
+			return n, true
 		case ^NumberLiteralExpr:
+			epoch.new_int_const
 		case ^NamedStructLiteralExpr:
 		case ^AnonStructLiteralExpr:
 		case ^MemberAccessExpr:

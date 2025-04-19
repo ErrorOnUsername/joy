@@ -38,6 +38,13 @@ Function :: struct {
 	meta: FunctionMetaState,
 }
 
+GlobalData :: []u8
+
+Global :: struct {
+	using symbol: Symbol,
+	data: GlobalData,
+}
+
 Symbol :: struct {
 	name: string,
 	linkage: Linkage,
@@ -46,18 +53,38 @@ Symbol :: struct {
 
 AnySymbol :: union {
 	^Function,
+	^Global,
 }
 
-new_symbol :: proc(m: ^Module, $T: typeid, name: string) -> ^T {
+new_symbol :: proc(m: ^Module, $T: typeid, name: string, linkage: Linkage) -> ^T {
+	sync.lock(&m.allocator_lock)
+	defer sync.unlock(&m.allocator_lock)
+
 	sym, _ := new(T, m.allocator)
 	sym.derived = sym
 	sym.name = name
+	sym.linkage = linkage
 	return sym
 }
 
 
+new_global :: proc(m: ^Module, name: string, linkage: Linkage) -> ^Global {
+	g := new_symbol(m, Global, name, linkage)
+	return g
+}
+
+
+global_set_data :: proc(m: ^Module, g: ^Global, data: []u8) {
+	sync.lock(&m.allocator_lock)
+	defer sync.unlock(&m.allocator_lock)
+
+	new_data, _ := make([]u8, len(data), m.allocator)
+	copy(new_data, data)
+}
+
+
 new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Function {
-	fn := new_symbol(m, Function, name)
+	fn := new_symbol(m, Function, name, .Private) // TODO: hook this into the ast so that it obeys the syntax
 	mem.dynamic_pool_init(&fn.pool)
 	fn.allocator = mem.dynamic_pool_allocator(&fn.pool)
 
@@ -236,6 +263,9 @@ new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^F
 	}
 
 	aggregate_return_offset := 1 if has_aggregate_return else 0
+
+	sync.lock(&m.allocator_lock)
+	defer sync.unlock(&m.allocator_lock)
 
 	proto, _ := new(FunctionProto, m.allocator)
 	proto.params = make([]FunctionParam, len(d.params) + aggregate_return_offset + additional_returns, m.allocator)

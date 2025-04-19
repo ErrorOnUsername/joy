@@ -163,6 +163,9 @@ init_builtin_types :: proc(ctx: ^EpochContext) {
 }
 
 new_debug_type_struct :: proc(mod: ^Module, name: string, field_count: int, size: int, align: int) -> ^DebugTypeStruct {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
 	s := new_debug_type(DebugTypeStruct, mod.allocator)
 	s.size = size
 	s.align = align
@@ -172,6 +175,9 @@ new_debug_type_struct :: proc(mod: ^Module, name: string, field_count: int, size
 }
 
 new_debug_type_field :: proc(mod: ^Module, name: string, ty: ^DebugType, offset: int) -> ^DebugTypeField {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
 	f := new_debug_type(DebugTypeField, mod.allocator)
 	f.name = name
 	f.field_ty = ty
@@ -180,6 +186,9 @@ new_debug_type_field :: proc(mod: ^Module, name: string, ty: ^DebugType, offset:
 }
 
 new_debug_type_union :: proc(mod: ^Module, name: string, variant_count: int, size: int, align: int) -> ^DebugTypeUnion {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
 	u := new_debug_type(DebugTypeUnion, mod.allocator)
 	u.size = size
 	u.align = align
@@ -189,12 +198,18 @@ new_debug_type_union :: proc(mod: ^Module, name: string, variant_count: int, siz
 }
 
 new_debug_type_ptr :: proc(mod: ^Module, underlying: ^DebugType) -> ^DebugTypePointer {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
 	p := new_debug_type(DebugTypePointer, mod.allocator)
 	p.underlying = underlying
 	return p
 }
 
 new_debug_type_array :: proc(mod: ^Module, underlying: ^DebugType, count: uint) -> ^DebugTypeArray {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
 	a := new_debug_type(DebugTypeArray, mod.allocator)
 	a.elem_type = underlying
 	a.count = count
@@ -202,6 +217,9 @@ new_debug_type_array :: proc(mod: ^Module, underlying: ^DebugType, count: uint) 
 }
 
 new_debug_type_fn :: proc(mod: ^Module, name: string, param_count: int, return_count: int) -> ^DebugTypeFn {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
 	f := new_debug_type(DebugTypeFn, mod.allocator)
 	f.name = name
 	f.params = make([]^DebugTypeField, param_count, mod.allocator)
