@@ -227,7 +227,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 			hash := hash.crc32(e.val)
 
 			sync.lock(&mod.allocator_lock)
-			literal_name := fmt.aprintf("gsl${}", hash, mod.allocator)
+			literal_name := fmt.aprintf("str${}", hash, mod.allocator)
 			sync.unlock(&mod.allocator_lock)
 
 			// FIXME: Deduplicate these since otherwise we'll get duplicate symbol errors
@@ -239,7 +239,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 
 			return n, true
 		case ^NumberLiteralExpr:
-			epoch.new_int_const
 		case ^NamedStructLiteralExpr:
 		case ^AnonStructLiteralExpr:
 		case ^MemberAccessExpr:

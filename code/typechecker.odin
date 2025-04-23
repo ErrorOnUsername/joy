@@ -620,6 +620,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			return ty, .LValue
 		case ^StringLiteralExpr:
 			ex.type = ty_builtin_untyped_string
+			get_string_literal_value(ctx, ex) or_return
 			return ex.type, .RValue
 		case ^NumberLiteralExpr:
 			ex.type = ty_builtin_untyped_int
