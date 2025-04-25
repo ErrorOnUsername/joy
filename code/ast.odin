@@ -123,6 +123,7 @@ StringLiteralExpr :: struct
 {
 	using expr: Expr,
 	str:        string,
+	val:        []u8,
 }
 
 NumberLiteralExpr :: struct

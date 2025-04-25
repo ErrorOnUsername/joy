@@ -620,10 +620,13 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			return ty, .LValue
 		case ^StringLiteralExpr:
 			ex.type = ty_builtin_untyped_string
-			get_string_literal_value(ctx, ex) or_return
+			if !get_string_literal_value(ctx, ex) do return nil, .Invalid
+
 			return ex.type, .RValue
 		case ^NumberLiteralExpr:
 			ex.type = ty_builtin_untyped_int
+			if !get_number_literal_value(ctx, ex) do return nil, .Invalid
+
 			return ex.type, .RValue
 		case ^NamedStructLiteralExpr:
 			decl := lookup_ident( ctx, ex.name )
