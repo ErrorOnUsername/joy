@@ -120,6 +120,7 @@ PrimitiveKind :: enum
 	RawPtr,
 	Range,
 	UntypedInt,
+	UntypedFloat,
 	UntypedString,
 	TypeID,
 }
@@ -178,6 +179,7 @@ PrimitiveType :: struct
 ty_builtin_typeid: ^Type
 
 ty_builtin_untyped_int: ^Type
+ty_builtin_untyped_float: ^Type
 ty_builtin_untyped_string: ^Type
 
 ty_builtin_void: ^Type
@@ -214,6 +216,7 @@ init_builtin_types :: proc(target: TargetDesc)
 
 	ty_builtin_typeid = new_primitive_type( .TypeID, "type", -1, -1 )
 	ty_builtin_untyped_int = new_primitive_type( .UntypedInt, "untyped int", -1, -1 )
+	ty_builtin_untyped_float = new_primitive_type( .UntypedFloat, "untyped float", -1, -1 )
 	ty_builtin_untyped_string = new_primitive_type( .UntypedString, "untyped string", -1, -1 )
 	ty_builtin_void = new_primitive_type( .Void, "void", 0, 0 )
 	ty_builtin_bool = new_primitive_type( .Bool, "bool", 1, 1 )
@@ -282,7 +285,8 @@ ty_is_typeid :: proc( ty: ^Type ) -> bool
 ty_is_untyped_builtin :: proc( ty: ^Type ) -> bool
 {
 	return ty == ty_builtin_untyped_string ||
-	       ty == ty_builtin_untyped_int
+	       ty == ty_builtin_untyped_int ||
+	       ty == ty_builtin_untyped_float
 }
 
 ty_is_void :: proc( ty: ^Type ) -> bool

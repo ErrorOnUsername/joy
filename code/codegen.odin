@@ -143,7 +143,7 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^e
 					d.fields[0] = epoch.new_debug_type_field(mod, "start", range_bound_dbg, ty_builtin_isize.size)
 					d.fields[1] = epoch.new_debug_type_field(mod, "end", range_bound_dbg, ty_builtin_isize.size * 2)
 					dbg = d
-				case .UntypedInt, .UntypedString:
+				case .UntypedInt, .UntypedFloat, .UntypedString:
 					log_spanned_errorf(span, "Internal Compiler Error: got unexpected '{}' expression after typechecking is complete", ty.name )
 					return nil, false
 				case .TypeID:

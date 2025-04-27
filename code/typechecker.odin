@@ -1,5 +1,6 @@
 package main
 
+import "core:math/big"
 import "core:sync"
 import "core:strings"
 import "core:fmt"
@@ -624,8 +625,12 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 
 			return ex.type, .RValue
 		case ^NumberLiteralExpr:
-			ex.type = ty_builtin_untyped_int
 			if !get_number_literal_value(ctx, ex) do return nil, .Invalid
+
+			switch v in ex.val {
+				case big.Int: ex.type = ty_builtin_untyped_int
+				case f64:     ex.type = ty_builtin_untyped_float
+			}
 
 			return ex.type, .RValue
 		case ^NamedStructLiteralExpr:
@@ -1234,7 +1239,9 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				case .Range:
 					prim_ty = ty_builtin_range
 				case .UntypedInt:
-					prim_ty = ty_builtin_untyped_string
+					prim_ty = ty_builtin_untyped_int
+				case .UntypedFloat:
+					prim_ty = ty_builtin_untyped_float
 				case .UntypedString:
 					prim_ty = ty_builtin_untyped_string
 			}

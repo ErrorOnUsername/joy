@@ -3,6 +3,7 @@ package main
 import "../epoch"
 
 import "base:intrinsics"
+import "core:math/big"
 import "core:mem"
 
 
@@ -126,10 +127,17 @@ StringLiteralExpr :: struct
 	val:        []u8,
 }
 
+NumberLiteralValue :: union
+{
+	big.Int,
+	f64,
+}
+
 NumberLiteralExpr :: struct
 {
 	using expr: Expr,
 	str:        string,
+	val:        NumberLiteralValue,
 }
 
 NamedStructLiteralExpr :: struct
