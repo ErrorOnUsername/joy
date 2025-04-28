@@ -59,7 +59,10 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			return false
 		case ^ExprStmnt:
 			v := cg_emit_expr(ctx, s.expr) or_return
-			assert(epoch.ty_is_void(v.type))
+			if !epoch.ty_is_void(v.type) {
+				log_spanned_errorf(&s.span, "Internal Compiler Error: Expression produces a value of type '{}' but that value isn't captured", s.expr.type.name)
+				return false
+			}
 			s.cg_val = s.expr.cg_val
 		case ^ContinueStmnt:
 			assert(ctx.curr_loop != nil)
@@ -244,6 +247,49 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 				log_spanned_error(&e.span, "Internal Compiler Error: Number literal is still untyped")
 				return nil, false
 			}
+
+			mod := ctx.checker.cg_module
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			d_type, ok := cg_get_debug_type(mod, e.type, &e.span)
+			if !ok do return nil, false
+
+			reg_class := epoch.get_debug_type_register_class(d_type)
+			t := epoch.get_type_with_register_class(reg_class, d_type)
+
+			switch v in &e.val {
+				case big.Int:
+					if !epoch.debug_type_is_int(d_type) {
+						log_spanned_errorf(&e.span, "Internal Compiler Error: codegen found an integer literal with a non-integer debug type '{}'", e.type.name)
+						return nil, false
+					}
+
+					ty_bit_count := epoch.debug_type_get_int_bit_count(d_type)
+					literal_bit_count, bit_err := big.count_bits(&v)
+					assert(bit_err == .Okay)
+
+					// FIXME(RD): This should be handled in the typechecker itself when we figure out what type a literal should be, not this late
+					if literal_bit_count > ty_bit_count {
+						log_spanned_errorf(&e.span, "Internal Compiler Error: codegen found a literal that is to big ({} bits) for the specified type '{}'", literal_bit_count, e.type.name)
+						return nil, false
+					}
+
+					assert(literal_bit_count < 64)
+					val, get_err := big.get_u64(&v)
+					assert(get_err == .Okay)
+
+					n := epoch.new_int_const(fn, t, val)
+					e.cg_val = n
+					return n, true
+				case f64:
+					n := epoch.new_float_const(fn, t, v)
+					e.cg_val = n
+					return n, true
+			}
+
+			log_spanned_errorf(&e.span, "Internal Compiler Error: Invalid number literal of type '{}' reached codegen stage", e.type.name)
+			return nil, false
 		case ^NamedStructLiteralExpr:
 		case ^AnonStructLiteralExpr:
 		case ^MemberAccessExpr:

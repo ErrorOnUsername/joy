@@ -227,6 +227,14 @@ new_debug_type_fn :: proc(mod: ^Module, name: string, param_count: int, return_c
 	return f
 }
 
+debug_type_is_int :: proc(dbg_ty: ^DebugType) -> bool {
+	#partial switch d in dbg_ty.extra {
+		case ^DebugTypeInt, ^DebugTypeUInt:
+			return true
+	}
+	return false
+}
+
 debug_type_is_float :: proc(dbg_ty: ^DebugType) -> bool {
 	#partial switch d in dbg_ty.extra {
 		case ^DebugTypeF32, ^DebugTypeF64:
@@ -241,6 +249,16 @@ debug_type_is_ptr :: proc(dbg_ty: ^DebugType) -> bool {
 			return true
 	}
 	return false
+}
+
+debug_type_get_int_bit_count :: proc(dbg_ty: ^DebugType) -> int {
+	#partial switch d in dbg_ty.extra {
+		case ^DebugTypeInt: return d.int_bits
+		case ^DebugTypeUInt: return d.int_bits
+		case:
+			unimplemented("debug type is not an integer")
+	}
+	return 0
 }
 
 debug_type_get_size :: proc(dbg_ty: ^DebugType) -> int {
