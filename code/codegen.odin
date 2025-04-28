@@ -59,7 +59,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			return false
 		case ^ExprStmnt:
 			v := cg_emit_expr(ctx, s.expr) or_return
-			if !epoch.ty_is_void(v.type) {
+			if v != nil {
 				log_spanned_errorf(&s.span, "Internal Compiler Error: Expression produces a value of type '{}' but that value isn't captured", s.expr.type.name)
 				return false
 			}
@@ -498,7 +498,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 			assert(!epoch.ty_is_ptr(rhs.type))
 			// TODO(RD): Volatile bullshit for embedded cringelords (me)
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, rhs, is_volatile)
+			epoch.insr_store(fn, lhs, rhs, is_volatile)
+			binop.cg_val = nil
 		case .PlusAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -510,7 +511,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .MinusAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -522,7 +524,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .StarAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -534,7 +537,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .SlashAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -546,7 +550,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .PercentAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -558,7 +563,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .AmpersandAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -570,7 +576,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .PipeAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -582,7 +589,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case .CaretAssign:
 			assert(epoch.ty_is_ptr(lhs.type))
 			assert(!epoch.ty_is_ptr(rhs.type))
@@ -594,7 +602,8 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			binop.cg_val = epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			epoch.insr_store(fn, lhs, sum_v, is_volatile)
+			binop.cg_val = nil
 		case:
 			log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen for binary op is unimplemented")
 			return nil, false
