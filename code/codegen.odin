@@ -258,7 +258,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 			reg_class := epoch.get_debug_type_register_class(d_type)
 			t := epoch.get_type_with_register_class(reg_class, d_type)
 
-			switch v in &e.val {
+			switch &v in e.val {
 				case big.Int:
 					if !epoch.debug_type_is_int(d_type) {
 						log_spanned_errorf(&e.span, "Internal Compiler Error: codegen found an integer literal with a non-integer debug type '{}'", e.type.name)
