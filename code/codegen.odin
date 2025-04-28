@@ -2,9 +2,10 @@ package main
 
 import "../epoch"
 
-import "core:sync"
 import "core:fmt"
 import "core:hash"
+import "core:math/big"
+import "core:sync"
 
 cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 	mod := ctx.checker.cg_module
@@ -239,6 +240,10 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 
 			return n, true
 		case ^NumberLiteralExpr:
+			if ty_is_untyped_builtin(e.type) {
+				log_spanned_error(&e.span, "Internal Compiler Error: Number literal is still untyped")
+				return nil, false
+			}
 		case ^NamedStructLiteralExpr:
 		case ^AnonStructLiteralExpr:
 		case ^MemberAccessExpr:

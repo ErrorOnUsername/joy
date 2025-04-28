@@ -288,6 +288,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					}
 				} else if ty_is_untyped_builtin( ty ) {
 					ty = get_untyped_default_concrete_ty( ty )
+					s.value.type = ty
 				}
 
 				s.type = ty
@@ -334,6 +335,7 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					}
 				} else if ty_is_untyped_builtin( ty ) {
 					ty = get_untyped_default_concrete_ty( ty )
+					s.default_value.type = ty
 					s.type = ty
 				}
 			}
@@ -545,6 +547,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 						}
 					} else if ty_is_untyped_builtin( v_ty ) {
 						v_ty = get_untyped_default_concrete_ty( v_ty )
+						p.default_value.type = v_ty
 					}
 
 					p.type = v_ty
