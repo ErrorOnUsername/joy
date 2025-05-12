@@ -295,6 +295,15 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 		case ^MemberAccessExpr:
 		case ^ImplicitSelectorExpr:
 		case ^Scope:
+			if e.variant != .Logic {
+				log_spanned_error(&e.span, "Internal Compiler Error: non-logical scope expression reached codegen stage")
+				return nil, false
+			}
+
+			for st in e.stmnts {
+				cg_emit_stmnt(ctx, st) or_return
+			}
+			// TODO: handle the value yield here.
 		case ^IfExpr:
 			fn := ctx.cg_fn
 			assert(fn != nil)
@@ -325,6 +334,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			}
 
 			epoch.set_control(fn, end)
+			// TODO: Handle scope value yeild
 		case ^ForLoop:
 		case ^WhileLoop:
 		case ^InfiniteLoop:
