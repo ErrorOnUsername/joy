@@ -107,6 +107,12 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
+new_region :: proc(fn: ^Function, name: string) -> ^Node {
+	n := new_node(fn, .Region, TY_CTRL, 2)
+	n.inputs[0] = fn.meta.curr_ctrl
+	return n
+}
+
 new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
 	proj := new_node(fn, .Proj, type, 1)
 	proj.inputs[0] = src_node
@@ -179,6 +185,11 @@ insert_mem_effect :: proc(fn: ^Function, new_mem: ^Node) -> ^Node {
 	old := fn.meta.curr_mem
 	fn.meta.curr_mem = new_mem
 	return old
+}
+
+set_control :: proc(fn: ^Function, ctrl: ^Node) {
+	assert(ty_is_ctrl(ctrl.type))
+	fn.meta.curr_ctrl = ctrl
 }
 
 RegisterClass :: enum {
@@ -299,9 +310,22 @@ new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^F
 	return proto
 }
 
-insr_br :: proc(fn: ^Function, to: ^Node) -> ^Node {
-	n := new_node(fn, .Branch, TY_CTRL, 3)
-	return n
+insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
+	assert(ty_is_bool(cond.type))
+	assert(ty_is_ctrl(then.type))
+	assert(ty_is_ctrl(else_l.type))
+	n := new_node(fn, .Branch, TY_CTRL, 4)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = cond
+	n.inputs[2] = then
+	n.inputs[3] = else_l
+}
+
+insr_goto :: proc(fn: ^Function, to: ^Node) {
+	assert(ty_is_ctrl(to.type))
+	n := new_node(fn, .Goto, TY_CTRL, 2)
+	n.inputs[0] = fn.meta.curr_ctrl
+	n.inputs[1] = to
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {
@@ -631,6 +655,7 @@ NodeKind :: enum {
 	Return,
 	Call,
 	Branch,
+	Goto,
 	Phi,
 
 	Load,

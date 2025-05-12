@@ -67,11 +67,11 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 		case ^ContinueStmnt:
 			assert(ctx.curr_loop != nil)
 			ctrl := cg_get_loop_ctrl(ctx, ctx.curr_loop)
-			epoch.insr_br(ctx.cg_fn, ctrl)
+			epoch.insr_goto(ctx.cg_fn, ctrl)
 		case ^BreakStmnt:
 			assert(ctx.curr_loop != nil)
 			ctrl := cg_get_loop_exit_ctrl(ctx, ctx.curr_loop)
-			epoch.insr_br(ctx.cg_fn, ctrl)
+			epoch.insr_goto(ctx.cg_fn, ctrl)
 		case ^ReturnStmnt:
 			v := cg_emit_expr(ctx, s.expr) or_return
 			epoch.insr_ret(ctx.cg_fn, v)
@@ -198,7 +198,7 @@ cg_get_loop_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {
 	return ctx.loop_body
 }
 
-cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
+cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok: bool) {
 	switch e in expr.derived_expr {
 		case ^ProcProto:
 			log_spanned_error(&e.span, "Internal Compiler Error: encountered proc proto during expr emit. Get dat closure out this bitch")
@@ -296,6 +296,35 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^epoch.Node, bool) {
 		case ^ImplicitSelectorExpr:
 		case ^Scope:
 		case ^IfExpr:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			end := epoch.new_region(fn, "if.end")
+
+			curr_if := e
+			for curr_if != nil {
+				if curr_if.cond != nil {
+					then := epoch.new_region(fn, "if.then")
+					else_br := end
+
+					if curr_if.else_block != nil {
+						else_br = epoch.new_region(fn, "if.else")
+					}
+
+					true_val := epoch.new_int_const(fn, epoch.TY_BOOL, i64(1))
+					cond_v := cg_emit_expr(ctx, e.cond) or_return
+					cmp := epoch.insr_cmp_eq(fn, cond_v, true_val)
+
+					epoch.insr_br(fn, cmp, then, else_br)
+					epoch.set_control(fn, then)
+				}
+
+				br_v := cg_emit_expr(ctx, curr_if.then) or_return
+
+				curr_if = curr_if.else_block
+			}
+
+			epoch.set_control(fn, end)
 		case ^ForLoop:
 		case ^WhileLoop:
 		case ^InfiniteLoop:
@@ -485,6 +514,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 		case .NotEqual:
 			binop.cg_val = epoch.insr_cmp_ne(fn, lhs, rhs)
 		case .Ampersand, .DoubleAmpersand:
+			// RD: Fix these to short-circuit
 			assert(!is_float)
 			binop.cg_val = epoch.insr_and(fn, lhs, rhs)
 		case .Pipe, .DoublePipe:
