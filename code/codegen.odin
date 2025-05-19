@@ -295,18 +295,33 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 		case ^MemberAccessExpr:
 		case ^ImplicitSelectorExpr:
 		case ^Scope:
-			if e.variant != .Logic {
-				log_spanned_error(&e.span, "Internal Compiler Error: non-logical scope expression reached codegen stage")
-				return nil, false
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			fnl_v: ^epoch.Node
+			if !ty_is_void(e.type) && e.cg_val == nil {
+				fnl_v = epoch.add_local(fn, e.type.size, e.type.alignment)
+				e.cg_val = fnl_v
 			}
 
-			for st in e.stmnts {
-				cg_emit_stmnt(ctx, st) or_return
+			old_scope := ctx.curr_scope
+			defer ctx.curr_scope = old_scope
+			ctx.curr_scope = e
+
+			for s in e.stmnts {
+				cg_emit_stmnt(ctx, s) or_return
 			}
-			// TODO: handle the value yield here.
+
+			return fnl_v, true
 		case ^IfExpr:
 			fn := ctx.cg_fn
 			assert(fn != nil)
+
+			dst_slot: ^epoch.Node
+			if !ty_is_void(e.type) {
+				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				e.cg_val = dst_slot
+			}
 
 			end := epoch.new_region(fn, "if.end")
 
@@ -328,13 +343,16 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 					epoch.set_control(fn, then)
 				}
 
+				// child sopes of the main if expr just inherit the main stack slot
+				// so they store the result in the same spot.
+				curr_if.then.cg_val = dst_slot // could be nil (if block doesn't yeild a value)
 				br_v := cg_emit_expr(ctx, curr_if.then) or_return
 
 				curr_if = curr_if.else_block
 			}
 
 			epoch.set_control(fn, end)
-			// TODO: Handle scope value yeild
+			return dst_slot, true
 		case ^ForLoop:
 		case ^WhileLoop:
 		case ^InfiniteLoop:
