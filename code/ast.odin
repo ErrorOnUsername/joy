@@ -177,7 +177,7 @@ IfExpr :: struct
 ForLoop :: struct
 {
 	using expr: Expr,
-	iter: ^VarDecl,
+	iter:       ^VarDecl,
 	range:      ^Expr,
 	body:       ^Scope,
 }

@@ -354,8 +354,73 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			epoch.set_control(fn, end)
 			return dst_slot, true
 		case ^ForLoop:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			dst_slot: ^epoch.Node
+			if !ty_is_void(e.type) {
+				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				e.cg_val = dst_slot
+			}
+
+			iter_slot := epoch.add_local(fn, e.iter.type.size, e.iter.type.alignment)
+
+			loop_end := epoch.new_region(fn, "loop.end")
+
+			if !(ty_is_array_or_slice(e.range.type) || ty_is_range(e.range.type) || ty_is_string(e.range.type)) {
+				log_spanned_errorf(&e.range.span, "Internal Compiler Error: codegen got a for loop trying to iterate over an expression of type '{}', only arrays, slices, strings, and ranges are permitted.", e.range.type.name)
+				return nil, false
+			}
+
+			range_v := cg_emit_expr(ctx, e.range) or_return
+
+			e.body.cg_val = dst_slot // inherit parent slot so it doesn't allocate its own
+
+			loop_header := epoch.new_region(fn, "loop.header")
+			loop_body := epoch.new_region(fn, "loop.body")
+
+			epoch.insr_goto(fn, loop_header)
+			epoch.set_control(fn, loop_header)
+
+			// check predicate, goto body or end
+
+			epoch.set_control(fn, loop_body)
+
+			cg_emit_expr(ctx, e.body) or_return
+
+			epoch.insr_goto(fn, loop_header)
+
+			epoch.set_control(fn, loop_end)
+			return dst_slot, true
 		case ^WhileLoop:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			loop_end := epoch.new_region(fn, "loop.end")
+			loop_header := epoch.new_region(fn, "loop.header")
+			loop_body := epoch.new_region(fn, "loop.body")
 		case ^InfiniteLoop:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			loop_end := epoch.new_region(fn, "loop.end")
+			loop_body := epoch.new_region(fn, "loop.body")
+
+			dst_slot: ^epoch.Node
+			if !ty_is_void(e.type) {
+				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				e.cg_val = dst_slot
+			}
+
+			epoch.insr_goto(fn, loop_body)
+			epoch.set_control(fn, loop_body)
+
+			e.body.cg_val = dst_slot
+			cg_emit_expr(ctx, e.body) or_return
+
+			epoch.set_control(fn, loop_end)
+
+			return dst_slot, true
 		case ^RangeExpr:
 		case ^UnaryOpExpr:
 		case ^BinOpExpr: return cg_emit_binop(ctx, e)

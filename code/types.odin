@@ -356,6 +356,10 @@ ty_is_range :: proc( ty: ^Type ) -> bool
 	return ty == ty_builtin_range
 }
 
+ty_is_string :: proc(ty: ^Type) -> bool {
+	return ty == ty_builtin_string
+}
+
 ty_is_array :: proc(ty: ^Type) -> bool {
 	#partial switch t in ty.derived {
 		case ^ArrayType: return true
