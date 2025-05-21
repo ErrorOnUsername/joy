@@ -65,13 +65,35 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			}
 			s.cg_val = s.expr.cg_val
 		case ^ContinueStmnt:
-			assert(ctx.curr_loop != nil)
-			ctrl := cg_get_loop_ctrl(ctx, ctx.curr_loop)
-			epoch.insr_goto(ctx.cg_fn, ctrl)
+			if ctx.curr_loop == nil {
+				log_spanned_error(&s.span, "Internal Compiler Error: codegen recieved a continue statement outside of a loop")
+				return false
+			}
+
+			if ctx.cg_loop_start == nil {
+				log_spanned_error(&s.span, "Internal Compiler Error: codegen recieved a continue statement but 'cg_loop_start' wasn't set")
+				return false
+			}
+
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			epoch.insr_goto(fn, ctx.cg_loop_start)
 		case ^BreakStmnt:
-			assert(ctx.curr_loop != nil)
-			ctrl := cg_get_loop_exit_ctrl(ctx, ctx.curr_loop)
-			epoch.insr_goto(ctx.cg_fn, ctrl)
+			if ctx.curr_loop == nil {
+				log_spanned_error(&s.span, "Internal Compiler Error: codegen recieved a break statement outside of a loop")
+				return false
+			}
+
+			if ctx.cg_loop_end == nil {
+				log_spanned_error(&s.span, "Internal Compiler Error: codegen recieved a break statement but 'cg_loop_end' wasn't set")
+				return false
+			}
+
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			epoch.insr_goto(fn, ctx.cg_loop_end)
 		case ^ReturnStmnt:
 			v := cg_emit_expr(ctx, s.expr) or_return
 			epoch.insr_ret(ctx.cg_fn, v)
@@ -186,16 +208,6 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^e
 			dbg = d
 	}
 	return dbg, true
-}
-
-cg_get_loop_exit_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {
-	assert(ctx.loop_body != nil && ctx.loop_exit != nil)
-	return ctx.loop_exit
-}
-
-cg_get_loop_ctrl :: proc(ctx: ^CheckerContext, l: ^Expr) -> ^epoch.Node {
-	assert(ctx.loop_body != nil && ctx.loop_exit != nil)
-	return ctx.loop_body
 }
 
 cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok: bool) {
