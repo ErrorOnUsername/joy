@@ -1458,14 +1458,16 @@ AddressingMode :: enum
 
 CheckerContext :: struct
 {
-	checker: ^Checker,
-	mod: ^Module,
-	curr_proc: ^ProcProto,
-	curr_scope: ^Scope,
-	curr_loop: ^Expr,
-	loop_body: ^epoch.Node,
-	loop_exit: ^epoch.Node,
-	addr_mode: AddressingMode,
-	hint_type: ^Type,
-	cg_fn: ^epoch.Function
+	checker:       ^Checker,
+	mod:           ^Module,
+	curr_proc:     ^ProcProto,
+	curr_scope:    ^Scope,
+	curr_loop:     ^Expr,
+	loop_body:     ^epoch.Node,
+	loop_exit:     ^epoch.Node,
+	addr_mode:     AddressingMode,
+	hint_type:     ^Type,
+	cg_fn:         ^epoch.Function,
+	cg_loop_start: ^epoch.Node, // target for continue
+	cg_loop_end:   ^epoch.Node, // target for break
 }

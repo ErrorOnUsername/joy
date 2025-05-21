@@ -366,6 +366,9 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			iter_slot := epoch.add_local(fn, e.iter.type.size, e.iter.type.alignment)
 
 			loop_end := epoch.new_region(fn, "loop.end")
+			last_end := ctx.cg_loop_end
+			defer ctx.cg_loop_end = last_end
+			ctx.cg_loop_end = loop_end
 
 			if !(ty_is_array_or_slice(e.range.type) || ty_is_range(e.range.type) || ty_is_string(e.range.type)) {
 				log_spanned_errorf(&e.range.span, "Internal Compiler Error: codegen got a for loop trying to iterate over an expression of type '{}', only arrays, slices, strings, and ranges are permitted.", e.range.type.name)
@@ -377,6 +380,10 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			e.body.cg_val = dst_slot // inherit parent slot so it doesn't allocate its own
 
 			loop_header := epoch.new_region(fn, "loop.header")
+			last_start := ctx.cg_loop_start
+			defer ctx.cg_loop_start = last_start
+			ctx.cg_loop_start = loop_header
+
 			loop_body := epoch.new_region(fn, "loop.body")
 
 			epoch.insr_goto(fn, loop_header)
@@ -396,15 +403,56 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			fn := ctx.cg_fn
 			assert(fn != nil)
 
+			dst_slot: ^epoch.Node
+			if !ty_is_void(e.type) {
+				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				e.cg_val = dst_slot
+			}
+
 			loop_end := epoch.new_region(fn, "loop.end")
+			last_end := ctx.cg_loop_end
+			defer ctx.cg_loop_end = last_end
+			ctx.cg_loop_end = loop_end
+
 			loop_header := epoch.new_region(fn, "loop.header")
+			last_start := ctx.cg_loop_start
+			defer ctx.cg_loop_start = last_start
+			ctx.cg_loop_start = loop_header
+
+			epoch.insr_goto(fn, loop_header) // We have to reuse the condition check every loop so just jmp
+			epoch.set_control(fn, loop_header)
+
+			true_val := epoch.new_int_const(fn, epoch.TY_BOOL, i64(1))
+			cond_v := cg_emit_expr(ctx, e.cond) or_return
+			cmp := epoch.insr_cmp_eq(fn, cond_v, true_val)
+
 			loop_body := epoch.new_region(fn, "loop.body")
+
+			epoch.insr_br(fn, cmp, loop_body, loop_end)
+
+			epoch.set_control(fn, loop_body)
+
+			e.body.cg_val = dst_slot
+			cg_emit_expr(ctx, e.body) or_return
+
+			epoch.insr_goto(fn, loop_header) // go see if we should break out now
+
+			epoch.set_control(fn, loop_end)
+
+			return dst_slot, true
 		case ^InfiniteLoop:
 			fn := ctx.cg_fn
 			assert(fn != nil)
 
 			loop_end := epoch.new_region(fn, "loop.end")
+			last_end := ctx.cg_loop_end
+			defer ctx.cg_loop_end = last_end
+			ctx.cg_loop_end = loop_end
+
 			loop_body := epoch.new_region(fn, "loop.body")
+			last_start := ctx.cg_loop_start
+			defer ctx.cg_loop_start = last_start
+			ctx.cg_loop_start = loop_body
 
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {
