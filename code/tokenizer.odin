@@ -428,6 +428,8 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 		token.span.end += 1
 		ch = data.data[data.read_idx]
 	}
+	str_start := token.span.start + 1 // skip the leading quote
+	str_end := data.read_idx
 
 	if ch == '\n' {
 		log_spanned_error( &token.span, "Unterminated string literal!" )
@@ -436,7 +438,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 
 	data.read_idx += 1
 	token.span.end += 1
-	token.str = data.data[token.span.start:token.span.end]
+	token.str = data.data[str_start:str_end]
 
 	return true
 }
