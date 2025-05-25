@@ -68,5 +68,8 @@ exec_phases :: proc( root_id: FileID ) -> int
 	tasks_failed = tc_check_proc_bodies( &c )
 	if tasks_failed != 0 do return tasks_failed
 
+	dump_ok := epoch.dump_module(cg_module, "asm.epoch")
+	if !dump_ok do return 1
+
 	return 0
 }

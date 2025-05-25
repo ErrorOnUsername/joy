@@ -975,6 +975,7 @@ parse_operand_prefix :: proc( file_data: ^FileData, struct_literal_allowed: bool
 		case .StringLiteral:
 			file_data.tk_idx += 1
 			str_lit := new_node( StringLiteralExpr, start_tk.span )
+			str_lit.str = start_tk.str
 			return str_lit
 		case .Number:
 			file_data.tk_idx += 1

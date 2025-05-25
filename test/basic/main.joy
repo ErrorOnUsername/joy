@@ -37,6 +37,7 @@ decl main = fn() {
 	}
 
 	let mut fact = 2;
+	/*
 	for i in [0..b) {
 		fact *= fact;
 	}
@@ -57,4 +58,5 @@ decl main = fn() {
 
 	let g: MyEnum = .VariantB;
 	let h: MyUnion = .VariantB { d, "haha" };
+	*/
 };

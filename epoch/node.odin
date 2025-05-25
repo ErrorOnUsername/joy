@@ -64,6 +64,9 @@ new_symbol :: proc(m: ^Module, $T: typeid, name: string, linkage: Linkage) -> ^T
 	sym.derived = sym
 	sym.name = name
 	sym.linkage = linkage
+
+	append(&m.symbols, sym)
+
 	return sym
 }
 
@@ -80,6 +83,8 @@ global_set_data :: proc(m: ^Module, g: ^Global, data: []u8) {
 
 	new_data, _ := make([]u8, len(data), m.allocator)
 	copy(new_data, data)
+
+	g.data = new_data
 }
 
 

@@ -14,7 +14,7 @@ Module :: struct {
 	pool: mem.Dynamic_Pool,
 	allocator_lock: sync.Mutex,
 	allocator: mem.Allocator,
-	symbols: ^ListEntry(Symbol),
+	symbols: [dynamic]^Symbol,
 }
 
 EpochContext :: struct {

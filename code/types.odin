@@ -367,6 +367,15 @@ ty_is_array :: proc(ty: ^Type) -> bool {
 	return false
 }
 
+ty_is_slice :: proc(ty: ^Type) -> bool {
+	#partial switch t in ty.derived {
+		case ^SliceType:
+			return true
+	}
+
+	return false
+}
+
 ty_is_array_or_slice :: proc( ty: ^Type ) -> bool
 {
 	#partial switch t in ty.derived {

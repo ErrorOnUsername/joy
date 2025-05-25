@@ -243,7 +243,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			hash := hash.crc32(e.val)
 
 			sync.lock(&mod.allocator_lock)
-			literal_name := fmt.aprintf("str${}", hash, mod.allocator)
+			literal_name := fmt.aprintf("str${}", hash, allocator = mod.allocator)
 			sync.unlock(&mod.allocator_lock)
 
 			// FIXME: Deduplicate these since otherwise we'll get duplicate symbol errors
@@ -401,7 +401,17 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			epoch.insr_goto(fn, loop_header)
 			epoch.set_control(fn, loop_header)
 
-			// check predicate, goto body or end
+			cond_v: ^epoch.Node
+			{
+				it := e.iter.type
+				if ty_is_range(it) {
+					// for i in [start..end)
+				} else if ty_is_string(it) || ty_is_slice(it) {
+					// for v in slice_or_string
+				} else if ty_is_array(it) {
+					// for v in arr
+				}
+			}
 
 			epoch.set_control(fn, loop_body)
 
