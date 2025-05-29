@@ -33,7 +33,24 @@ asm_symbol :: proc(sym: ^Symbol, sb: ^strings.Builder) -> bool {
 
 	switch s in sym.derived {
 		case ^Function:
-			fmt.sbprintf(sb, "fn {}", s.name)
+			fmt.sbprintf(sb, "fn {}(", s.name)
+			proto := s.proto
+			param_count := len(proto.params)
+			put_params_on_newlines := param_count > 2
+			if put_params_on_newlines {
+				fmt.sbprintf(sb, "\n")
+			}
+			for p in &proto.params {
+				if put_params_on_newlines {
+					fmt.sbprintf(sb, "\t")
+				}
+				fmt.sbprintf(sb, "{}: <type>", p.name)
+			}
+			if put_params_on_newlines {
+				fmt.sbprintf(sb, "\n")
+			}
+			fmt.sbprintf(sb, ") {{\n")
+			fmt.sbprintf(sb, "}}")
 		case ^Global:
 			fmt.sbprintf(sb, "const {} = [", s.name)
 			for b, i in s.data {
