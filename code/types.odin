@@ -92,10 +92,15 @@ UnionType :: struct
 	variants: [dynamic]^StructType,
 }
 
+FnParameter :: struct {
+	name: string,
+	ty:   ^Type,
+}
+
 FnType :: struct
 {
 	using type: Type,
-	params: [dynamic]^Type,
+	params: [dynamic]FnParameter,
 	return_type: ^Type,
 }
 
@@ -264,9 +269,9 @@ ty_eq :: proc(l_ty: ^Type, r_ty: ^Type) -> bool {
 				return false
 			}
 
-			for lp, i in l.params {
-				rp := r.params[i]
-				if !ty_eq(lp, rp) {
+			for lp, i in &l.params {
+				rp := &r.params[i]
+				if !ty_eq(lp.ty, rp.ty) {
 					return false
 				}
 			}

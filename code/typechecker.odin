@@ -554,7 +554,8 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 
 				p.check_state = .Resolved
-				append( &ty.params, p.type )
+				add_param := FnParameter { p.name, p.type }
+				append( &ty.params, add_param )
 
 				ex.body.symbols[p.name] = p
 			}
@@ -1182,7 +1183,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				}
 
 				if ty_is_untyped_builtin( param_ty ) {
-					ok := try_ellide_untyped_to_ty( ex.params[i], fn_ty.params[i] )
+					ok := try_ellide_untyped_to_ty( ex.params[i], fn_ty.params[i].ty )
 					if !ok {
 						log_spanned_errorf( &ex.params[i].span, "could not implicity cast '{}' to '{}'", ex.params[i].type.name, fn_ty.params[i].name )
 						return nil, .Invalid
@@ -1191,7 +1192,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					param_ty = ex.params[i].type
 				}
 
-				if !ty_eq(param_ty, fn_ty.params[i]) {
+				if !ty_eq(param_ty, fn_ty.params[i].ty) {
 					log_spanned_errorf( &ex.span, "parameter type mismatch, expected '{}' got '{}'", fn_ty.params[i].name, param_ty.name )
 					return nil, .Invalid
 				}
