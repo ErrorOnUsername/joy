@@ -443,42 +443,47 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 	return true
 }
 
-keyword_map := map[string]TokenKind {
-	"void"     = .Void,
-	"use"      = .Use,
-	"decl"     = .Decl,
-	"let"      = .Let,
-	"mut"      = .Mut,
-	"struct"   = .Struct,
-	"enum"     = .Enum,
-	"union"    = .Union,
-	"fn"       = .Fn,
-	"return"   = .Return,
-	"continue" = .Continue,
-	"break"    = .Break,
-	"in"       = .In,
-	"if"       = .If,
-	"else"     = .Else,
-	"for"      = .For,
-	"while"    = .While,
-	"loop"     = .Loop,
-	"bool"     = .Bool,
-	"u8"       = .U8,
-	"i8"       = .I8,
-	"u16"      = .U16,
-	"i16"      = .I16,
-	"u32"      = .U32,
-	"i32"      = .I32,
-	"u64"      = .U64,
-	"i64"      = .I64,
-	"uint"     = .USize,
-	"int"      = .ISize,
-	"f32"      = .F32,
-	"f64"      = .F64,
-	"string"   = .String,
-	"cstring"  = .CString,
-	"rawptr"   = .RawPtr,
-	"range"    = .Range,
+KeywordEntry :: struct {
+	str: string,
+	kind: TokenKind
+}
+
+keyword_map := [?]KeywordEntry {
+	{ "void", .Void },
+	{ "use", .Use },
+	{ "decl", .Decl },
+	{ "let", .Let },
+	{ "mut", .Mut },
+	{ "struct", .Struct },
+	{ "enum", .Enum },
+	{ "union", .Union },
+	{ "fn", .Fn },
+	{ "return", .Return },
+	{ "continue", .Continue },
+	{ "break", .Break },
+	{ "in", .In },
+	{ "if", .If },
+	{ "else", .Else },
+	{ "for", .For },
+	{ "while", .While },
+	{ "loop", .Loop },
+	{ "bool", .Bool },
+	{ "u8", .U8 },
+	{ "i8", .I8 },
+	{ "u16", .U16 },
+	{ "i16", .I16 },
+	{ "u32", .U32 },
+	{ "i32", .I32 },
+	{ "u64", .U64 },
+	{ "i64", .I64 },
+	{ "uint", .USize },
+	{ "int", .ISize },
+	{ "f32", .F32 },
+	{ "f64", .F64 },
+	{ "string", .String },
+	{ "cstring", .CString },
+	{ "rawptr", .RawPtr },
+	{ "range", .Range },
 }
 
 get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
@@ -492,10 +497,12 @@ get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 
 	token.span = { data.id, start, data.read_idx }
 
-	if ident_slice in keyword_map {
-		token.kind = keyword_map[ident_slice]
-	} else {
-		token.kind = .Ident
+	token.kind = .Ident
+	for e in &keyword_map {
+		if ident_slice == e.str {
+			token.kind = e.kind
+			break
+		}
 	}
 
 	token.str = ident_slice
