@@ -37,10 +37,10 @@ decl main = fn() {
 	}
 
 	let mut fact = 2;
-	/*
 	for i in [0..b) {
 		fact *= fact;
 	}
+	/*
 
 	while fact > 0 {
 		fact -= 1;

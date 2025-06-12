@@ -418,6 +418,18 @@ insr_memset :: proc(fn: ^Function, dst: ^Node, val: ^Node, count: ^Node) -> ^Nod
 	return n
 }
 
+insr_getmemberptr :: proc(fn: ^Function, base: ^Node, dbg_type: ^DebugType, member_name: string) -> ^Node {
+	assert(ty_is_ptr(base.ty))
+	mem_offset := debug_type_get_member_offset(dbg_type, member_name)
+	assert(mem_offset != -1, "Epoch DebugType '{}' does not have member '{}'", dbg_type.name, member_name)
+
+	offset := new_int_const(fn, TY_PTR, mem_offset)
+
+	n := new_node(fn, .GetMemberPtr, TY_PTR, 3)
+	n.inputs[1] = base
+	n.inputs[2] = offset
+}
+
 
 @(private = "file")
 insr_binop :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
@@ -669,6 +681,7 @@ NodeKind :: enum {
 	MemSet,
 	VolatileRead,
 	VolatileWrite,
+	GetMemberPtr,
 
 	And,
 	Or,

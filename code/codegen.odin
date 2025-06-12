@@ -388,6 +388,12 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			}
 
 			range_v := cg_emit_expr(ctx, e.range) or_return
+			if !epoch.ty_is_ptr(range_v.ty) {
+				log_spanned_error(&e.range.span, "Internal Compiler Error: for loop iterator is not a pointer to a struct. We do not support iterating over primitives")
+				return nil, false
+			}
+
+			range_v_dbg_ty := cg_get_debug_type(ctx, e.range.type)
 
 			e.body.cg_val = dst_slot // inherit parent slot so it doesn't allocate its own
 
@@ -401,17 +407,28 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			epoch.insr_goto(fn, loop_header)
 			epoch.set_control(fn, loop_header)
 
-			cond_v: ^epoch.Node
 			{
 				it := e.iter.type
 				if ty_is_range(it) {
 					// for i in [start..end)
+					// TODO: These getmemberptrs can be moved to the header since they don't change
+					start_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "start")
+					end_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "end")
+
+					// Maybe we should load these as a different type but ptr matches the register size so i think it's fine...
+					start_v := epoch.insr_load(fn, TY_PTR, iter_slot, false)
+					cond_v = epoch.insr_cmp_eq(fn, iter_v, end_v) // if
 				} else if ty_is_string(it) || ty_is_slice(it) {
 					// for v in slice_or_string
 				} else if ty_is_array(it) {
 					// for v in arr
+				} else {
+					unreachable()
 				}
 			}
+
+			cond_v := insr_cmp_lt(fn, iter_v, end_v)
+			epoch.insr_br(fn, cond_v, loop_body, loop_end)
 
 			epoch.set_control(fn, loop_body)
 
