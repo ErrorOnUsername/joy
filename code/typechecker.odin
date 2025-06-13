@@ -432,8 +432,13 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 
 	stmnt.check_state = .Resolved
 
+	is_file_scope :: proc(sc: ^Scope) -> bool {
+		return sc != nil && sc.variant == .File
+	}
+
 	// only run codegen for statments at top-level or in a logic scope
-	if ctx.curr_scope.variant == .File || ctx.curr_scope.variant == .Logic {
+	p_sc := ctx.curr_scope.parent
+	if is_file_scope(ctx.curr_scope) || (ctx.curr_scope.variant == .Logic && is_file_scope(p_sc))  {
 		cg_emit_stmnt( ctx, stmnt ) or_return
 	}
 
