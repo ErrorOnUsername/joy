@@ -419,15 +419,16 @@ insr_memset :: proc(fn: ^Function, dst: ^Node, val: ^Node, count: ^Node) -> ^Nod
 }
 
 insr_getmemberptr :: proc(fn: ^Function, base: ^Node, dbg_type: ^DebugType, member_name: string) -> ^Node {
-	assert(ty_is_ptr(base.ty))
+	assert(ty_is_ptr(base.type))
 	mem_offset := debug_type_get_member_offset(dbg_type, member_name)
-	assert(mem_offset != -1, "Epoch DebugType '{}' does not have member '{}'", dbg_type.name, member_name)
+	assert(mem_offset != -1)
 
-	offset := new_int_const(fn, TY_PTR, mem_offset)
+	offset := new_int_const(fn, TY_PTR, i64(mem_offset))
 
 	n := new_node(fn, .GetMemberPtr, TY_PTR, 3)
 	n.inputs[1] = base
 	n.inputs[2] = offset
+	return n
 }
 
 

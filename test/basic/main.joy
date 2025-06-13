@@ -40,13 +40,12 @@ decl main = fn() {
 	for i in [0..b) {
 		fact *= fact;
 	}
-	/*
-
 	while fact > 0 {
 		fact -= 1;
 	}
 
 	loop { break; }
+	/*
 
 	let c = square(b);
 

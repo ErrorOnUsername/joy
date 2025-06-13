@@ -369,6 +369,9 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			fn := ctx.cg_fn
 			assert(fn != nil)
 
+			mod := ctx.checker.cg_module
+			assert(mod != nil)
+
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {
 				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
@@ -388,12 +391,12 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			}
 
 			range_v := cg_emit_expr(ctx, e.range) or_return
-			if !epoch.ty_is_ptr(range_v.ty) {
+			if !epoch.ty_is_ptr(range_v.type) {
 				log_spanned_error(&e.range.span, "Internal Compiler Error: for loop iterator is not a pointer to a struct. We do not support iterating over primitives")
 				return nil, false
 			}
 
-			range_v_dbg_ty := cg_get_debug_type(ctx, e.range.type)
+			range_v_dbg_ty := cg_get_debug_type(mod, e.range.type, &e.range.span) or_return
 
 			e.body.cg_val = dst_slot // inherit parent slot so it doesn't allocate its own
 
@@ -402,32 +405,74 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_header
 
-			loop_body := epoch.new_region(fn, "loop.body")
+			iv_slot := epoch.add_local(fn, ty_builtin_rawptr.size, ty_builtin_rawptr.alignment)
 
-			epoch.insr_goto(fn, loop_header)
-			epoch.set_control(fn, loop_header)
-
+			// Induction Variable Init
 			{
-				it := e.iter.type
-				if ty_is_range(it) {
+				if ty_is_range(e.range.type) {
 					// for i in [start..end)
+					range, is_range := e.range.derived_expr.(^RangeExpr)
+					assert(is_range, "THISISNOTARANGETHISISNOTARANGETHISISNOTARANGE")
+
 					// TODO: These getmemberptrs can be moved to the header since they don't change
 					start_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "start")
-					end_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "end")
 
 					// Maybe we should load these as a different type but ptr matches the register size so i think it's fine...
-					start_v := epoch.insr_load(fn, TY_PTR, iter_slot, false)
-					cond_v = epoch.insr_cmp_eq(fn, iter_v, end_v) // if
-				} else if ty_is_string(it) || ty_is_slice(it) {
-					// for v in slice_or_string
-				} else if ty_is_array(it) {
-					// for v in arr
+					start_v := epoch.insr_load(fn, epoch.TY_PTR, start_mem_ptr, false)
+					if !range.left_bound_inclusive {
+						one_const := epoch.new_int_const(fn, epoch.TY_PTR, u64(1))
+						start_v = epoch.insr_add(fn, start_v, one_const)
+					}
+
+					epoch.insr_store(fn, iv_slot, start_v, false)
+				} else if ty_is_string(e.range.type) || ty_is_array_or_slice(e.range.type) {
+					// for v in wtv
+					zero_const := epoch.new_int_const(fn, epoch.TY_PTR, u64(0))
+					epoch.insr_store(fn, iv_slot, zero_const, false)
 				} else {
 					unreachable()
 				}
 			}
 
-			cond_v := insr_cmp_lt(fn, iter_v, end_v)
+			loop_body := epoch.new_region(fn, "loop.body")
+
+			epoch.insr_goto(fn, loop_header)
+			epoch.set_control(fn, loop_header)
+
+			// Loop predicate
+			cond_v: ^epoch.Node
+			{
+				if ty_is_range(e.range.type) {
+					// for i in [start..end)
+					range, is_range := e.range.derived_expr.(^RangeExpr)
+					assert(is_range, "THISISNOTARANGETHISISNOTARANGETHISISNOTARANGE")
+
+					end_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "end")
+					// If we load this each loop we tolerate the range changing during the loop. Is that reasonable?
+					end_v := epoch.insr_load(fn, epoch.TY_PTR, end_mem_ptr, false)
+					iv_v := epoch.insr_load(fn, epoch.TY_PTR, iv_slot, false)
+
+					if range.right_bound_inclusive {
+						cond_v = epoch.insr_cmp_sle(fn, iv_v, end_v)
+					} else {
+						cond_v = epoch.insr_cmp_slt(fn, iv_v, end_v)
+					}
+				} else if ty_is_string(e.range.type) || ty_is_slice(e.range.type) {
+					// for v in slice_or_string
+					count_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "end")
+					count_v := epoch.insr_load(fn, epoch.TY_PTR, count_mem_ptr, false)
+					iv_v := epoch.insr_load(fn, epoch.TY_PTR, iv_slot, false)
+
+					cond_v = epoch.insr_cmp_ult(fn, iv_v, count_v)
+				} else if ty_is_array(e.range.type) {
+					// for v in arr
+					log_spanned_error(&e.range.span, "impl range iter codegen")
+					return nil, false
+				} else {
+					unreachable()
+				}
+			}
+
 			epoch.insr_br(fn, cond_v, loop_body, loop_end)
 
 			epoch.set_control(fn, loop_body)
@@ -509,6 +554,25 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			return dst_slot, true
 		case ^RangeExpr:
+			fn := ctx.cg_fn
+			assert(fn != nil) // FIXME: globals (maybe make the global like a global function since it kinda is that)
+
+			mod := ctx.checker.cg_module
+			assert(mod != nil)
+
+			lhs := cg_emit_expr(ctx, e.lhs) or_return
+			rhs := cg_emit_expr(ctx, e.rhs) or_return
+
+			dbg_ty := cg_get_debug_type(mod, e.type, &e.span) or_return
+			lit_slot := epoch.add_local(fn, e.lhs.type.size, e.lhs.type.alignment)
+
+			start_ptr := epoch.insr_getmemberptr(fn, lit_slot, dbg_ty, "start")
+			epoch.insr_store(fn, start_ptr, lhs, false)
+
+			end_ptr := epoch.insr_getmemberptr(fn, lit_slot, dbg_ty, "end")
+			epoch.insr_store(fn, end_ptr, rhs, false)
+
+			return lit_slot, true
 		case ^UnaryOpExpr:
 		case ^BinOpExpr: return cg_emit_binop(ctx, e)
 		case ^ProcCallExpr:

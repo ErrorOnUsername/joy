@@ -292,7 +292,7 @@ debug_type_get_size :: proc(dbg_ty: ^DebugType) -> int {
 }
 
 debug_type_get_member_offset :: proc(ty: ^DebugType, member_name: string) -> int {
-	switch #partial t in ty.derived {
+	#partial switch t in ty.extra {
 		case ^DebugTypeStruct:
 			for f in t.fields {
 				if f.name == member_name {
