@@ -48,14 +48,12 @@ decl main = fn() {
 
 	let mut d: MyStruct = { 10, "Hello" };
 	let e: uint = d.member_0;
-	/*
 	let f: string = d.member_1;
-
+	d.member_0 = 1;
+	let g: MyEnum = .VariantB;
+	/*
 	let c = square(b);
 
-	d.member_0 = 1;
-
-	let g: MyEnum = .VariantB;
 	let h: MyUnion = .VariantB { d, "haha" };
 	*/
 };

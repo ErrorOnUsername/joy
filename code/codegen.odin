@@ -351,8 +351,54 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				return nil, false
 			}
 
+			e.cg_val = lit_slot
+
 			return lit_slot, true
 		case ^MemberAccessExpr:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			mod := ctx.checker.cg_module
+			assert(mod != nil)
+
+			val := e.val
+			val_base_type := ty_get_base(val.type)
+
+			if ty_is_struct(val_base_type) {
+				dbg_ty := cg_get_debug_type(mod, val_base_type, &val.span) or_return
+
+				base := cg_emit_expr(ctx, val) or_return
+				if ty_is_pointer(val.type) { // auto deref :D
+					base = epoch.insr_load(fn, epoch.TY_PTR, base, false)
+				}
+
+				field := e.member
+				// This logic is utterly IQ defficient. Just make a function dumbass
+				for field != nil {
+					#partial switch f in field.derived_expr {
+						case ^MemberAccessExpr:
+							#partial switch ff in f.val.derived_expr {
+								case ^Ident:
+									base = epoch.insr_getmemberptr(fn, base, dbg_ty, ff.name)
+								case:
+									log_spanned_error(&field.span, "Internal Compiler Error: codegen recived an invalid member access expression. Field is not an identifier or other member")
+							}
+							field = f.member
+						case ^Ident:
+							base = epoch.insr_getmemberptr(fn, base, dbg_ty, f.name)
+							field = nil
+						case:
+							log_spanned_error(&field.span, "Internal Compiler Error: codegen recived an invalid member access expression. Field is not an identifier or other member")
+					}
+				}
+
+				e.cg_val = base
+			} else {
+				log_spanned_errorf(&e.span, "codegen: impl member access on non-struct type '{}'", val.type.name)
+				return nil, false
+			}
+
+			return e.cg_val, true
 		case ^ImplicitSelectorExpr:
 		case ^Scope:
 			fn := ctx.cg_fn
