@@ -304,6 +304,54 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			return nil, false
 		case ^NamedStructLiteralExpr:
 		case ^AnonStructLiteralExpr:
+			fn := ctx.cg_fn
+			assert(fn != nil) // Again... this needs to be fixed for globals
+
+			mod := ctx.checker.cg_module
+			assert(mod != nil)
+
+			lit_slot := epoch.add_local(fn, e.type.size, e.type.alignment)
+
+			dbg_type := cg_get_debug_type(mod, e.type, &e.span) or_return
+
+			if ty_is_struct(e.type) {
+				checker_struct_ty, is_checker_struct := e.type.derived.(^StructType)
+				assert(is_checker_struct)
+
+				cg_struct_ty, is_cg_struct := dbg_type.extra.(^epoch.DebugTypeStruct)
+				assert(is_cg_struct)
+
+				assert(len(checker_struct_ty.members) == len(cg_struct_ty.fields))
+
+				if len(e.vals) != len(checker_struct_ty.members) {
+					log_spanned_errorf(&e.span, "Internal Compiler Error: codegen recieved an invalid struct literal. {} has {} fields, but the expression only has {} values", e.type.name, len(checker_struct_ty.members), len(e.vals))
+					return nil, false
+				}
+
+				for v, i in e.vals {
+					member_name := checker_struct_ty.members[i].name
+					member_type := checker_struct_ty.members[i].ty
+					if !ty_eq(v.type, member_type) {
+						log_spanned_errorf(&v.span, "Internal Compiler Error: codegen recieved a malformed struct literal. Field '{}' has type '{}' but expression is of type '{}'", member_name, member_type.name, v.type.name)
+						return nil, false
+					}
+
+					val := cg_emit_expr(ctx, v) or_return
+
+					mem_ptr := epoch.insr_getmemberptr(fn, lit_slot, dbg_type, member_name)
+					epoch.insr_store(fn, mem_ptr, val, false)
+				}
+			} else if ty_is_union(e.type) {
+				cg_union_ty, is_cg_union := dbg_type.extra.(^epoch.DebugTypeUnion)
+				assert(is_cg_union)
+				log_spanned_error(&e.span, "impl union literals")
+				return nil, false
+			} else {
+				log_spanned_errorf(&e.span, "Internal Compiler Error: codegen recieved a struct literal of type {} which is not a struct or union", e.type.name)
+				return nil, false
+			}
+
+			return lit_slot, true
 		case ^MemberAccessExpr:
 		case ^ImplicitSelectorExpr:
 		case ^Scope:

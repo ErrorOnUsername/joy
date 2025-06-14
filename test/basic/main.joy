@@ -45,13 +45,13 @@ decl main = fn() {
 	}
 
 	loop { break; }
-	/*
-
-	let c = square(b);
 
 	let mut d: MyStruct = { 10, "Hello" };
 	let e: uint = d.member_0;
+	/*
 	let f: string = d.member_1;
+
+	let c = square(b);
 
 	d.member_0 = 1;
 
