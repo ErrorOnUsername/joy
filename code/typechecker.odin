@@ -799,7 +799,10 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				return nil, .Invalid
 			}
 
-			return tc_check_expr( ctx, ex.member )
+			t, addr_mode := tc_check_expr( ctx, ex.member )
+			ex.type = t
+
+			return t, addr_mode
 		case ^Scope:
 			last_scope := ctx.curr_scope
 			ctx.curr_scope = ex
