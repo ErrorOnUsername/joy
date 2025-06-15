@@ -78,11 +78,18 @@ StructType :: struct
 	members: [dynamic]StructMember,
 }
 
+EnumVariant :: struct
+{
+	name: string,
+	value: u64,
+}
+
 EnumType :: struct
 {
 	using type: Type,
 	ast_scope: ^Scope,
 	underlying: ^Type,
+	variants: [dynamic]EnumVariant,
 }
 
 UnionType :: struct

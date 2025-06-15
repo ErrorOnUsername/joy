@@ -880,9 +880,23 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 					ctx.hint_type = enum_type
 					defer ctx.hint_type = last_ctx_ty
 
+					enum_val: u64
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
 						if !mem_ok do return nil, .Invalid
+
+						enum_variant, is_enum_variant := m.derived_stmnt.(^EnumVariantDecl)
+						if !is_enum_variant {
+							log_spanned_error(&m.span, "Expected enum variant declaration")
+							return nil, .Invalid
+						}
+
+						variant: EnumVariant
+						variant.name = enum_variant.name
+						variant.value = enum_val
+						append(&enum_type.variants, variant)
+
+						enum_val += 1
 					}
 
 					ex.type = enum_type

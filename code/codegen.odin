@@ -184,7 +184,12 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^e
 			}
 			dbg = d
 		case ^EnumType:
-			dbg = epoch.get_int_debug_type(ty.size * 8, false)
+			d := epoch.new_debug_type_enum(mod, ty.name, len(ty.variants), ty.underlying.size, ty.underlying.alignment)
+			for var, i in &ty.variants {
+				d.variants[i].name = var.name
+				d.variants[i].value = var.value
+			}
+			dbg = d
 		case ^UnionType:
 			d := epoch.new_debug_type_union(mod, ty.name, len(ty.variants), ty.size, ty.alignment)
 			for v, i in ty.variants {

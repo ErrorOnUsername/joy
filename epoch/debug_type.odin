@@ -14,6 +14,7 @@ DebugTypeExtra :: union {
 	^DebugTypeUInt,
 	^DebugTypeF32,
 	^DebugTypeF64,
+	^DebugTypeEnum,
 	^DebugTypeStruct,
 	^DebugTypeField,
 	^DebugTypeUnion,
@@ -46,6 +47,19 @@ DebugTypeF32 :: struct {
 
 DebugTypeF64 :: struct {
 	using type: DebugType,
+}
+
+DebugTypeEnumVariant :: struct {
+	name: string,
+	value: u64,
+}
+
+DebugTypeEnum :: struct {
+	using type: DebugType,
+	size: int,
+	align: int,
+	name: string,
+	variants: []DebugTypeEnumVariant,
 }
 
 DebugTypeStruct :: struct {
@@ -162,6 +176,18 @@ init_builtin_types :: proc(ctx: ^EpochContext) {
 	dbg_ty_f64 = new_debug_type(DebugTypeF64, ctx.global_allocator)
 }
 
+new_debug_type_enum :: proc(mod: ^Module, name: string, variant_count: int, size: int, align: int) -> ^DebugTypeEnum {
+	sync.lock(&mod.allocator_lock)
+	defer sync.unlock(&mod.allocator_lock)
+
+	e := new_debug_type(DebugTypeEnum, mod.allocator)
+	e.size = size
+	e.align = align
+	e.name = name
+	e.variants = make([]DebugTypeEnumVariant, variant_count, mod.allocator)
+	return e
+}
+
 new_debug_type_struct :: proc(mod: ^Module, name: string, field_count: int, size: int, align: int) -> ^DebugTypeStruct {
 	sync.lock(&mod.allocator_lock)
 	defer sync.unlock(&mod.allocator_lock)
@@ -275,6 +301,8 @@ debug_type_get_size :: proc(dbg_ty: ^DebugType) -> int {
 			return 4
 		case ^DebugTypeF64:
 			return 8
+		case ^DebugTypeEnum:
+			return d.size
 		case ^DebugTypeStruct:
 			return d.size
 		case ^DebugTypeField:
