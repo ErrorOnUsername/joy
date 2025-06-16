@@ -405,6 +405,50 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			return e.cg_val, true
 		case ^ImplicitSelectorExpr:
+			fn := ctx.cg_fn
+			assert(fn != nil) // FIXME: globals
+
+			mod := ctx.checker.cg_module
+			assert(mod != nil)
+
+			if ty_is_enum(e.type) {
+				dbg_type := cg_get_debug_type(mod, e.type, &e.span) or_return
+				ident, is_ident := e.member.derived_expr.(^Ident)
+				assert(is_ident)
+
+				checker_enum_type, is_checker_enum := e.type.derived.(^EnumType)
+				assert(is_checker_enum)
+
+				cg_enum_type, is_cg_enum := dbg_type.extra.(^epoch.DebugTypeEnum)
+				assert(is_cg_enum)
+
+				found := false
+				enum_val: u64
+				for var in cg_enum_type.variants {
+					if ident.name == var.name {
+						found = true
+						enum_val = var.value
+						break
+					}
+				}
+				assert(found)
+
+				underlying_dbg_type := cg_get_debug_type(mod, checker_enum_type.underlying, &e.span) or_return
+
+				reg_class := epoch.get_debug_type_register_class(underlying_dbg_type)
+				t := epoch.get_type_with_register_class(reg_class, underlying_dbg_type)
+
+				n := epoch.new_int_const(fn, t, enum_val)
+				e.cg_val = n
+			} else if ty_is_union(e.type) {
+				log_spanned_error(&e.span, "impl union struct literals")
+				return nil, false
+			} else {
+				log_spanned_errorf(&e.span, "Internal Compiler Error: codegen recieved an implicit selector expression of type '{}' that isn't an enum or a union", e.type.name)
+				return nil, false
+			}
+
+			return e.cg_val, true
 		case ^Scope:
 			fn := ctx.cg_fn
 			assert(fn != nil)
