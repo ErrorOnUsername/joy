@@ -827,18 +827,22 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 						mem_ok := tc_check_stmnt( ctx, m )
 						if !mem_ok do return nil, .Invalid
 
-						align = max( align, m.type.alignment )
-
 						st_mem := StructMember { v.name, m.type, size }
 
-						if (size + m.type.size) / align == 0 {
-							size += m.type.size
-						} else {
-							size += (align - size) + m.type.size
+						next_align := max( align, m.type.alignment )
+
+						if next_align > align && size != 0 {
+							size += next_align - (size % next_align) // Pad up to the alignment of this member
 						}
+
+						align = next_align
+
+						size += m.type.size
 
 						append( &struct_type.members, st_mem )
 					}
+
+					size += align - (size % align) // Tail padding
 
 					struct_type.size = size
 					struct_type.alignment = align
@@ -848,9 +852,11 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 				case .Union:
 					union_type := new_type( UnionType, ctx.mod, "union" )
 					union_type.ast_scope = ex
-					union_type.size = 0
-					union_type.alignment = 0
+					union_type.size = 4 // 4-byte union tag
+					union_type.alignment = 4
 
+					variant_size := 0
+					variant_alignment := 0
 					for m in ex.stmnts {
 						mem_ok := tc_check_stmnt( ctx, m )
 						if !mem_ok do return nil, .Invalid
@@ -861,11 +867,21 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 							return nil, .Invalid
 						}
 
-						union_type.size = max( union_type.size, struct_ty.size )
-						union_type.size = max( union_type.alignment, struct_ty.alignment )
+						variant_size = max( variant_size, struct_ty.size )
+						variant_alignment = max( variant_alignment, struct_ty.alignment )
 
 						append( &union_type.variants, struct_ty )
 					}
+
+					next_align := max( union_type.alignment, variant_alignment )
+					if next_align > union_type.alignment {
+						union_type.size += next_align - (union_type.size % next_align)
+					}
+					union_type.alignment = next_align
+
+					union_type.size += variant_size
+
+					union_type.size += union_type.alignment - (union_type.size % union_type.alignment)
 
 					ex.type = union_type
 					return union_type, .RValue
