@@ -441,8 +441,38 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				n := epoch.new_int_const(fn, t, enum_val)
 				e.cg_val = n
 			} else if ty_is_union(e.type) {
-				log_spanned_error(&e.span, "impl union struct literals")
-				return nil, false
+				fn := ctx.cg_fn
+				assert(fn != nil)
+
+				mod := ctx.checker.cg_module
+				assert(mod != nil)
+
+				dbg_type := cg_get_debug_type(mod, e.type, &e.span) or_return
+				val_slot := epoch.add_local(fn, e.type.size, e.type.alignment)
+
+				checker_union_type, checker_is_union := e.type.derived.(^UnionType)
+				assert(checker_is_union, "THISISNOTAUNIONTHISISNOTAUNIONTHISISNOTAUNION")
+
+				struct_lit, is_struct_lit := e.member.derived_expr.(^NamedStructLiteralExpr)
+				assert(is_struct_lit, "THISISNOTASTRUCTTHISISNOTASTRUCTTHISISNOTASTRUCT")
+
+				variant_discr := -1
+				for v, i in checker_union_type.variants {
+					if struct_lit.name == v.name {
+						variant_discr = i
+					}
+				}
+
+				if variant_discr == -1 {
+					log_spanned_errorf(&struct_lit.span, "Internal Compiler Error: codegen recived a union struct literal for type '{}' an unknown variant '{}'", e.type.name, struct_lit.name)
+					return nil, false
+				}
+
+				discr_const := epoch.new_int_const(fn, epoch.TY_I32, u64(variant_discr))
+				epoch.insr_store(fn, val_slot, discr_const, false)
+
+				e.cg_val = val_slot
+				return val_slot, true
 			} else {
 				log_spanned_errorf(&e.span, "Internal Compiler Error: codegen recieved an implicit selector expression of type '{}' that isn't an enum or a union", e.type.name)
 				return nil, false
