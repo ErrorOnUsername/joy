@@ -337,6 +337,8 @@ tc_check_stmnt :: proc( ctx: ^CheckerContext, stmnt: ^Stmnt ) -> bool
 					ty = get_untyped_default_concrete_ty( ty )
 					s.default_value.type = ty
 					s.type = ty
+				} else {
+					s.type = ty
 				}
 			}
 
