@@ -191,13 +191,27 @@ cg_get_debug_type :: proc(mod: ^epoch.Module, t: ^Type, span: ^Span) -> (dbg: ^e
 			}
 			dbg = d
 		case ^UnionType:
-			d := epoch.new_debug_type_union(mod, ty.name, len(ty.variants), ty.size, ty.alignment)
+			u32_dbg_ty := cg_get_debug_type(mod, ty_builtin_u32, span) or_return
+			d := epoch.new_debug_type_struct(mod, ty.name, 2, ty.size, ty.alignment)
+			d.fields[0] = epoch.new_debug_type_field(mod, "discriminant", u32_dbg_ty, 0)
+
+			union_data_offset := max(4, ty.alignment)
+			variant_size := 0
+			variant_align := 0
+			for v in ty.variants {
+				variant_size = max(variant_size, v.size)
+				variant_align = max(variant_align, v.alignment)
+			}
+
+			u := epoch.new_debug_type_union(mod, ty.name, len(ty.variants), variant_size, variant_align)
 			for v, i in ty.variants {
 				var_dbg := cg_get_debug_type(mod, v, span) or_return
 				v_dbg, is_struct := var_dbg.extra.(^epoch.DebugTypeStruct)
 				assert(is_struct)
-				d.variants[i] = v_dbg
+				u.variants[i] = v_dbg
 			}
+
+			d.fields[1] = epoch.new_debug_type_field(mod, "data", u, union_data_offset)
 			dbg = d
 		case ^FnType:
 			has_returns := ty.return_type != nil && !ty_is_void(ty.return_type)
@@ -450,6 +464,9 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				dbg_type := cg_get_debug_type(mod, e.type, &e.span) or_return
 				val_slot := epoch.add_local(fn, e.type.size, e.type.alignment)
 
+				cg_struct_type := dbg_type.extra.(^epoch.DebugTypeStruct)
+				cg_variant_union := cg_struct_type.fields[1].field_ty.extra.(^epoch.DebugTypeUnion) // bad to hard-code ikik but its the "data" member fuck off
+
 				checker_union_type, checker_is_union := e.type.derived.(^UnionType)
 				assert(checker_is_union, "THISISNOTAUNIONTHISISNOTAUNIONTHISISNOTAUNION")
 
@@ -469,7 +486,27 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				}
 
 				discr_const := epoch.new_int_const(fn, epoch.TY_I32, u64(variant_discr))
-				epoch.insr_store(fn, val_slot, discr_const, false)
+				discr_mem := epoch.insr_getmemberptr(fn, val_slot, dbg_type, "discriminant")
+				epoch.insr_store(fn, discr_mem, discr_const, false)
+
+				variant_base := epoch.insr_getmemberptr(fn, val_slot, dbg_type, "data")
+
+				checker_variant_struct_ty := checker_union_type.variants[variant_discr]
+				cg_variant_struct_ty := cg_variant_union.variants[variant_discr]
+
+				for v, i in struct_lit.vals {
+					member_name := checker_variant_struct_ty.members[i].name
+					member_type := checker_variant_struct_ty.members[i].ty
+					if !ty_eq(v.type, member_type) {
+						log_spanned_errorf(&v.span, "Internal Compiler Error: codegen recieved a malformed union variant struct literal. Field '{}' has type '{}' but expression is of type '{}'", member_name, member_type.name, v.type.name)
+						return nil, false
+					}
+
+					val := cg_emit_expr(ctx, v) or_return
+
+					mem_ptr := epoch.insr_getmemberptr(fn, variant_base, cg_variant_struct_ty, member_name)
+					epoch.insr_store(fn, mem_ptr, val, false)
+				}
 
 				e.cg_val = val_slot
 				return val_slot, true
