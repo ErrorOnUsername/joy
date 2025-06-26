@@ -467,11 +467,8 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				cg_struct_type := dbg_type.extra.(^epoch.DebugTypeStruct)
 				cg_variant_union := cg_struct_type.fields[1].field_ty.extra.(^epoch.DebugTypeUnion) // bad to hard-code ikik but its the "data" member fuck off
 
-				checker_union_type, checker_is_union := e.type.derived.(^UnionType)
-				assert(checker_is_union, "THISISNOTAUNIONTHISISNOTAUNIONTHISISNOTAUNION")
-
-				struct_lit, is_struct_lit := e.member.derived_expr.(^NamedStructLiteralExpr)
-				assert(is_struct_lit, "THISISNOTASTRUCTTHISISNOTASTRUCTTHISISNOTASTRUCT")
+				checker_union_type := e.type.derived.(^UnionType)
+				struct_lit := e.member.derived_expr.(^NamedStructLiteralExpr)
 
 				variant_discr := -1
 				for v, i in checker_union_type.variants {
@@ -621,8 +618,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			{
 				if ty_is_range(e.range.type) {
 					// for i in [start..end)
-					range, is_range := e.range.derived_expr.(^RangeExpr)
-					assert(is_range, "THISISNOTARANGETHISISNOTARANGETHISISNOTARANGE")
+					range := e.range.derived_expr.(^RangeExpr)
 
 					// TODO: These getmemberptrs can be moved to the header since they don't change
 					start_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "start")
@@ -654,8 +650,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			{
 				if ty_is_range(e.range.type) {
 					// for i in [start..end)
-					range, is_range := e.range.derived_expr.(^RangeExpr)
-					assert(is_range, "THISISNOTARANGETHISISNOTARANGETHISISNOTARANGE")
+					range := e.range.derived_expr.(^RangeExpr)
 
 					end_mem_ptr := epoch.insr_getmemberptr(fn, range_v, range_v_dbg_ty, "end")
 					// If we load this each loop we tolerate the range changing during the loop. Is that reasonable?
