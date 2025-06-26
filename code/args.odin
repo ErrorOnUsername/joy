@@ -3,16 +3,14 @@ package main
 import "core:fmt"
 import "core:os"
 
-CompilerMode :: enum
-{
+CompilerMode :: enum {
     None,
     Build,
     BuildAndRun,
     Help,
 }
 
-CLState :: struct
-{
+CLState :: struct {
     mode: CompilerMode,
 }
 
@@ -26,14 +24,12 @@ modes:
     help
 `
 
-print_usage :: proc()
-{
-    fmt.printf( g_usage_string, os.args[0] )
+print_usage :: proc() {
+    fmt.printf(g_usage_string, os.args[0])
 }
 
-parse_args :: proc() -> bool
-{
-    if len( os.args ) < 2 {
+parse_args :: proc() -> bool {
+    if len(os.args) < 2 {
         print_usage()
         return false
     }
@@ -56,7 +52,7 @@ parse_args :: proc() -> bool
     }
 
     if g_cl_state.mode == .None {
-        fmt.printf( "invalid compiler mode: '{}'\n", mode )
+        fmt.printf("invalid compiler mode: '{}'\n", mode)
         print_usage()
         return false
     }

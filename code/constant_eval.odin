@@ -5,6 +5,7 @@ import "core:strconv"
 import "core:strings"
 import "core:math/big"
 
+
 get_string_literal_value :: proc(ctx: ^CheckerContext, lit: ^StringLiteralExpr) -> bool {
 	char_count := 0
 	i := 0

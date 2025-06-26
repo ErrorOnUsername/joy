@@ -7,15 +7,13 @@ import "core:math/big"
 import "core:mem"
 
 
-Package :: struct
-{
+Package :: struct {
 	name: string,
 	imports: [dynamic]^Package,
 	modules: [dynamic]^Module,
 }
 
-Module :: struct
-{
+Module :: struct {
 	file_id:    FileID,
 	owning_pkg: ^Package,
 	file_scope: ^Scope,
@@ -24,8 +22,7 @@ Module :: struct
 
 SymbolTable :: map[string]^Stmnt
 
-Scope :: struct
-{
+Scope :: struct {
 	using expr: Expr,
 	variant:    ScopeVariant,
 	symbols:    SymbolTable,
@@ -33,8 +30,7 @@ Scope :: struct
 	parent:     ^Scope,
 }
 
-ScopeVariant :: enum
-{
+ScopeVariant :: enum {
 	File,
 	Struct,
 	Enum,
@@ -47,16 +43,14 @@ ScopeVariant :: enum
 // Statements
 //
 
-ConstDecl :: struct
-{
+ConstDecl :: struct {
 	using stmnt:   Stmnt,
 	name:          string,
 	type_hint:     ^Expr,
 	value:         ^Expr,
 }
 
-VarDecl :: struct
-{
+VarDecl :: struct {
 	using stmnt:   Stmnt,
 	name:          string,
 	is_mut:        bool,
@@ -64,37 +58,31 @@ VarDecl :: struct
 	default_value: ^Expr,
 }
 
-EnumVariantDecl :: struct
-{
+EnumVariantDecl :: struct {
 	using stmnt: Stmnt,
 	name:        string,
 }
 
-UnionVariantDecl :: struct
-{
+UnionVariantDecl :: struct {
 	using stmnt: Stmnt,
 	name:        string,
 	sc:          ^Scope,
 }
 
-ExprStmnt :: struct
-{
+ExprStmnt :: struct {
 	using stmnt: Stmnt,
 	expr:        ^Expr,
 }
 
-ContinueStmnt :: struct
-{
+ContinueStmnt :: struct {
 	using stmnt: Stmnt,
 }
 
-BreakStmnt :: struct
-{
+BreakStmnt :: struct {
 	using stmnt: Stmnt,
 }
 
-ReturnStmnt :: struct
-{
+ReturnStmnt :: struct {
 	using stmnt: Stmnt,
 	expr:        ^Expr,
 }
@@ -104,8 +92,7 @@ ReturnStmnt :: struct
 // Expressions
 //
 
-ProcProto :: struct
-{
+ProcProto :: struct {
 	using expr:  Expr,
 	name:        string,
 	params:      [dynamic]^VarDecl,
@@ -113,90 +100,77 @@ ProcProto :: struct
 	return_type: ^Expr,
 }
 
-Ident :: struct
-{
+Ident :: struct {
 	using expr: Expr,
 	name:       string,
 	ref:        ^Stmnt,
 }
 
-StringLiteralExpr :: struct
-{
+StringLiteralExpr :: struct {
 	using expr: Expr,
 	str:        string,
 	val:        []u8,
 }
 
-NumberLiteralValue :: union
-{
+NumberLiteralValue :: union {
 	big.Int,
 	f64,
 }
 
-NumberLiteralExpr :: struct
-{
+NumberLiteralExpr :: struct {
 	using expr: Expr,
 	str:        string,
 	val:        NumberLiteralValue,
 }
 
-NamedStructLiteralExpr :: struct
-{
+NamedStructLiteralExpr :: struct {
 	using expr: Expr,
 	name:       string,
 	vals:       [dynamic]^Expr,
 }
 
-AnonStructLiteralExpr :: struct
-{
+AnonStructLiteralExpr :: struct {
 	using expr: Expr,
 	vals:       [dynamic]^Expr,
 }
 
-MemberAccessExpr :: struct
-{
+MemberAccessExpr :: struct {
 	using expr: Expr,
 	val:        ^Expr,
 	member:     ^Expr,
 }
 
-ImplicitSelectorExpr :: struct
-{
+ImplicitSelectorExpr :: struct {
 	using expr: Expr,
 	member:     ^Expr,
 }
 
-IfExpr :: struct
-{
+IfExpr :: struct {
 	using expr: Expr,
 	cond:       ^Expr,
 	then:       ^Scope,
 	else_block: ^IfExpr,
 }
 
-ForLoop :: struct
-{
+ForLoop :: struct {
 	using expr: Expr,
 	iter:       ^VarDecl,
 	range:      ^Expr,
 	body:       ^Scope,
 }
 
-WhileLoop :: struct
-{
+WhileLoop :: struct {
 	using expr: Expr,
 	cond:       ^Expr,
 	body:       ^Scope,
 }
 
-InfiniteLoop :: struct
-{
+InfiniteLoop :: struct {
 	using expr: Expr,
 	body:       ^Scope,
 }
 
-RangeExpr :: struct
-{
+RangeExpr :: struct {
 	using expr: Expr,
 	left_bound_inclusive:  bool,
 	lhs:                   ^Expr,
@@ -204,23 +178,20 @@ RangeExpr :: struct
 	rhs:                   ^Expr,
 }
 
-UnaryOpExpr :: struct
-{
+UnaryOpExpr :: struct {
 	using expr: Expr,
 	op:         Token,
 	rand:       ^Expr,
 }
 
-BinOpExpr :: struct
-{
+BinOpExpr :: struct {
 	using expr: Expr,
 	op:         Token,
 	lhs:        ^Expr,
 	rhs:        ^Expr,
 }
 
-bin_op_priority :: proc( op: ^Token ) -> int
-{
+bin_op_priority :: proc(op: ^Token) -> int {
 	#partial switch op.kind {
 		case .Invalid: return -1
 
@@ -248,17 +219,16 @@ bin_op_priority :: proc( op: ^Token ) -> int
 		case .DoubleCaret:     return 2
 
 		case .Assign, .PlusAssign,
-			 .MinusAssign, .StarAssign,
-			 .SlashAssign, .PercentAssign,
-			 .AmpersandAssign, .PipeAssign, .CaretAssign:
+		     .MinusAssign, .StarAssign,
+		     .SlashAssign, .PercentAssign,
+		     .AmpersandAssign, .PipeAssign, .CaretAssign:
 			return 1
 	}
 
 	return -1
 }
 
-ProcCallExpr :: struct
-{
+ProcCallExpr :: struct {
 	using expr: Expr,
 	name:       string,
 	target:     ^Stmnt,
@@ -266,38 +236,33 @@ ProcCallExpr :: struct
 }
 
 
-PrimitiveTypeExpr :: struct
-{
+PrimitiveTypeExpr :: struct {
 	using expr: Expr,
 	prim: PrimitiveKind,
 }
 
 
-PointerTypeExpr :: struct
-{
+PointerTypeExpr :: struct {
 	using expr: Expr,
 	is_mut:     bool,
 	base_type:  ^Expr,
 }
 
 
-SliceTypeExpr :: struct
-{
+SliceTypeExpr :: struct {
 	using expr: Expr,
 	base_type:  ^Expr,
 }
 
 
-ArrayTypeExpr :: struct
-{
+ArrayTypeExpr :: struct {
 	using expr: Expr,
 	base_type:  ^Expr,
 	size_expr:  ^Expr,
 }
 
 
-AnyStmnt :: union
-{
+AnyStmnt :: union {
 	^ConstDecl,
 	^VarDecl,
 	^EnumVariantDecl,
@@ -308,14 +273,12 @@ AnyStmnt :: union
 	^ReturnStmnt,
 }
 
-Stmnt :: struct
-{
+Stmnt :: struct {
 	using node:    Node,
 	derived_stmnt: AnyStmnt,
 }
 
-AnyExpr :: union
-{
+AnyExpr :: union {
 	^ProcProto,
 	^Ident,
 	^StringLiteralExpr,
@@ -339,21 +302,18 @@ AnyExpr :: union
 	^ArrayTypeExpr,
 }
 
-Expr :: struct
-{
+Expr :: struct {
 	using node:   Node,
 	to_ty:        ^Type,
 	derived_expr: AnyExpr,
 }
 
-AnyNode :: union
-{
+AnyNode :: union {
 	^Stmnt,
 	^Expr,
 }
 
-Node :: struct
-{
+Node :: struct {
 	span:        Span,
 	type:        ^Type,
 	cg_val:      ^epoch.Node,
@@ -361,27 +321,25 @@ Node :: struct
 	check_state: CheckState,
 }
 
-CheckState :: enum
-{
+CheckState :: enum {
 	Unresolved,
 	Resolved,
 }
 
 
-new_node :: proc( $T: typeid, span: Span ) -> ^T
-{
-	new_node, _          := mem.new( T, tl_ast_allocator )
+new_node :: proc($T: typeid, span: Span) -> ^T {
+	new_node, _          := mem.new(T, tl_ast_allocator)
 	new_node.span         = span
 	new_node.check_state  = .Unresolved
 	base: ^Node           = new_node
 	_                     = base
 
-	when intrinsics.type_has_field( T, "derived_stmnt" ) {
+	when intrinsics.type_has_field(T, "derived_stmnt") {
 		new_node.derived       = cast(^Stmnt) new_node
 		new_node.derived_stmnt = new_node
 	}
 
-	when intrinsics.type_has_field( T, "derived_expr" ) {
+	when intrinsics.type_has_field(T, "derived_expr") {
 		new_node.derived      = cast(^Expr) new_node
 		new_node.derived_expr = new_node
 	}

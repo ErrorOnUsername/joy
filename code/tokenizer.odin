@@ -2,26 +2,24 @@ package main
 
 import "core:strings"
 
-tokenize_file :: proc( data: ^FileData ) -> bool
-{
-	tk := lex_next_token( data )
+tokenize_file :: proc(data: ^FileData) -> bool {
+	tk := lex_next_token(data)
 	for tk.kind != .EndOfFile {
 		if tk.kind == .Invalid {
-			log_spanned_error( &tk.span, "got invalid token" )
+			log_spanned_error(&tk.span, "got invalid token")
 			return false
 		}
-		append( &data.tokens, tk )
-		tk = lex_next_token( data )
+		append(&data.tokens, tk)
+		tk = lex_next_token(data)
 	}
 
-	append( &data.tokens, tk )
+	append(&data.tokens, tk)
 
 	return true
 }
 
-lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
-{
-	data_size := uint( len( data.data ) )
+lex_next_token :: proc(data: ^FileData) -> (token: Token) {
+	data_size := uint(len(data.data))
 
 	for data.read_idx < data_size {
 		c := data.data[data.read_idx]
@@ -31,103 +29,103 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 				data.read_idx += 1
 			case '\r':
 				data.read_idx += 1
-				assert( data.data[data.read_idx] == '\n' )
+				assert(data.data[data.read_idx] == '\n')
 				data.read_idx += 1
 				token.kind = .EndOfLine
-				lex_assign_span( data, &token, 2 )
+				lex_assign_span(data, &token, 2)
 				return
 			case '\n':
 				data.read_idx += 1
 				token.kind = .EndOfLine
-				lex_assign_span( data, &token, 2 )
+				lex_assign_span(data, &token, 2)
 				return
 			case '=':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .Equal
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '>' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '>') {
 					token.kind = .ThiccArrow
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Assign
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case ';':
 				data.read_idx += 1
 				token.kind = .Semicolon
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case ',':
 				data.read_idx += 1
 				token.kind = .Comma
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '.':
 				data.read_idx += 1
-				if lex_try_consume( data, '.' ) {
+				if lex_try_consume(data, '.') {
 					token.kind = .DotDot
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Dot
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '~':
 				data.read_idx += 1
 				token.kind = .Tilde
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case ':':
 				data.read_idx += 1
 				token.kind = .Colon
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '+':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .PlusAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Plus
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '-':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .MinusAssign
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '>' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '>' ) {
 					token.kind = .SmolArrow
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Minus
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '*':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .StarAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Star
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '/':
 				start_idx := data.read_idx
 				data.read_idx += 1
 
-				if lex_try_consume( data, '/' ) {
+				if lex_try_consume(data, '/') {
 					for data.read_idx < data_size && data.data[data.read_idx] != '\n' && data.data[data.read_idx] != '\r' {
 						data.read_idx += 1
 					}
 
 					continue
-				} else if lex_try_consume( data, '*' ) {
+				} else if lex_try_consume(data, '*') {
 					level := 1
 
 					for data.read_idx < data_size && level > 0 {
@@ -141,7 +139,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 					}
 
 					if level != 0 {
-						log_error( "Unterminated string literal!" )
+						log_error("Unterminated string literal!")
 						token.kind = .Invalid
 						token.span = { data.id, start_idx, start_idx + 1 }
 						return
@@ -150,150 +148,150 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 					continue
 				}
 
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .SlashAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Slash
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '%':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .PercentAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Percent
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '(':
 				data.read_idx += 1
 				token.kind = .LParen
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case ')':
 				data.read_idx += 1
 				token.kind = .RParen
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '{':
 				data.read_idx += 1
 				token.kind = .LCurly
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '}':
 				data.read_idx += 1
 				token.kind = .RCurly
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '[':
 				data.read_idx += 1
 				token.kind = .LSquare
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case ']':
 				data.read_idx += 1
 				token.kind = .RSquare
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '<':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .LessThanOrEqual
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '<' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '<') {
 					token.kind = .LShift
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .LAngle
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '>':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .GreaterThanOrEqual
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '>' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '>') {
 					token.kind = .RShift
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .RAngle
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '!':
 				data.read_idx += 1
-				if lex_try_consume( data, '=' ) {
+				if lex_try_consume(data, '=') {
 					token.kind = .NotEqual
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Bang
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '@':
 				data.read_idx += 1
 				token.kind = .At
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 			case '&':
 				data.read_idx += 1
-				if lex_try_consume( data, '&' ) {
+				if lex_try_consume(data, '&') {
 					token.kind = .DoubleAmpersand
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '=' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '=') {
 					token.kind = .AmpersandAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Ampersand
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '|':
 				data.read_idx += 1
-				if lex_try_consume( data, '|' ) {
+				if lex_try_consume(data, '|') {
 					token.kind = .DoublePipe
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '=' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '=') {
 					token.kind = .PipeAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Pipe
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '^':
 				data.read_idx += 1
-				if lex_try_consume( data, '^' ) {
+				if lex_try_consume(data, '^') {
 					token.kind = .DoubleCaret
-					lex_assign_span( data, &token, 2 )
-				} else if lex_try_consume( data, '=' ) {
+					lex_assign_span(data, &token, 2)
+				} else if lex_try_consume(data, '=') {
 					token.kind = .CaretAssign
-					lex_assign_span( data, &token, 2 )
+					lex_assign_span(data, &token, 2)
 				} else {
 					token.kind = .Caret
-					lex_assign_span( data, &token, 1 )
+					lex_assign_span(data, &token, 1)
 				}
 				return
 			case '"':
-				ok := get_string_literal( data, &token )
+				ok := get_string_literal(data, &token)
 				if !ok {
 					token.kind = .Invalid
 					return
 				}
 				return
 			case '0'..='9':
-				ok := get_number_literal( data, &token )
+				ok := get_number_literal(data, &token)
 				if !ok {
 					token.kind = .Invalid
 					return
 				}
 				return
 			case 'a'..='z', 'A'..='Z', '_':
-				ok := get_ident_or_keword( data, &token )
+				ok := get_ident_or_keword(data, &token)
 				if !ok {
 					token.kind = .Invalid
 					return
@@ -302,7 +300,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 			case:
 				data.read_idx += 1
 				token.kind = .Invalid
-				lex_assign_span( data, &token, 1 )
+				lex_assign_span(data, &token, 1)
 				return
 		}
 	}
@@ -312,8 +310,7 @@ lex_next_token :: proc( data: ^FileData ) -> ( token: Token )
 	return
 }
 
-lex_try_consume :: proc( data: ^FileData, c: u8 ) -> bool
-{
+lex_try_consume :: proc(data: ^FileData, c: u8) -> bool {
 	if data.data[data.read_idx] == c {
 		data.read_idx += 1
 		return true
@@ -322,26 +319,22 @@ lex_try_consume :: proc( data: ^FileData, c: u8 ) -> bool
 	return false
 }
 
-lex_assign_span :: proc( data: ^FileData, t: ^Token, size: uint )
-{
+lex_assign_span :: proc(data: ^FileData, t: ^Token, size: uint) {
 	t.span.file = data.id
 	t.span.start = data.read_idx - size
 	t.span.end = data.read_idx
 	t.str = data.data[t.span.start:t.span.end]
 }
 
-is_digit_char :: proc( char: u8 ) -> bool
-{
-	return ( char >= '0' && char <= '9' ) || ( char >= 'a' && char <= 'f' ) || ( char >= 'A' && char <= 'F' )
+is_digit_char :: proc(char: u8) -> bool {
+	return (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')
 }
 
-is_valid_number_char :: proc( char: u8 ) -> bool
-{
-	return is_digit_char( char ) || char == '.' || char == '_'
+is_valid_number_char :: proc(char: u8) -> bool {
+	return is_digit_char(char) || char == '.' || char == '_'
 }
 
-get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
-{
+get_number_literal :: proc(data: ^FileData, token: ^Token) -> bool {
 	token.kind = .Number
 	token.span = { data.id, data.read_idx, data.read_idx + 1 }
 
@@ -365,26 +358,26 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 
 		ch = data.data[data.read_idx]
 
-		if radix == 10 && is_digit_char( ch ) {
-			log_spanned_error( &token.span, "Leading zero in number literal" )
+		if radix == 10 && is_digit_char(ch) {
+			log_spanned_error(&token.span, "Leading zero in number literal")
 			return false
 		}
 
-		if radix != 10 && !is_digit_char( ch ) {
-			log_spanned_error( &token.span, "Base prefix not followed by number value" )
+		if radix != 10 && !is_digit_char(ch) {
+			log_spanned_error(&token.span, "Base prefix not followed by number value")
 			return false
 		}
 	}
 
-	for ch != '\n' && is_valid_number_char( ch ) {
+	for ch != '\n' && is_valid_number_char(ch) {
 		if ch == '.' {
-			if !is_digit_char( data.data[data.read_idx + 1] ) {
+			if !is_digit_char(data.data[data.read_idx + 1]) {
 				break
 			}
 
 			if radix != 10 {
 				token.span.start = data.read_idx
-				log_spanned_error( &token.span, "Cannot specify a fractional component in non-decimal number systems" )
+				log_spanned_error(&token.span, "Cannot specify a fractional component in non-decimal number systems")
 				return false
 			}
 
@@ -396,9 +389,9 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 		}
 
 		if ch == '_' {
-			if !( is_digit_char( data.data[data.read_idx - 1] ) && is_digit_char( data.data[data.read_idx + 1] ) ) {
+			if !(is_digit_char(data.data[data.read_idx - 1]) && is_digit_char(data.data[data.read_idx + 1])) {
 				token.span.start = data.read_idx
-				log_spanned_error( &token.span, "Digit seperator char must be between two digits" )
+				log_spanned_error(&token.span, "Digit seperator char must be between two digits")
 				return false
 			}
 		}
@@ -415,8 +408,7 @@ get_number_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 	return true
 }
 
-get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
-{
+get_string_literal :: proc(data: ^FileData, token: ^Token) -> bool {
 	token.kind = .StringLiteral
 	token.span = { data.id, data.read_idx, data.read_idx + 1 }
 
@@ -432,7 +424,7 @@ get_string_literal :: proc( data: ^FileData, token: ^Token ) -> bool
 	str_end := data.read_idx
 
 	if ch == '\n' {
-		log_spanned_error( &token.span, "Unterminated string literal!" )
+		log_spanned_error(&token.span, "Unterminated string literal!")
 		return false
 	}
 
@@ -486,10 +478,9 @@ keyword_map := [?]KeywordEntry {
 	{ "range", .Range },
 }
 
-get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
-{
+get_ident_or_keword :: proc(data: ^FileData, token: ^Token) -> (ok := true) {
 	start := data.read_idx
-	for is_valid_ident_char( data.data[data.read_idx] ) {
+	for is_valid_ident_char(data.data[data.read_idx]) {
 		data.read_idx += 1
 	}
 
@@ -510,24 +501,22 @@ get_ident_or_keword :: proc( data: ^FileData, token: ^Token ) -> ( ok := true )
 	return
 }
 
-is_valid_ident_char :: proc( c: u8 ) -> bool
-{
-	return ( c >= 'a' && c <= 'z' ) || ( c >= 'A' && c <= 'Z' ) || ( c >= '0' && c <= '9' ) || c == '_'
+is_valid_ident_char :: proc(c: u8) -> bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }
 
-join_span :: proc( l_span: ^Span, r_span: ^Span ) -> ( ret: Span, ok := true )
-{
+join_span :: proc(l_span: ^Span, r_span: ^Span) -> (ret: Span, ok := true) {
 	ret = {}
 
 	if l_span.file != r_span.file {
 		ok = false
-		log_errorf( "left span '{}' and right span '{}' are not in the same file!", l_span, r_span )
+		log_errorf("left span '{}' and right span '{}' are not in the same file!", l_span, r_span)
 		return
 	}
 
 	if l_span.start > r_span.end {
 		ok = false
-		log_errorf( "left span '{}' comes after right span '{}'!", l_span, r_span )
+		log_errorf("left span '{}' comes after right span '{}'!", l_span, r_span)
 		return
 	}
 
@@ -539,22 +528,19 @@ join_span :: proc( l_span: ^Span, r_span: ^Span ) -> ( ret: Span, ok := true )
 }
 
 
-Span :: struct
-{
+Span :: struct {
 	file:  FileID,
 	start: uint,
 	end:   uint,
 }
 
-Token :: struct
-{
+Token :: struct {
 	kind: TokenKind,
 	span: Span,
 	str:  string,
 }
 
-TokenKind :: enum
-{
+TokenKind :: enum {
 	Invalid,
 
 	EndOfFile,

@@ -7,6 +7,7 @@ import "core:hash"
 import "core:math/big"
 import "core:sync"
 
+
 cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 	mod := ctx.checker.cg_module
 
