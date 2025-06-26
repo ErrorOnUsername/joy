@@ -786,6 +786,30 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 		case ^UnaryOpExpr:
 		case ^BinOpExpr: return cg_emit_binop(ctx, e)
 		case ^ProcCallExpr:
+			fn := ctx.cg_fn
+			assert(fn != nil)
+
+			mod := ctx.checker.cg_module
+			assert(mod != nil)
+
+			param_vals: [dynamic]^epoch.Node
+			defer delete(param_vals)
+
+			for p in e.params {
+				v := cg_emit_expr(ctx, p) or_return
+				append(&param_vals, v)
+			}
+
+			fn_decl := e.target.derived_stmnt.(^ConstDecl)
+			target_function := fn_decl.value.cg_val
+
+			sym_extra := target_function.extra.(^epoch.SymbolExtra)
+			proto := sym_extra.sym.derived.(^epoch.Function).proto
+
+			call := epoch.insr_call(fn, target_function, proto, param_vals[:])
+			e.cg_val = call
+
+			return call, true
 		case ^PrimitiveTypeExpr:
 			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected primitive type expression in cg_emit_expr")
 			return nil, false

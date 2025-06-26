@@ -1239,6 +1239,7 @@ tc_check_expr :: proc( ctx: ^CheckerContext, expr: ^Expr ) -> (^Type, Addressing
 			}
 
 			ex.type = fn_ty.return_type
+			ex.target = decl
 
 			return fn_ty.return_type, .RValue
 		case ^PrimitiveTypeExpr:

@@ -46,6 +46,8 @@ decl main = fn() {
 
 	loop { break; }
 
+	let c = square(b);
+
 	let mut d: MyStruct = { 10, "Hello" };
 	let e: uint = d.member_0;
 	let f: string = d.member_1;
@@ -54,7 +56,4 @@ decl main = fn() {
 
 	let g: MyEnum = .VariantB;
 	let h: MyUnion = .VariantB { d, "haha" };
-	/*
-	let c = square(b);
-	*/
 };

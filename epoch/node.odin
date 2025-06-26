@@ -204,7 +204,7 @@ RegisterClass :: enum {
 }
 
 
-insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: []^Node) -> []^Node
+insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: []^Node) -> ^Node
 {
 	n := new_node(fn, .Call, TY_TUPLE, 3 + len(params))
 
@@ -231,7 +231,7 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 
 	n.extra = extra
 
-	return extra.projs[2:]
+	return n
 }
 
 // FIXME(RD): This stuff is assuming windows-amd64 abi. There's probably some fucked shit going on with sys-v that we should support
