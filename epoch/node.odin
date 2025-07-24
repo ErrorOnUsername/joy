@@ -31,6 +31,7 @@ Function :: struct {
 	using symbol: Symbol,
 	pool: mem.Dynamic_Pool,
 	allocator: mem.Allocator,
+	node_count: int,
 	proto: ^FunctionProto,
 	params: []^Node,
 	start: ^Node,
@@ -140,9 +141,13 @@ new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^
 new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) -> ^Node {
 	n, _ := new(Node, fn.allocator)
 	n.kind = kind
+	n.gvn = fn.node_count
 	n.type = type
 	inputs, _ := make([]^Node, input_count, fn.allocator)
 	n.inputs = inputs
+	
+	fn.node_count += 1
+
 	return n
 }
 
@@ -615,9 +620,10 @@ insr_neg :: proc(fn: ^Function, v: ^Node) -> ^Node {
 Node :: struct {
 	kind:   NodeKind,
 	type:   Type,
+	gvn:    u32,
 	inputs: []^Node,
-	users: [dynamic]^Node,
-	extra:   NodeExtra,
+	users:  [dynamic]^Node,
+	extra:  NodeExtra,
 }
 
 IntConst :: union {
