@@ -112,15 +112,21 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
+@(private = "file")
+set_input :: proc(n: ^Node, i: int, v: ^Node) {
+	n.inputs[i] = v
+	append(&v.users, n)
+}
+
 new_region :: proc(fn: ^Function, name: string) -> ^Node {
 	n := new_node(fn, .Region, TY_CTRL, 2)
-	n.inputs[0] = fn.meta.curr_ctrl
+	set_input(n, 0, fn.meta.curr_ctrl)
 	return n
 }
 
 new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
 	proj := new_node(fn, .Proj, type, 1)
-	proj.inputs[0] = src_node
+	set_input(proj, 0, src_node)
 
 	extra := new(ProjExtra, fn.allocator)
 	extra.idx = proj_idx
@@ -142,21 +148,21 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 
 new_int_const :: proc(fn: ^Function, type: Type, val: IntConst) -> ^Node {
 	n := new_node(fn, .IntConst, type, 1)
-	n.inputs[0] = fn.start
+	set_input(n, 0, fn.start)
 	n.extra = val
 	return n
 }
 
 new_float_const :: proc(fn: ^Function, type: Type, val: FloatConst) -> ^Node {
 	n := new_node(fn, .IntConst, type, 1)
-	n.inputs[0] = fn.start
+	set_input(n, 0, fn.start)
 	n.extra = val
 	return n
 }
 
 add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
 	n := new_node(fn, .Local, TY_PTR, 1)
-	n.inputs[0] = fn.start
+	set_input(n, 0, fn.start)
 
 	local := new(LocalExtra, fn.allocator)
 	local.size = size
@@ -168,7 +174,7 @@ add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
 
 add_sym :: proc(fn: ^Function, s: ^Symbol) -> ^Node {
 	n := new_node(fn, .Symbol, TY_PTR, 1)
-	n.inputs[0] = fn.start
+	set_input(n, 0, fn.start)
 
 	symbol := new(SymbolExtra, fn.allocator)
 	symbol.sym = s
@@ -211,11 +217,11 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
 	mem_proj := new_proj(fn, TY_MEM, n, 1)
 
-	n.inputs[0] = transfer_control(fn, ctrl_proj)
-	n.inputs[1] = insert_mem_effect(fn, mem_proj)
-	n.inputs[2] = target // the symbol of the function we want to call
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+	set_input(n, 2, target) // the symbol of the function we want to call
 	for p, i in params {
-		n.inputs[3 + i] = p
+		set_input(n, 3 + i, p)
 	}
 
 	extra, _ := new(CallExtra, fn.allocator)
@@ -320,33 +326,33 @@ insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	assert(ty_is_ctrl(then.type))
 	assert(ty_is_ctrl(else_l.type))
 	n := new_node(fn, .Branch, TY_CTRL, 4)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = cond
-	n.inputs[2] = then
-	n.inputs[3] = else_l
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, cond)
+	set_input(n, 2, then)
+	set_input(n, 3, else_l)
 }
 
 insr_goto :: proc(fn: ^Function, to: ^Node) {
 	assert(ty_is_ctrl(to.type))
 	n := new_node(fn, .Goto, TY_CTRL, 2)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = to
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, to)
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {
 	n := new_node(fn, .Return, TY_CTRL, 3)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = fn.meta.curr_mem
-	n.inputs[2] = val
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, fn.meta.curr_mem)
+	set_input(n, 2, val)
 }
 
 insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
 	assert(ty_equal(a.type, b.type), "phi parameter type mismatch")
 	n := new_node(fn, .Phi, a.type, 4)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = fn.meta.curr_mem
-	n.inputs[2] = a
-	n.inputs[3] = b
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, fn.meta.curr_mem)
+	set_input(n, 2, a)
+	set_input(n, 3, b)
 	return n
 }
 
@@ -358,17 +364,17 @@ insr_load :: proc(fn: ^Function, t: Type, addr: ^Node, is_volatile: bool) -> ^No
 		mem := new_proj(fn, TY_MEM, n, 0)
 		data := new_proj(fn, t, n, 1)
 
-		n.inputs[0] = fn.meta.curr_ctrl
-		n.inputs[1] = insert_mem_effect(fn, mem)
-		n.inputs[2] = addr
+		set_input(n, 0, fn.meta.curr_ctrl)
+		set_input(n, 1, insert_mem_effect(fn, mem))
+		set_input(n, 2, addr)
 
 		return data
 	}
 
 	n := new_node(fn, .Load, t, 3)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = fn.meta.curr_mem
-	n.inputs[2] = addr
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, fn.meta.curr_mem)
+	set_input(n, 2, addr)
 
 	return n
 }
@@ -382,10 +388,10 @@ insr_store :: proc(fn: ^Function, addr: ^Node, val: ^Node, is_volatile: bool) ->
 		n = new_node(fn, .Store, TY_MEM, 4)
 	}
 
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = insert_mem_effect(fn, n)
-	n.inputs[2] = addr
-	n.inputs[3] = val
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, insert_mem_effect(fn, n))
+	set_input(n, 2, addr)
+	set_input(n, 3, val)
 
 	return n
 }
@@ -395,11 +401,11 @@ insr_memcpy :: proc(fn: ^Function, dst: ^Node, src: ^Node, count: ^Node) -> ^Nod
 	assert(ty_is_ptr(src.type))
 
 	n := new_node(fn, .MemCpy, TY_MEM, 5)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = insert_mem_effect(fn, n)
-	n.inputs[2] = dst
-	n.inputs[3] = src
-	n.inputs[4] = count
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, insert_mem_effect(fn, n))
+	set_input(n, 2, dst)
+	set_input(n, 3, src)
+	set_input(n, 4, count)
 
 	return n
 }
@@ -409,11 +415,11 @@ insr_memset :: proc(fn: ^Function, dst: ^Node, val: ^Node, count: ^Node) -> ^Nod
 	assert(ty_equal(val.type, TY_I8))
 
 	n := new_node(fn, .MemSet, TY_MEM, 5)
-	n.inputs[0] = fn.meta.curr_ctrl
-	n.inputs[1] = insert_mem_effect(fn, n)
-	n.inputs[2] = dst
-	n.inputs[3] = val
-	n.inputs[4] = count
+	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 1, insert_mem_effect(fn, n))
+	set_input(n, 2, dst)
+	set_input(n, 3, val)
+	set_input(n, 4, count)
 
 	return n
 }
@@ -426,8 +432,8 @@ insr_getmemberptr :: proc(fn: ^Function, base: ^Node, dbg_type: ^DebugType, memb
 	offset := new_int_const(fn, TY_PTR, i64(mem_offset))
 
 	n := new_node(fn, .GetMemberPtr, TY_PTR, 3)
-	n.inputs[1] = base
-	n.inputs[2] = offset
+	set_input(n, 1, base)
+	set_input(n, 2, offset)
 	return n
 }
 
@@ -436,8 +442,8 @@ insr_getmemberptr :: proc(fn: ^Function, base: ^Node, dbg_type: ^DebugType, memb
 insr_binop :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
 	assert(ty_equal(lhs.type, rhs.type), "binop operand type mismatch")
 	n := new_node(fn, kind, lhs.type, 3)
-	n.inputs[1] = lhs
-	n.inputs[2] = rhs
+	set_input(n, 1, lhs)
+	set_input(n, 2, rhs)
 	return n
 }
 
@@ -529,8 +535,8 @@ insr_fmin :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 insr_cmp :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
 	assert(ty_equal(lhs.type, rhs.type), "compare operand type mismatch")
 	n := new_node(fn, kind, TY_BOOL, 3)
-	n.inputs[1] = lhs
-	n.inputs[2] = rhs
+	set_input(n, 1, lhs)
+	set_input(n, 2, rhs)
 	return n
 }
 
@@ -593,7 +599,7 @@ insr_cmp_fge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 @(private = "file")
 insr_unary :: proc(fn: ^Function, kind: NodeKind, type: Type, v: ^Node) -> ^Node {
 	n := new_node(fn, kind, type, 2)
-	n.inputs[1] = v
+	set_input(n, 1, v)
 	return n
 }
 
@@ -610,7 +616,7 @@ Node :: struct {
 	kind:   NodeKind,
 	type:   Type,
 	inputs: []^Node,
-	outputs: ^NodeOutput,
+	users: [dynamic]^Node,
 	extra:   NodeExtra,
 }
 
@@ -649,11 +655,6 @@ NodeExtra :: union {
 	^ProjExtra,
 	IntConst,
 	FloatConst,
-}
-
-NodeOutput :: struct {
-	user: ^Node,
-	next: ^NodeOutput,
 }
 
 NodeKind :: enum {
