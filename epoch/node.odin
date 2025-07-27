@@ -141,7 +141,7 @@ new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^
 new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) -> ^Node {
 	n, _ := new(Node, fn.allocator)
 	n.kind = kind
-	n.gvn = fn.node_count
+	n.gvn = u32(fn.node_count)
 	n.type = type
 	inputs, _ := make([]^Node, input_count, fn.allocator)
 	n.inputs = inputs
