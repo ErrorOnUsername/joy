@@ -116,7 +116,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 @(private = "file")
 set_input :: proc(n: ^Node, i: int, v: ^Node) {
 	n.inputs[i] = v
-	append(&v.users, n)
+	append(&v.users, User { n, i } )
 }
 
 new_region :: proc(fn: ^Function, name: string) -> ^Node {
@@ -145,7 +145,7 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	n.type = type
 	inputs, _ := make([]^Node, input_count, fn.allocator)
 	n.inputs = inputs
-	
+
 	fn.node_count += 1
 
 	return n
@@ -622,8 +622,13 @@ Node :: struct {
 	type:   Type,
 	gvn:    u32,
 	inputs: []^Node,
-	users:  [dynamic]^Node,
+	users:  [dynamic]User,
 	extra:  NodeExtra,
+}
+
+User :: struct {
+	n: ^Node,
+	slot: int,
 }
 
 IntConst :: union {
