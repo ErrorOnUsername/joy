@@ -50,6 +50,13 @@ asm_symbol :: proc(sym: ^Symbol, sb: ^strings.Builder) -> bool {
 				fmt.sbprintf(sb, "\n")
 			}
 			fmt.sbprintf(sb, ") {{\n")
+
+			wl: Worklist
+			worklist_init(&wl, s.node_count, context.allocator)
+			defer worklist_deinit(&wl)
+
+			asm_node(&wl, s.end, sb) or_return
+
 			fmt.sbprintf(sb, "}}")
 		case ^Global:
 			fmt.sbprintf(sb, "const {} = [", s.name)
@@ -62,6 +69,35 @@ asm_symbol :: proc(sym: ^Symbol, sb: ^strings.Builder) -> bool {
 			fmt.sbprint(sb, "]")
 	}
 
+	return true
+}
+
+asm_node :: proc(w: ^Worklist, n: ^Node, sb: ^strings.Builder) -> bool {
+	assert(n != nil)
+	if worklist_contains(w, n) do return true
+
+	for input in n.inputs {
+		assert(input != nil)
+		asm_node(w, input, sb) or_return
+	}
+
+	#partial switch n.kind {
+		case .Start:
+			fmt.sbprintf(sb, "#start\n")
+		case .Region:
+			fmt.sbprintf(sb, "@{}:\n", n.gvn)
+		case .End:
+			fmt.sbprintf(sb, "#end\n")
+		case:
+			fmt.sbprintf(sb, "\t%%{} := {}(", n.gvn, n.kind)
+			for input, i in n.inputs {
+				fmt.sbprintf(sb, "%%{}", input.gvn)
+				if i < len(n.inputs) {
+					fmt.sbprintf(sb, ", ")
+				}
+			}
+			fmt.sbprintf(sb, ");\n")
+	}
 	return true
 }
 

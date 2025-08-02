@@ -95,6 +95,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	fn.allocator = mem.dynamic_pool_allocator(&fn.pool)
 
 	fn.start = new_node(fn, .Start, TY_TUPLE, 0)
+	fn.end = new_node(fn, .End, TY_CTRL, 1)
 
 	fn.proto = proto
 
@@ -106,11 +107,16 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	fn.meta.curr_ctrl = fn.params[0]
 	fn.meta.curr_mem = fn.params[1]
 
+	fn.end.inputs[0] = fn.meta.curr_ctrl
+
 	for i in 0..<len(proto.params) {
 		fn.params[i + 2] = new_proj(fn, proto.params[i].type, fn.start, i + 1)
 	}
 
 	return fn
+}
+
+end_function :: proc(fn: ^Function) {
 }
 
 @(private = "file")
@@ -193,6 +199,7 @@ add_sym :: proc(fn: ^Function, s: ^Symbol) -> ^Node {
 transfer_control :: proc(fn: ^Function, new_ctrl: ^Node) -> ^Node {
 	old := fn.meta.curr_ctrl
 	fn.meta.curr_ctrl = new_ctrl
+	fn.end.inputs[0] = new_ctrl
 	return old
 }
 
@@ -206,6 +213,7 @@ insert_mem_effect :: proc(fn: ^Function, new_mem: ^Node) -> ^Node {
 set_control :: proc(fn: ^Function, ctrl: ^Node) {
 	assert(ty_is_ctrl(ctrl.type))
 	fn.meta.curr_ctrl = ctrl
+	fn.end.inputs[0] = ctrl
 }
 
 RegisterClass :: enum {
