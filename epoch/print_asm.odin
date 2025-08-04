@@ -91,7 +91,7 @@ asm_node :: proc(w: ^Worklist, n: ^Node, sb: ^strings.Builder) -> bool {
 			fmt.sbprintf(sb, "@{}:\n", n.gvn)
 		case .End:
 			fmt.sbprintf(sb, "#end\n")
-		case .Branch, .Goto, .MemSet:
+		case .Branch, .Goto, .MemSet, .Return, .Store:
 			fmt.sbprintf(sb, "\t{} ", n.kind)
 			for input, i in n.inputs {
 				if i == 0 && input == nil {
@@ -116,7 +116,12 @@ asm_node :: proc(w: ^Worklist, n: ^Node, sb: ^strings.Builder) -> bool {
 					fmt.sbprintf(sb, ", ")
 				}
 			}
+
 			fmt.sbprintf(sb, "\n")
+
+			for u in &n.users {
+				asm_node(w, u.n, sb) or_return
+			}
 	}
 	return true
 }
