@@ -35,6 +35,7 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function) -> (^BasicBlock, bool) {
 	for x := worklist_pop(&wl); x != nil; x = worklist_pop(&wl) {
 		assert(is_bb_start(x))
 		end := get_bb_terminator_from(x)
+		assert(is_bb_term(end))
 
 		bb := new(BasicBlock, fn.allocator)
 		append(&bb.nodes, x)
@@ -59,15 +60,14 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function) -> (^BasicBlock, bool) {
 		}
 	}
 
-	return nil, false
+	return start, true
 }
 
 is_bb_start :: proc(n: ^Node) -> bool {
 	if n == nil do return false
 
 	#partial switch n.kind {
-		case .Region: return true
-		case .Proj:   return n.inputs[0].kind == .Start
+		case .Region, .Start: return true
 	}
 
 	return false
@@ -101,7 +101,7 @@ is_ctrl_node :: proc(n: ^Node) -> bool {
 
 get_next_control :: proc(n: ^Node) -> ^Node {
 	for u in &n.users {
-		if is_ctrl_node(u.n) && u.slot == 0 {
+		if is_ctrl_node(u.n) && u.slot == 0 && !is_bb_start(u.n) {
 			return u.n
 		}
 	}
@@ -111,7 +111,7 @@ get_next_control :: proc(n: ^Node) -> ^Node {
 get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 	x := n
 	for !is_bb_term(x) {
-		next := get_next_control(n)
+		next := get_next_control(x)
 		assert(!is_bb_start(next))
 		if next == nil {
 			break
@@ -122,19 +122,19 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 }
 
 perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock) -> bool {
-	build_dominator_tree(fn, start) or_return
+	root := build_dominator_tree(fn, start) or_return
 	return true
 }
 
 build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock) -> (^DominatorTreeNode, bool) {
-	return nil, false
+	return nil, true
 }
 
 register_allocate :: proc(fn: ^Function, start: ^BasicBlock) -> bool {
-	return false
+	return true
 }
 
 write_machine_code :: proc(fn: ^Function, start: ^BasicBlock) -> ([]u8, bool) {
-	return {}, false
+	return {}, true
 }
 

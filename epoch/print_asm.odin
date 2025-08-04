@@ -76,7 +76,10 @@ asm_node :: proc(w: ^Worklist, n: ^Node, sb: ^strings.Builder) -> bool {
 	assert(n != nil)
 	if worklist_contains(w, n) do return true
 
-	for input in n.inputs {
+	worklist_push(w, n)
+
+	for input, i in n.inputs {
+		if input == nil && i == 0 do continue
 		assert(input != nil)
 		asm_node(w, input, sb) or_return
 	}
@@ -88,15 +91,32 @@ asm_node :: proc(w: ^Worklist, n: ^Node, sb: ^strings.Builder) -> bool {
 			fmt.sbprintf(sb, "@{}:\n", n.gvn)
 		case .End:
 			fmt.sbprintf(sb, "#end\n")
-		case:
-			fmt.sbprintf(sb, "\t%%{} := {}(", n.gvn, n.kind)
+		case .Branch, .Goto, .MemSet:
+			fmt.sbprintf(sb, "\t{} ", n.kind)
 			for input, i in n.inputs {
-				fmt.sbprintf(sb, "%%{}", input.gvn)
-				if i < len(n.inputs) {
+				if i == 0 && input == nil {
+					fmt.sbprintf(sb, "@nil")
+				} else {
+					fmt.sbprintf(sb, "%%{}", input.gvn)
+				}
+				if i < len(n.inputs) - 1 {
 					fmt.sbprintf(sb, ", ")
 				}
 			}
-			fmt.sbprintf(sb, ");\n")
+			fmt.sbprintf(sb, "\n")
+		case:
+			fmt.sbprintf(sb, "\t%%{} := {} ", n.gvn, n.kind)
+			for input, i in n.inputs {
+				if i == 0 && input == nil {
+					fmt.sbprintf(sb, "@nil")
+				} else {
+					fmt.sbprintf(sb, "%%{}", input.gvn)
+				}
+				if i < len(n.inputs) - 1 {
+					fmt.sbprintf(sb, ", ")
+				}
+			}
+			fmt.sbprintf(sb, "\n")
 	}
 	return true
 }

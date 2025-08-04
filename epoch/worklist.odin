@@ -1,6 +1,7 @@
 package epoch
 
 import "core:mem"
+import "base:runtime"
 
 
 Worklist :: struct {
@@ -9,7 +10,7 @@ Worklist :: struct {
 }
 
 worklist_init :: proc(w: ^Worklist, node_count: int, a: mem.Allocator) {
-	words_for_node_count := max(node_count / 64, 1)
+	words_for_node_count := runtime.align_forward(node_count, 64) / 64
 	w.visited_bits = make([]u64, words_for_node_count, a)
 }
 

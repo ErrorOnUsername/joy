@@ -126,7 +126,7 @@ set_input :: proc(n: ^Node, i: int, v: ^Node) {
 }
 
 new_region :: proc(fn: ^Function, name: string) -> ^Node {
-	n := new_node(fn, .Region, TY_CTRL, 2)
+	n := new_node(fn, .Region, TY_CTRL, 1)
 	set_input(n, 0, fn.meta.curr_ctrl)
 	return n
 }
