@@ -799,7 +799,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			fn_decl := e.target.derived_stmnt.(^ConstDecl)
 			target_function := fn_decl.value.cg_val
 
-			sym_extra := target_function.extra.(^epoch.SymbolExtra)
+			sym_extra := target_function.extra.derived.(^epoch.SymbolExtra)
 			proto := sym_extra.sym.derived.(^epoch.Function).proto
 
 			call := epoch.insr_call(fn, target_function, proto, param_vals[:])

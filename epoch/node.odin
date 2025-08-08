@@ -116,9 +116,6 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
-end_function :: proc(fn: ^Function) {
-}
-
 @(private = "file")
 set_input :: proc(n: ^Node, i: int, v: ^Node) {
 	n.inputs[i] = v
@@ -131,11 +128,17 @@ new_region :: proc(fn: ^Function, name: string) -> ^Node {
 	return n
 }
 
+new_extra :: proc($T: typeid, fn: ^Function) -> ^T {
+	e := new(T, fn.allocator)
+	e.extra.derived = e
+	return e
+}
+
 new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^Node {
 	proj := new_node(fn, .Proj, type, 1)
 	set_input(proj, 0, src_node)
 
-	extra := new(ProjExtra, fn.allocator)
+	extra := new_extra(ProjExtra, fn)
 	extra.idx = proj_idx
 
 	proj.extra = extra
@@ -157,17 +160,27 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	return n
 }
 
-new_int_const :: proc(fn: ^Function, type: Type, val: IntConst) -> ^Node {
+new_int_const :: proc(fn: ^Function, type: Type, val: IntConstVal) -> ^Node {
 	n := new_node(fn, .IntConst, type, 1)
 	set_input(n, 0, fn.start)
-	n.extra = val
+	extra := new_extra(IntConst, fn)
+	extra.val = val
+	n.extra = extra
 	return n
 }
 
-new_float_const :: proc(fn: ^Function, type: Type, val: FloatConst) -> ^Node {
-	n := new_node(fn, .IntConst, type, 1)
+new_float_const :: proc(fn: ^Function, type: Type, val: FloatConstVal) -> ^Node {
+	n: ^Node
+	switch v in val {
+		case f32:
+			n = new_node(fn, .F32Const, type, 1)
+		case f64:
+			n = new_node(fn, .F64Const, type, 1)
+	}
 	set_input(n, 0, fn.start)
-	n.extra = val
+	extra := new_extra(FloatConst, fn)
+	extra.val = val
+	n.extra = extra
 	return n
 }
 
@@ -175,7 +188,7 @@ add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
 	n := new_node(fn, .Local, TY_PTR, 1)
 	set_input(n, 0, fn.start)
 
-	local := new(LocalExtra, fn.allocator)
+	local := new_extra(LocalExtra, fn)
 	local.size = size
 	local.align = align
 
@@ -187,7 +200,7 @@ add_sym :: proc(fn: ^Function, s: ^Symbol) -> ^Node {
 	n := new_node(fn, .Symbol, TY_PTR, 1)
 	set_input(n, 0, fn.start)
 
-	symbol := new(SymbolExtra, fn.allocator)
+	symbol := new_extra(SymbolExtra, fn)
 	symbol.sym = s
 
 	n.extra = symbol
@@ -237,7 +250,7 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 		set_input(n, 3 + i, p)
 	}
 
-	extra, _ := new(CallExtra, fn.allocator)
+	extra := new_extra(CallExtra, fn)
 	extra.projs = make([]^Node, len(proto.returns) + 2, fn.allocator)
 	extra.proto = proto
 
@@ -631,7 +644,7 @@ Node :: struct {
 	gvn:    u32,
 	inputs: []^Node,
 	users:  [dynamic]User,
-	extra:  NodeExtra,
+	extra:  ^NodeExtra,
 }
 
 User :: struct {
@@ -639,41 +652,52 @@ User :: struct {
 	slot: int,
 }
 
-IntConst :: union {
-	u64,
-	i64,
+IntConstVal :: union { u64, i64 }
+IntConst :: struct {
+	using extra: NodeExtra,
+	val: IntConstVal,
 }
 
-FloatConst :: union {
-	f32,
-	f64,
+FloatConstVal :: union { f32, f64 }
+FloatConst :: struct {
+	using extra: NodeExtra,
+	val: FloatConstVal,
 }
 
 CallExtra :: struct {
+	using extra: NodeExtra,
 	proto: ^FunctionProto,
 	projs: []^Node,
 }
 
 LocalExtra :: struct {
+	using extra: NodeExtra,
 	size: int,
 	align: int,
 }
 
 SymbolExtra :: struct {
+	using extra: NodeExtra,
 	sym: ^Symbol,
 }
 
 ProjExtra :: struct {
+	using extra: NodeExtra,
 	idx: int,
 }
 
-NodeExtra :: union {
+AnyExtra :: union {
 	^CallExtra,
 	^LocalExtra,
 	^SymbolExtra,
 	^ProjExtra,
-	IntConst,
-	FloatConst,
+	^IntConst,
+	^FloatConst,
+}
+
+NodeExtra :: struct {
+	tag: string,
+	derived: AnyExtra,
 }
 
 NodeKind :: enum {
