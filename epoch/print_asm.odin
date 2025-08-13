@@ -88,7 +88,8 @@ asm_node :: proc(w: ^Worklist, n: ^Node, sb: ^strings.Builder) -> bool {
 		case .Start:
 			fmt.sbprintf(sb, "#start\n")
 		case .Region:
-			fmt.sbprintf(sb, "@{}:\n", n.gvn)
+			name := n.extra.tag
+			fmt.sbprintf(sb, "@{} ({} <- {}):\n", name, n.gvn, n.inputs[0].gvn)
 		case .End:
 			fmt.sbprintf(sb, "#end\n")
 		case .Branch, .Goto, .MemSet, .Return, .Store:

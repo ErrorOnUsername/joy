@@ -125,6 +125,10 @@ set_input :: proc(n: ^Node, i: int, v: ^Node) {
 new_region :: proc(fn: ^Function, name: string) -> ^Node {
 	n := new_node(fn, .Region, TY_CTRL, 1)
 	set_input(n, 0, fn.meta.curr_ctrl)
+
+	e := new_extra(RegionExtra, fn)
+	e.extra.tag = name
+	n.extra = e
 	return n
 }
 
@@ -686,6 +690,10 @@ ProjExtra :: struct {
 	idx: int,
 }
 
+RegionExtra :: struct {
+	using extra: NodeExtra,
+}
+
 AnyExtra :: union {
 	^CallExtra,
 	^LocalExtra,
@@ -693,6 +701,7 @@ AnyExtra :: union {
 	^ProjExtra,
 	^IntConst,
 	^FloatConst,
+	^RegionExtra,
 }
 
 NodeExtra :: struct {
