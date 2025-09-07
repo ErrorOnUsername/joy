@@ -213,6 +213,15 @@ pump_tc_check_proc_body :: proc(c: ^Checker, p: ^ProcProto, m: ^Module) -> PumpR
 		if !stmnt_ok do return .Error
 	}
 
+	// auto-insert return
+	if p.return_type == nil || ty_is_void(p.return_type.type) {
+		ret: ReturnStmnt
+		ret.stmnt.derived_stmnt = &ret
+		ret.stmnt.node.derived = &ret.stmnt
+		ret.stmnt.node.span = p.expr.span // this should literally never be needed, but just in case
+		tc_check_stmnt(&ctx, &ret)
+	}
+
 	return .Continue
 }
 
@@ -402,19 +411,26 @@ tc_check_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 				return false
 			}
 
-			ty, addr_mode := tc_check_expr(ctx, s.expr)
-			if ty == nil do return false
+			if s.expr == nil {
+				if ctx.curr_proc.return_type != nil && ty_is_void(ctx.curr_proc.return_type.type) {
+					log_spanned_errorf(&s.span, "naked return value on function with non-void return type '{}'", ctx.curr_proc.return_type.type.name)
+					return false
+				}
+			} else {
+				ty, addr_mode := tc_check_expr(ctx, s.expr)
+				if ty == nil do return false
 
-			if addr_mode == .Invalid {
-				log_spanned_error(&s.expr.span, "Expression does not produce a value")
-				return false
-			}
+				if addr_mode == .Invalid {
+					log_spanned_error(&s.expr.span, "Expression does not produce a value")
+					return false
+				}
 
-			proc_ty := ctx.curr_proc.type.derived.(^FnType)
+				proc_ty := ctx.curr_proc.type.derived.(^FnType)
 
-			if !ty_eq(ty, proc_ty.return_type) {
-				log_spanned_errorf(&s.span, "return expression's type does not match the return type of the function. Expected '{}' got '{}'", proc_ty.return_type.name, ty.name)
-				return false
+				if !ty_eq(ty, proc_ty.return_type) {
+					log_spanned_errorf(&s.span, "return expression's type does not match the return type of the function. Expected '{}' got '{}'", proc_ty.return_type.name, ty.name)
+					return false
+				}
 			}
 	}
 

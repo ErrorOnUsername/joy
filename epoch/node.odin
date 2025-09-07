@@ -122,14 +122,19 @@ set_input :: proc(n: ^Node, i: int, v: ^Node) {
 	append(&v.users, User { n, i } )
 }
 
-new_region :: proc(fn: ^Function, name: string) -> ^Node {
-	n := new_node(fn, .Region, TY_CTRL, 1)
-	set_input(n, 0, fn.meta.curr_ctrl)
+new_region :: proc(fn: ^Function, name: string, pred_count: int) -> ^Node {
+	n := new_node(fn, .Region, TY_CTRL, pred_count)
 
 	e := new_extra(RegionExtra, fn)
-	e.extra.tag = name
+	e.extra.tag = name // lifetime issue
 	n.extra = e
 	return n
+}
+
+region_add_pred :: proc(region: ^Node, pred: ^Node, idx: int) {
+	assert(region.kind == .Region)
+	assert(ty_is_ctrl(pred.type))
+	region.inputs[idx] = pred
 }
 
 new_extra :: proc($T: typeid, fn: ^Function) -> ^T {
@@ -188,11 +193,12 @@ new_float_const :: proc(fn: ^Function, type: Type, val: FloatConstVal) -> ^Node 
 	return n
 }
 
-add_local :: proc(fn: ^Function, size: int, align: int) -> ^Node {
+add_local :: proc(fn: ^Function, name: string, size: int, align: int) -> ^Node {
 	n := new_node(fn, .Local, TY_PTR, 1)
 	set_input(n, 0, fn.start)
 
 	local := new_extra(LocalExtra, fn)
+	local.tag = name
 	local.size = size
 	local.align = align
 
@@ -370,10 +376,15 @@ insr_goto :: proc(fn: ^Function, to: ^Node) {
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {
-	n := new_node(fn, .Return, TY_CTRL, 3)
+	n: ^Node
+	if val != nil {
+		n = new_node(fn, .Return, TY_CTRL, 3)
+		set_input(n, 2, val)
+	} else {
+		n = new_node(fn, .Return, TY_CTRL, 2)
+	}
 	set_input(n, 0, fn.meta.curr_ctrl)
 	set_input(n, 1, fn.meta.curr_mem)
-	set_input(n, 2, val)
 }
 
 insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
@@ -494,11 +505,11 @@ insr_add :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 }
 
 insr_sub :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_binop(fn, .Add, lhs, rhs)
+	return insr_binop(fn, .Sub, lhs, rhs)
 }
 
 insr_mul :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_binop(fn, .Add, lhs, rhs)
+	return insr_binop(fn, .Mul, lhs, rhs)
 }
 
 insr_shl :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {

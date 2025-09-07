@@ -1,5 +1,7 @@
 package epoch
 
+import "core:fmt"
+
 
 BasicBlock :: struct {
 	nodes:  [dynamic]^Node,
@@ -25,14 +27,25 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 }
 
 build_cfg :: proc(ctx: ^EpochContext, fn: ^Function) -> (^BasicBlock, bool) {
-	wl: Worklist
-	worklist_init(&wl, fn.node_count, fn.allocator)
-	defer worklist_deinit(&wl)
+	visited: Worklist
+	worklist_init(&visited, fn.node_count)
+	defer worklist_deinit(&visited)
 
 	start: ^BasicBlock
 
-	worklist_push(&wl, fn.start)
-	for x := worklist_pop(&wl); x != nil; x = worklist_pop(&wl) {
+	stack: [dynamic]^Node
+	defer delete(stack)
+
+	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
+		if len(a) == 0 do return nil
+		return pop(a)
+	}
+
+	append(&stack, fn.start)
+	for x := stack_pop(&stack); x != nil; x = stack_pop(&stack) {
+		if worklist_contains(&visited, x) do continue
+		worklist_push(&visited, x)
+
 		assert(is_bb_start(x))
 		end := get_bb_terminator_from(x)
 		assert(is_bb_term(end))
@@ -52,7 +65,7 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function) -> (^BasicBlock, bool) {
 		}
 
 		for s in bb.succ {
-			worklist_push(&wl, s)
+			append(&stack, s)
 		}
 
 		if x.kind == .Start {

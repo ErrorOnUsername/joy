@@ -39,7 +39,7 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			assert(fn != nil)
 
 			dbg := cg_get_debug_type(mod, s.type, &s.span) or_return
-			var := epoch.add_local(ctx.cg_fn, s.type.size, s.type.alignment)
+			var := epoch.add_local(ctx.cg_fn, s.name, s.type.size, s.type.alignment)
 			s.cg_val = var
 
 			// FIXME(RD): Params are just zeroed out by default. that's dumb as shit
@@ -96,8 +96,12 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 
 			epoch.insr_goto(fn, ctx.cg_loop_end)
 		case ^ReturnStmnt:
-			v := cg_emit_expr(ctx, s.expr) or_return
-			epoch.insr_ret(ctx.cg_fn, v)
+			if s.expr != nil {
+				v := cg_emit_expr(ctx, s.expr) or_return
+				epoch.insr_ret(ctx.cg_fn, v)
+			} else {
+				epoch.insr_ret(ctx.cg_fn, nil)
+			}
 	}
 
 	return true
@@ -330,7 +334,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			mod := ctx.checker.cg_module
 			assert(mod != nil)
 
-			lit_slot := epoch.add_local(fn, e.type.size, e.type.alignment)
+			lit_slot := epoch.add_local(fn, e.type.name, e.type.size, e.type.alignment)
 
 			dbg_type := cg_get_debug_type(mod, e.type, &e.span) or_return
 
@@ -463,7 +467,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				assert(mod != nil)
 
 				dbg_type := cg_get_debug_type(mod, e.type, &e.span) or_return
-				val_slot := epoch.add_local(fn, e.type.size, e.type.alignment)
+				val_slot := epoch.add_local(fn, e.type.name, e.type.size, e.type.alignment)
 
 				cg_struct_type := dbg_type.extra.(^epoch.DebugTypeStruct)
 				cg_variant_union := cg_struct_type.fields[1].field_ty.extra.(^epoch.DebugTypeUnion) // bad to hard-code ikik but its the "data" member fuck off
@@ -520,7 +524,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			fnl_v: ^epoch.Node
 			if !ty_is_void(e.type) && e.cg_val == nil {
-				fnl_v = epoch.add_local(fn, e.type.size, e.type.alignment)
+				fnl_v = epoch.add_local(fn, "scope_yield", e.type.size, e.type.alignment)
 				e.cg_val = fnl_v
 			}
 
@@ -539,21 +543,25 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {
-				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				dst_slot = epoch.add_local(fn, "if_yield", e.type.size, e.type.alignment)
 				e.cg_val = dst_slot
 			}
 
-			end := epoch.new_region(fn, "if.end")
+			end := epoch.new_region(fn, "if.end", 1)
 
 			curr_if := e
 			for curr_if != nil {
+				else_br := end
 				if curr_if.cond != nil {
-					then := epoch.new_region(fn, "if.then")
-					else_br := end
+					then := epoch.new_region(fn, "if.then", 1)
+					// this will either be the pred of the first if or the if.else of the previous if (holds the condition check and branch)
+					epoch.region_add_pred(then, fn.meta.curr_ctrl, 0)
 
 					if curr_if.else_block != nil {
-						else_br = epoch.new_region(fn, "if.else")
+						else_br = epoch.new_region(fn, "if.else", 1)
 					}
+
+					epoch.region_add_pred(else_br, then, 0)
 
 					true_val := epoch.new_int_const(fn, epoch.TY_BOOL, i64(1))
 					cond_v := cg_emit_expr(ctx, e.cond) or_return
@@ -567,6 +575,11 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				// so they store the result in the same spot.
 				curr_if.then.cg_val = dst_slot // could be nil (if block doesn't yeild a value)
 				br_v := cg_emit_expr(ctx, curr_if.then) or_return
+
+				// Just in case it didn't get set (if we had an else/else if)
+				epoch.region_add_pred(else_br, fn.meta.curr_ctrl, 0)
+				epoch.insr_goto(fn, else_br)
+				epoch.set_control(fn, else_br)
 
 				curr_if = curr_if.else_block
 			}
@@ -582,13 +595,14 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {
-				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				dst_slot = epoch.add_local(fn, "for_yeild", e.type.size, e.type.alignment)
 				e.cg_val = dst_slot
 			}
 
-			iter_slot := epoch.add_local(fn, e.iter.type.size, e.iter.type.alignment)
+			iter_slot := epoch.add_local(fn, e.iter.name, e.iter.type.size, e.iter.type.alignment)
 
-			loop_end := epoch.new_region(fn, "loop.end")
+			// FIXME: this needs to handle break statements
+			loop_end := epoch.new_region(fn, "loop.end", 1)
 			last_end := ctx.cg_loop_end
 			defer ctx.cg_loop_end = last_end
 			ctx.cg_loop_end = loop_end
@@ -608,12 +622,15 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			e.body.cg_val = dst_slot // inherit parent slot so it doesn't allocate its own
 
-			loop_header := epoch.new_region(fn, "loop.header")
+			loop_header := epoch.new_region(fn, "loop.header", 2)
 			last_start := ctx.cg_loop_start
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_header
 
-			iv_slot := epoch.add_local(fn, ty_builtin_rawptr.size, ty_builtin_rawptr.alignment)
+			epoch.region_add_pred(loop_header, fn.meta.curr_ctrl, 0)
+			epoch.region_add_pred(loop_end, loop_header, 0)
+
+			iv_slot := epoch.add_local(fn, "iv", ty_builtin_rawptr.size, ty_builtin_rawptr.alignment)
 
 			// Induction Variable Init
 			{
@@ -641,7 +658,10 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				}
 			}
 
-			loop_body := epoch.new_region(fn, "loop.body")
+			loop_body := epoch.new_region(fn, "loop.body", 1)
+
+			epoch.region_add_pred(loop_header, loop_body, 1)
+			epoch.region_add_pred(loop_body, loop_header, 0)
 
 			epoch.insr_goto(fn, loop_header)
 			epoch.set_control(fn, loop_header)
@@ -695,19 +715,22 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {
-				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				dst_slot = epoch.add_local(fn, "while_yield", e.type.size, e.type.alignment)
 				e.cg_val = dst_slot
 			}
 
-			loop_end := epoch.new_region(fn, "loop.end")
+			// FIXME: break stmnts?
+			loop_end := epoch.new_region(fn, "loop.end", 1)
 			last_end := ctx.cg_loop_end
 			defer ctx.cg_loop_end = last_end
 			ctx.cg_loop_end = loop_end
 
-			loop_header := epoch.new_region(fn, "loop.header")
+			loop_header := epoch.new_region(fn, "loop.header", 2)
 			last_start := ctx.cg_loop_start
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_header
+
+			epoch.region_add_pred(loop_header, fn.meta.curr_ctrl, 0)
 
 			epoch.insr_goto(fn, loop_header) // We have to reuse the condition check every loop so just jmp
 			epoch.set_control(fn, loop_header)
@@ -716,7 +739,11 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			cond_v := cg_emit_expr(ctx, e.cond) or_return
 			cmp := epoch.insr_cmp_eq(fn, cond_v, true_val)
 
-			loop_body := epoch.new_region(fn, "loop.body")
+			loop_body := epoch.new_region(fn, "loop.body", 1)
+
+			epoch.region_add_pred(loop_header, loop_body, 1)
+			epoch.region_add_pred(loop_body, loop_header, 0)
+			epoch.region_add_pred(loop_end, loop_header, 0)
 
 			epoch.insr_br(fn, cmp, loop_body, loop_end)
 
@@ -734,19 +761,22 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			fn := ctx.cg_fn
 			assert(fn != nil)
 
-			loop_end := epoch.new_region(fn, "loop.end")
+			loop_end := epoch.new_region(fn, "loop.end", 1)
 			last_end := ctx.cg_loop_end
 			defer ctx.cg_loop_end = last_end
 			ctx.cg_loop_end = loop_end
 
-			loop_body := epoch.new_region(fn, "loop.body")
+			loop_body := epoch.new_region(fn, "loop.body", 1)
 			last_start := ctx.cg_loop_start
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_body
 
+			epoch.region_add_pred(loop_body, fn.meta.curr_ctrl, 0)
+			epoch.region_add_pred(loop_end, loop_body, 0)
+
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {
-				dst_slot = epoch.add_local(fn, e.type.size, e.type.alignment)
+				dst_slot = epoch.add_local(fn, "loop_yield", e.type.size, e.type.alignment)
 				e.cg_val = dst_slot
 			}
 
@@ -770,7 +800,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			rhs := cg_emit_expr(ctx, e.rhs) or_return
 
 			dbg_ty := cg_get_debug_type(mod, e.type, &e.span) or_return
-			lit_slot := epoch.add_local(fn, e.lhs.type.size, e.lhs.type.alignment)
+			lit_slot := epoch.add_local(fn, "range", e.lhs.type.size, e.lhs.type.alignment)
 
 			start_ptr := epoch.insr_getmemberptr(fn, lit_slot, dbg_ty, "start")
 			epoch.insr_store(fn, start_ptr, lhs, false)
@@ -797,10 +827,12 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			}
 
 			fn_decl := e.target.derived_stmnt.(^ConstDecl)
-			target_function := fn_decl.value.cg_val
+			target_function_in_callee_context := fn_decl.value.cg_val
 
-			sym_extra := target_function.extra.derived.(^epoch.SymbolExtra)
-			proto := sym_extra.sym.derived.(^epoch.Function).proto
+			sym_extra := target_function_in_callee_context.extra.derived.(^epoch.SymbolExtra)
+			actual_sym := sym_extra.sym
+			target_function := epoch.add_sym(fn, actual_sym)
+			proto := actual_sym.derived.(^epoch.Function).proto
 
 			call := epoch.insr_call(fn, target_function, proto, param_vals[:])
 			e.cg_val = call

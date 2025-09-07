@@ -9,9 +9,9 @@ Worklist :: struct {
 	visited_bits: []u64, // bitset indexed by gvn (is there a Odin-y way to do this?)
 }
 
-worklist_init :: proc(w: ^Worklist, node_count: int, a: mem.Allocator) {
+worklist_init :: proc(w: ^Worklist, node_count: int) {
 	words_for_node_count := runtime.align_forward(node_count, 64) / 64
-	w.visited_bits = make([]u64, words_for_node_count, a)
+	w.visited_bits = make([]u64, words_for_node_count)
 }
 
 worklist_deinit :: proc(w: ^Worklist) {
