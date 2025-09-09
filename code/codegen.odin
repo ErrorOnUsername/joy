@@ -547,9 +547,19 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				e.cg_val = dst_slot
 			}
 
-			end := epoch.new_region(fn, "if.end", 1)
+			block_count := 0
+			{
+				curr_if := e
+				for curr_if != nil {
+					block_count += 1
+					curr_if = curr_if.else_block
+				}
+			}
+
+			end := epoch.new_region(fn, "if.end", block_count)
 
 			curr_if := e
+			block_idx := 0
 			for curr_if != nil {
 				else_br := end
 				if curr_if.cond != nil {
@@ -576,9 +586,12 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				curr_if.then.cg_val = dst_slot // could be nil (if block doesn't yeild a value)
 				br_v := cg_emit_expr(ctx, curr_if.then) or_return
 
-				// Just in case it didn't get set (if we had an else/else if)
-				epoch.region_add_pred(else_br, fn.meta.curr_ctrl, 0)
-				epoch.insr_goto(fn, else_br)
+				// jmp to end after then block
+				epoch.region_add_pred(end, fn.meta.curr_ctrl, block_idx)
+				epoch.insr_goto(fn, end)
+
+				block_idx += 1
+
 				epoch.set_control(fn, else_br)
 
 				curr_if = curr_if.else_block
