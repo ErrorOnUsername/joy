@@ -3,21 +3,15 @@ package epoch
 import "core:fmt"
 
 
-BasicBlock :: struct {
-	nodes:  [dynamic]^Node,
-	succ:   []^Node,
-}
-
-DominatorTreeNode :: struct {
-	block: ^BasicBlock,
-}
-
 codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	// TODO: insr selection
 
-	start := build_cfg(ctx, fn) or_return
+	block_map := block_map_create(fn)
+	defer block_map_destroy(&block_map)
 
-	perform_code_motion(ctx, fn, start) or_return
+	start := build_cfg(ctx, fn, &block_map) or_return
+
+	perform_code_motion(ctx, fn, start, &block_map) or_return
 
 	register_allocate(fn, start) or_return
 
@@ -26,7 +20,7 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	return true
 }
 
-build_cfg :: proc(ctx: ^EpochContext, fn: ^Function) -> (^BasicBlock, bool) {
+build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBlock, bool) {
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
 	defer worklist_deinit(&visited)
@@ -52,7 +46,9 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function) -> (^BasicBlock, bool) {
 
 		bb := new(BasicBlock, fn.allocator)
 		append(&bb.nodes, x)
+		block_map_set_node_block(bm, x, bb)
 		append(&bb.nodes, end)
+		block_map_set_node_block(bm, end, bb)
 
 		if end.kind == .Branch {
 			bb.succ = make([]^Node, 2, fn.allocator)
@@ -134,12 +130,41 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 	return x
 }
 
-perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock) -> bool {
-	root := build_dominator_tree(fn, start) or_return
+perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
+	root := build_dominator_tree(fn, start, bm) or_return
 	return true
 }
 
-build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock) -> (^DominatorTreeNode, bool) {
+
+DominatorTreeNode :: struct {
+	block: ^BasicBlock,
+	idom: ^DominatorTreeNode, // immediate dominator
+}
+
+build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> (^DominatorTreeNode, bool) {
+	stack: [dynamic]^Node
+	defer delete(stack)
+
+	append(&stack, start.nodes[0])
+	block_number := 1
+
+	for len(stack) > 0 {
+		start_node := pop(&stack)
+		bb := block_map_get_node_block(bm, start_node)
+		assert(bb != nil)
+
+		if bb.id != 0 {
+			continue // already checked this one (loop back-edge)
+		}
+
+		bb.id = block_number
+		block_number += 1
+
+		for s in bb.succ {
+			append(&stack, s)
+		}
+	}
+
 	return nil, true
 }
 
