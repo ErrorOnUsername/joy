@@ -142,15 +142,27 @@ DominatorTreeNode :: struct {
 }
 
 build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> (^DominatorTreeNode, bool) {
-	stack: [dynamic]^Node
+	assert(fn != nil)
+	assert(start != nil)
+	assert(bm != nil)
+
+	DominatorTreeCtx :: struct {
+		n: ^Node,
+		idom: ^DominatorTreeNode,
+	}
+
+	stack: [dynamic]DominatorTreeCtx
 	defer delete(stack)
 
-	append(&stack, start.nodes[0])
+	start_dom := new(DominatorTreeNode, fn.allocator)
+	start_dom.block = start
+
+	append(&stack, DominatorTreeCtx { start.nodes[0], start_dom })
 	block_number := 1
 
 	for len(stack) > 0 {
-		start_node := pop(&stack)
-		bb := block_map_get_node_block(bm, start_node)
+		x := pop(&stack)
+		bb := block_map_get_node_block(bm, x.n)
 		assert(bb != nil)
 
 		if bb.id != 0 {
@@ -160,8 +172,18 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 		bb.id = block_number
 		block_number += 1
 
+		idom := x.idom
+		if bb != start {
+			dom := new(DominatorTreeNode, fn.allocator)
+			dom.block = bb
+			dom.idom = x.idom
+			idom = dom
+		}
+
+		fmt.printf("block {}.{} is dom by {}.{}\n", x.n.extra.tag, x.n.gvn, x.idom.block.nodes[0].extra.tag, x.idom.block.nodes[0].gvn)
+
 		for s in bb.succ {
-			append(&stack, s)
+			inject_at(&stack, 0, DominatorTreeCtx { s, idom } )
 		}
 	}
 
