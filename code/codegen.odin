@@ -571,7 +571,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 						else_br = epoch.new_region(fn, "if.else", 1)
 					}
 
-					epoch.region_add_pred(else_br, then, 0)
+					epoch.region_add_pred(else_br, fn.meta.curr_ctrl, 0)
 
 					true_val := epoch.new_int_const(fn, epoch.TY_BOOL, i64(1))
 					cond_v := cg_emit_expr(ctx, e.cond) or_return

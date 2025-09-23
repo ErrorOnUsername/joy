@@ -131,63 +131,98 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 }
 
 perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
-	root := build_dominator_tree(fn, start, bm) or_return
+	build_dominator_tree(fn, start, bm) or_return
 	return true
 }
 
-
-DominatorTreeNode :: struct {
-	block: ^BasicBlock,
-	idom: ^DominatorTreeNode, // immediate dominator
-}
-
-build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> (^DominatorTreeNode, bool) {
+// There's probably a goofy ass paper out there that has this same solution idk i just wrote the sombitch from first principles
+build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
 	assert(fn != nil)
 	assert(start != nil)
 	assert(bm != nil)
 
-	DominatorTreeCtx :: struct {
-		n: ^Node,
-		idom: ^DominatorTreeNode,
-	}
+	blocks: [dynamic]^Node // this is kinda stupid just build a list in the first place lol
+	defer delete(blocks)
 
-	stack: [dynamic]DominatorTreeCtx
-	defer delete(stack)
-
-	start_dom := new(DominatorTreeNode, fn.allocator)
-	start_dom.block = start
-
-	append(&stack, DominatorTreeCtx { start.nodes[0], start_dom })
+	append(&blocks, start.nodes[0])
 	block_number := 1
 
-	for len(stack) > 0 {
-		x := pop(&stack)
-		bb := block_map_get_node_block(bm, x.n)
-		assert(bb != nil)
-
-		if bb.id != 0 {
-			continue // already checked this one (loop back-edge)
+	get_start :: proc(n: ^Node) -> ^Node {
+		s := n
+		for !is_bb_start(s) {
+			next := s.inputs[0]
+			if next == nil do break
+			s = next
 		}
+		return s
+	}
 
-		bb.id = block_number
-		block_number += 1
+	get_pred :: proc(n: ^Node) -> ^Node {
+		if len(n.inputs) == 0 do return nil
+		return get_start(n.inputs[0])
+	}
 
-		idom := x.idom
-		if bb != start {
-			dom := new(DominatorTreeNode, fn.allocator)
-			dom.block = bb
-			dom.idom = x.idom
-			idom = dom
+	walk_up_to_find :: proc(from: ^Node, to: ^Node) -> bool {
+		curr := from
+		for curr != nil {
+			assert(is_bb_start(curr))
+			if curr == to {
+				return true
+			}
+			curr = get_pred(curr)
 		}
+		return false
+	}
 
-		fmt.printf("block {}.{} is dom by {}.{}\n", x.n.extra.tag, x.n.gvn, x.idom.block.nodes[0].extra.tag, x.idom.block.nodes[0].gvn)
+	get_common_pred :: proc(a: ^Node, b: ^Node) -> ^Node {
+		x := a
+		y := b
+		for x != y {
+			if walk_up_to_find(x, y) {
+				return y
+			}
+			if walk_up_to_find(y, x) {
+				return x
+			}
 
-		for s in bb.succ {
-			inject_at(&stack, 0, DominatorTreeCtx { s, idom } )
+			x = get_pred(x)
+			y = get_pred(y)
+		}
+		return nil
+	}
+
+	for {
+		did_work := false
+		for x in blocks {
+			bb := block_map_get_node_block(bm, x)
+			assert(bb != nil)
+
+			if bb.id != 0 {
+				continue // already checked this one (loop back-edge)
+			}
+
+			did_work = true
+
+			bb.id = block_number
+			block_number += 1
+
+			highest := x // sentinel state for the start node since it has no inputs
+			for input in x.inputs { // This won't work when we change the inputs
+				start := get_start(input)
+				highest = get_common_pred(highest, start)
+			}
+			bb.dom = highest
+
+			for s in bb.succ {
+				append(&blocks, s)
+			}
+		}
+		if !did_work {
+			break
 		}
 	}
 
-	return nil, true
+	return true
 }
 
 register_allocate :: proc(fn: ^Function, start: ^BasicBlock) -> bool {
