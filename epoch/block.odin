@@ -2,10 +2,11 @@ package epoch
 
 
 BasicBlock :: struct {
-	id:    int,
-	nodes: [dynamic]^Node,
-	succ:  []^Node,
-	dom:   ^Node,
+	id:        int,
+	nodes:     [dynamic]^Node,
+	succ:      []^Node,
+	dom:       ^BasicBlock,
+	dom_depth: int,
 }
 
 BlockMap :: struct {

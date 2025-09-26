@@ -132,6 +132,136 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 
 perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
 	build_dominator_tree(fn, start, bm) or_return
+
+	visited: Worklist
+	worklist_init(&visited, fn.node_count)
+	defer worklist_deinit(&visited)
+
+	schedule_global_early(fn, bm, &visited) or_return
+
+	final_global_schedule(fn, &visited) or_return
+
+	local_schedule(fn, &visited) or_return
+
+	return true
+}
+
+// Schedules all the floating nodes as soon as their inputs allow
+schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
+	// dedup
+	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
+		if len(a) == 0 do return nil
+		return pop(a)
+	}
+	get_start :: proc(n: ^Node) -> ^Node {
+		s := n
+		for !is_bb_start(s) {
+			next := s.inputs[0]
+			if next == nil do break
+			s = next
+		}
+		return s
+	}
+
+	stack: [dynamic]^Node
+	append(&stack, fn.end)
+
+	for len(stack) > 0 {
+		n := stack[len(stack) - 1]
+		assert(n != nil)
+
+		worklist_push(visited, n)
+
+		unpinned_input := false
+		for input in n.inputs {
+			if !is_node_pinned(input) {
+				assert(!worklist_contains(visited, input)) // should only happen for control back-edges (loops)
+				append(&stack, input)
+				unpinned_input = true
+			}
+		}
+
+		// DFS
+		if unpinned_input do continue
+
+		// This ones ready to schedule (all inputs pinned already)
+
+		deepest_input_bb: ^BasicBlock
+		for input in n.inputs {
+			input_ctrl_node := input.inputs[0] // maybe make a helper since this is kinda ugly :(
+			assert(input_ctrl_node != nil) // ruhroh rhaggy
+			// This can go away if we map the pinned nodes before this bs since they won't change anyways
+			input_ctrl_node = get_start(input_ctrl_node)
+			assert(is_bb_start(input_ctrl_node))
+			input_bb := block_map_get_node_block(bm, input_ctrl_node)
+			assert(input_bb != nil)
+			if deepest_input_bb == nil || input_bb.dom_depth > deepest_input_bb.dom_depth {
+				deepest_input_bb = input_bb
+			}
+		}
+
+		stack_pop(&stack)
+	}
+
+	return true
+}
+
+// Picks the final location for the nodes (as late as possible while also pulling code out of loops as much as it can)
+final_global_schedule :: proc(fn: ^Function, visited: ^Worklist) -> bool {
+		/*
+	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
+		if len(a) == 0 do return nil
+		return pop(a)
+	}
+	get_start :: proc(n: ^Node) -> ^Node {
+		s := n
+		for !is_bb_start(s) {
+			next := s.inputs[0]
+			if next == nil do break
+			s = next
+		}
+		return s
+	}
+
+	stack: [dynamic]^Node
+	append(&stack, fn.end)
+
+	for len(stack) > 0 {
+		n := stack[len(stack) - 1]
+		assert(n != nil)
+
+		worklist_push(visited, n)
+
+		unhandled_input := false
+		for input in n.inputs {
+			if !worklist_contains(visited, input) {
+				assert(is_node_pinned(input))
+				append(&stack, input)
+				unhandled_input = true
+			}
+		}
+
+		if unhandled_input do continue
+
+		// place the node before the first use and hoist out of loops where needed
+		pin_point := n.inputs[0]
+		deepest_use_shallowest_loop := pin_point
+		for u in n.users {
+			u_ctrl := u.n.inputs[0]
+			assert(u_ctrl)
+			u_ctrl = get_start(u_ctrl)
+			u_bb := block_map_get_node_block(bm, u_ctrl)
+			assert(u_bb != nil)
+		}
+
+		stack_pop(&stack)
+	}
+		*/
+
+	return true
+}
+
+local_schedule :: proc(fn: ^Function, visited: ^Worklist) -> bool {
 	return true
 }
 
@@ -198,7 +328,8 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 			assert(bb != nil)
 
 			if bb.id != 0 {
-				continue // already checked this one (loop back-edge)
+				// already checked this one (loop back-edge)
+				continue
 			}
 
 			did_work = true
@@ -211,7 +342,12 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 				start := get_start(input)
 				highest = get_common_pred(highest, start)
 			}
-			bb.dom = highest
+			highest_bb := block_map_get_node_block(bm, highest)
+			assert(highest_bb != nil)
+			bb.dom = highest_bb
+
+			// copy bookkeeping state so that child blocks makes sense
+			bb.dom_depth = highest_bb.dom_depth + 1
 
 			for s in bb.succ {
 				append(&blocks, s)

@@ -57,6 +57,10 @@ AnySymbol :: union {
 	^Global,
 }
 
+is_node_pinned :: proc(n: ^Node) -> bool {
+	return len(n.inputs) > 0 && n.inputs[0] != nil
+}
+
 new_symbol :: proc(m: ^Module, $T: typeid, name: string, linkage: Linkage) -> ^T {
 	sync.lock(&m.allocator_lock)
 	defer sync.unlock(&m.allocator_lock)
