@@ -139,7 +139,7 @@ perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBloc
 
 	schedule_global_early(fn, bm, &visited) or_return
 
-	final_global_schedule(fn, &visited) or_return
+	final_global_schedule(fn, bm, &visited) or_return
 
 	local_schedule(fn, &visited) or_return
 
@@ -200,6 +200,8 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 			}
 		}
 
+		n.inputs[0] = deepest_input_bb.nodes[0]
+
 		stack_pop(&stack)
 	}
 
@@ -207,8 +209,7 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 }
 
 // Picks the final location for the nodes (as late as possible while also pulling code out of loops as much as it can)
-final_global_schedule :: proc(fn: ^Function, visited: ^Worklist) -> bool {
-		/*
+final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
 	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
 		if len(a) == 0 do return nil
 		return pop(a)
@@ -235,7 +236,8 @@ final_global_schedule :: proc(fn: ^Function, visited: ^Worklist) -> bool {
 		unhandled_input := false
 		for input in n.inputs {
 			if !worklist_contains(visited, input) {
-				assert(is_node_pinned(input))
+				// start nodes don't have inputs but we still want to add them ig. not super important
+				assert(input.kind == .Start || is_node_pinned(input))
 				append(&stack, input)
 				unhandled_input = true
 			}
@@ -243,20 +245,36 @@ final_global_schedule :: proc(fn: ^Function, visited: ^Worklist) -> bool {
 
 		if unhandled_input do continue
 
-		// place the node before the first use and hoist out of loops where needed
-		pin_point := n.inputs[0]
-		deepest_use_shallowest_loop := pin_point
-		for u in n.users {
-			u_ctrl := u.n.inputs[0]
-			assert(u_ctrl)
-			u_ctrl = get_start(u_ctrl)
-			u_bb := block_map_get_node_block(bm, u_ctrl)
-			assert(u_bb != nil)
+		if block_map_get_node_block(bm, n) == nil && n.kind != .End { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
+			// place the node before the first use and hoist out of loops where needed
+			pin_point := n.inputs[0]
+			assert(is_bb_start(pin_point))
+			pin_bb := block_map_get_node_block(bm, pin_point)
+			highest_use: ^BasicBlock
+			for u in n.users {
+				u_ctrl := u.n.inputs[0]
+				assert(u_ctrl != nil)
+				u_ctrl = get_start(u_ctrl)
+				u_bb := block_map_get_node_block(bm, u_ctrl)
+				assert(u_bb != nil)
+				if highest_use == nil || u_bb.dom_depth < highest_use.dom_depth {
+					highest_use = u_bb
+				}
+			}
+
+			assert(highest_use != nil)
+
+			final_bb := highest_use
+			// FIXME: Implement loop_nest tracking (ie actually write the code for the loop tree dumbass)
+			for final_bb != pin_bb && final_bb.loop_nest > 0 {
+				final_bb = final_bb.dom
+			}
+
+			n.inputs[0] = final_bb.nodes[0]
 		}
 
 		stack_pop(&stack)
 	}
-		*/
 
 	return true
 }

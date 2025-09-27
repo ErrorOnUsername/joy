@@ -7,6 +7,7 @@ BasicBlock :: struct {
 	succ:      []^Node,
 	dom:       ^BasicBlock,
 	dom_depth: int,
+	loop_nest: int,
 }
 
 BlockMap :: struct {
