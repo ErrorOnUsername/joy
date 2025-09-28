@@ -5,10 +5,10 @@ A language made for fun and to learn more about compilers
 
 ### Syntax
 ```
-use joy.io;
+use joy.debug;
 
-decl main := fn() {
-	io.println( "Hello, World!" );
+decl main = fn() {
+	debug.println("Hello, World!");
 };
 ```
 
@@ -17,7 +17,7 @@ decl main := fn() {
 - [x] Lexing
 - [x] Parsing (multithreaded)
 - [x] Typechecking (multithreaded)
-- [ ] Custom IR (codegen in-progress. multithreaded)
-- [ ] Custom backend
-- [ ] Metaprogramming
+- [x] Custom IR (multithreaded)
+- [ ] Custom backend (Sea of Nodes) (in-progress)
+- [ ] Metaprogramming (maybe. this might be out of the scope of the language)
 
