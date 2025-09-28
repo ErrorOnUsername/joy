@@ -139,9 +139,13 @@ perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBloc
 
 	schedule_global_early(fn, bm, &visited) or_return
 
+	worklist_clear(&visited)
+
 	final_global_schedule(fn, bm, &visited) or_return
 
-	local_schedule(fn, &visited) or_return
+	worklist_clear(&visited)
+
+	local_schedule(fn, bm, &visited) or_return
 
 	return true
 }
@@ -200,6 +204,7 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 			}
 		}
 
+		fmt.printf("get moved nerd [{}]\n", fn.name)
 		n.inputs[0] = deepest_input_bb.nodes[0]
 
 		stack_pop(&stack)
@@ -270,6 +275,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				final_bb = final_bb.dom
 			}
 
+			fmt.printf("get moved again nerd [{}]\n", fn.name)
 			n.inputs[0] = final_bb.nodes[0]
 		}
 
@@ -279,7 +285,45 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 	return true
 }
 
-local_schedule :: proc(fn: ^Function, visited: ^Worklist) -> bool {
+local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
+	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
+		if len(a) == 0 do return nil
+		return pop(a)
+	}
+
+	stack: [dynamic]^Node
+	append(&stack, fn.end)
+
+	for len(stack) > 0 {
+		n := stack[len(stack) - 1]
+		assert(n != nil)
+
+		worklist_push(visited, n)
+
+		unhandled_input := false
+		for input in n.inputs {
+			if !worklist_contains(visited, input) {
+				// start nodes don't have inputs but we still want to add them ig. not super important
+				assert(input.kind == .Start || is_node_pinned(input))
+				append(&stack, input)
+				unhandled_input = true
+			}
+		}
+
+		if unhandled_input do continue
+
+		if block_map_get_node_block(bm, n) == nil && n.kind != .End {
+			// place the node before the first use and hoist out of loops where needed
+			pin_point := n.inputs[0]
+			assert(is_bb_start(pin_point))
+			pin_bb := block_map_get_node_block(bm, pin_point)
+
+			fmt.printf("get scheduled idot [{}]\n", fn.name)
+			inject_at(&pin_bb.nodes, len(pin_bb.nodes) - 1, n)
+		}
+
+		stack_pop(&stack)
+	}
 	return true
 }
 

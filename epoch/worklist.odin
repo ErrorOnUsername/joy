@@ -19,6 +19,14 @@ worklist_deinit :: proc(w: ^Worklist) {
 	delete(w.visited_bits)
 }
 
+worklist_clear :: proc(w: ^Worklist) {
+	for &b in &w.visited_bits {
+		b = 0
+	}
+
+	clear(&w.nodes)
+}
+
 @(private = "file")
 get_node_visited_location :: proc(n: ^Node) -> (word_idx: int, mask: u64) {
 	word_idx = int(n.gvn / 64)
