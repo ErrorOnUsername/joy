@@ -194,7 +194,6 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				}
 			}
 
-			fmt.printf("get moved nerd v{} [{}]\n", n.gvn, fn.name)
 			block_map_set_node_block(bm, n, deepest_input_bb)
 			n.inputs[0] = deepest_input_bb.nodes[0]
 		}
@@ -248,7 +247,6 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				final_bb = final_bb.dom
 			}
 
-			fmt.printf("get moved again nerd v{} [{}]\n", n.gvn, fn.name)
 			block_map_set_node_block(bm, n, final_bb)
 			n.inputs[0] = final_bb.nodes[0]
 		}
@@ -285,7 +283,6 @@ local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool
 			// place the node before the first use and hoist out of loops where needed
 			pin_bb := block_map_get_node_block(bm, n)
 
-			fmt.printf("get scheduled idot [{}]\n", fn.name)
 			inject_at(&pin_bb.nodes, len(pin_bb.nodes) - 1, n)
 		}
 
