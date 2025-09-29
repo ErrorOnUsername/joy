@@ -366,7 +366,7 @@ insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	assert(ty_is_ctrl(then.type))
 	assert(ty_is_ctrl(else_l.type))
 	n := new_node(fn, .Branch, TY_CTRL, 4)
-	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 0, transfer_control(fn, n))
 	set_input(n, 1, cond)
 	set_input(n, 2, then)
 	set_input(n, 3, else_l)
@@ -375,7 +375,7 @@ insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 insr_goto :: proc(fn: ^Function, to: ^Node) {
 	assert(ty_is_ctrl(to.type))
 	n := new_node(fn, .Goto, TY_CTRL, 2)
-	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 0, transfer_control(fn, n))
 	set_input(n, 1, to)
 }
 
@@ -387,7 +387,7 @@ insr_ret :: proc(fn: ^Function, val: ^Node) {
 	} else {
 		n = new_node(fn, .Return, TY_CTRL, 2)
 	}
-	set_input(n, 0, fn.meta.curr_ctrl)
+	set_input(n, 0, transfer_control(fn, n))
 	set_input(n, 1, fn.meta.curr_mem)
 }
 

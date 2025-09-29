@@ -47,6 +47,16 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 		bb := new(BasicBlock, fn.allocator)
 		append(&bb.nodes, x)
 		block_map_set_node_block(bm, x, bb)
+
+		// Add in all the fixed nodes first
+		assert(len(end.inputs) > 0)
+		walk := end.inputs[0]
+		for walk != x {
+			assert(walk != nil)
+			append(&bb.nodes, walk)
+			walk = walk.inputs[0]
+		}
+
 		append(&bb.nodes, end)
 		block_map_set_node_block(bm, end, bb)
 
@@ -152,21 +162,6 @@ perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBloc
 
 // Schedules all the floating nodes as soon as their inputs allow
 schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
-	// dedup
-	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
-		if len(a) == 0 do return nil
-		return pop(a)
-	}
-	get_start :: proc(n: ^Node) -> ^Node {
-		s := n
-		for !is_bb_start(s) {
-			next := s.inputs[0]
-			if next == nil do break
-			s = next
-		}
-		return s
-	}
-
 	stack: [dynamic]^Node
 	append(&stack, fn.end)
 
@@ -176,38 +171,35 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 		worklist_push(visited, n)
 
-		unpinned_input := false
+		unhandled_input := false
 		for input in n.inputs {
-			if !is_node_pinned(input) {
-				assert(!worklist_contains(visited, input)) // should only happen for control back-edges (loops)
+			// input[0] is null for floating nodes since they aren't pinned to control blocks yet obviously
+			if input != nil && !worklist_contains(visited, input) {
 				append(&stack, input)
-				unpinned_input = true
+				unhandled_input = true
 			}
 		}
 
-		// DFS
-		if unpinned_input do continue
+		if unhandled_input do continue
 
 		// This ones ready to schedule (all inputs pinned already)
-
-		deepest_input_bb: ^BasicBlock
-		for input in n.inputs {
-			input_ctrl_node := input.inputs[0] // maybe make a helper since this is kinda ugly :(
-			assert(input_ctrl_node != nil) // ruhroh rhaggy
-			// This can go away if we map the pinned nodes before this bs since they won't change anyways
-			input_ctrl_node = get_start(input_ctrl_node)
-			assert(is_bb_start(input_ctrl_node))
-			input_bb := block_map_get_node_block(bm, input_ctrl_node)
-			assert(input_bb != nil)
-			if deepest_input_bb == nil || input_bb.dom_depth > deepest_input_bb.dom_depth {
-				deepest_input_bb = input_bb
+		if n.kind != .Start && !is_node_pinned(n) {
+			deepest_input_bb: ^BasicBlock
+			for input in n.inputs {
+				if input == nil do continue // control (input[0]) is null sicne this is a floating node
+				input_bb := block_map_get_node_block(bm, input)
+				assert(input_bb != nil)
+				if deepest_input_bb == nil || input_bb.dom_depth > deepest_input_bb.dom_depth {
+					deepest_input_bb = input_bb
+				}
 			}
+
+			fmt.printf("get moved nerd v{} [{}]\n", n.gvn, fn.name)
+			block_map_set_node_block(bm, n, deepest_input_bb)
+			n.inputs[0] = deepest_input_bb.nodes[0]
 		}
 
-		fmt.printf("get moved nerd [{}]\n", fn.name)
-		n.inputs[0] = deepest_input_bb.nodes[0]
-
-		stack_pop(&stack)
+		pop(&stack)
 	}
 
 	return true
@@ -215,20 +207,6 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 // Picks the final location for the nodes (as late as possible while also pulling code out of loops as much as it can)
 final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
-	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
-		if len(a) == 0 do return nil
-		return pop(a)
-	}
-	get_start :: proc(n: ^Node) -> ^Node {
-		s := n
-		for !is_bb_start(s) {
-			next := s.inputs[0]
-			if next == nil do break
-			s = next
-		}
-		return s
-	}
-
 	stack: [dynamic]^Node
 	append(&stack, fn.end)
 
@@ -252,15 +230,10 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 		if block_map_get_node_block(bm, n) == nil && n.kind != .End { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
 			// place the node before the first use and hoist out of loops where needed
-			pin_point := n.inputs[0]
-			assert(is_bb_start(pin_point))
-			pin_bb := block_map_get_node_block(bm, pin_point)
+			pin_bb := block_map_get_node_block(bm, n)
 			highest_use: ^BasicBlock
 			for u in n.users {
-				u_ctrl := u.n.inputs[0]
-				assert(u_ctrl != nil)
-				u_ctrl = get_start(u_ctrl)
-				u_bb := block_map_get_node_block(bm, u_ctrl)
+				u_bb := block_map_get_node_block(bm, u.n)
 				assert(u_bb != nil)
 				if highest_use == nil || u_bb.dom_depth < highest_use.dom_depth {
 					highest_use = u_bb
@@ -275,22 +248,18 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				final_bb = final_bb.dom
 			}
 
-			fmt.printf("get moved again nerd [{}]\n", fn.name)
+			fmt.printf("get moved again nerd v{} [{}]\n", n.gvn, fn.name)
+			block_map_set_node_block(bm, n, final_bb)
 			n.inputs[0] = final_bb.nodes[0]
 		}
 
-		stack_pop(&stack)
+		pop(&stack)
 	}
 
 	return true
 }
 
 local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
-	stack_pop :: proc(a: ^[dynamic]^Node) -> ^Node {
-		if len(a) == 0 do return nil
-		return pop(a)
-	}
-
 	stack: [dynamic]^Node
 	append(&stack, fn.end)
 
@@ -314,15 +283,13 @@ local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool
 
 		if block_map_get_node_block(bm, n) == nil && n.kind != .End {
 			// place the node before the first use and hoist out of loops where needed
-			pin_point := n.inputs[0]
-			assert(is_bb_start(pin_point))
-			pin_bb := block_map_get_node_block(bm, pin_point)
+			pin_bb := block_map_get_node_block(bm, n)
 
 			fmt.printf("get scheduled idot [{}]\n", fn.name)
 			inject_at(&pin_bb.nodes, len(pin_bb.nodes) - 1, n)
 		}
 
-		stack_pop(&stack)
+		pop(&stack)
 	}
 	return true
 }
