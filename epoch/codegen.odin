@@ -47,18 +47,22 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 		bb := new(BasicBlock, fn.allocator)
 		append(&bb.nodes, x)
 		block_map_set_node_block(bm, x, bb)
-
-		// Add in all the fixed nodes first
-		assert(len(end.inputs) > 0)
-		walk := end.inputs[0]
-		for walk != x {
-			assert(walk != nil)
-			append(&bb.nodes, walk)
-			walk = walk.inputs[0]
-		}
-
 		append(&bb.nodes, end)
 		block_map_set_node_block(bm, end, bb)
+
+		// Add all the pinned nodes (for scheduling purposes later on)
+		walk := end
+		for {
+			assert(walk == x || walk.inputs[0] != nil)
+			block_map_set_node_block(bm, walk, bb)
+			for u in walk.users {
+				if u.slot == 0 {
+					block_map_set_node_block(bm, u.n, bb)
+				}
+			}
+			if walk == x do break // We do this here instead of the loop condition so that we add the users of the start node
+			walk = walk.inputs[0]
+		}
 
 		if end.kind == .Branch {
 			bb.succ = make([]^Node, 2, fn.allocator)
