@@ -7,7 +7,7 @@ run_passes :: proc(ctx: ^EpochContext) -> bool {
 	mod_head := ctx.modules
 	for mod_head != nil {
 		mod := &mod_head.el
-		dump_module(mod, "asm.epoch") or_return
+		dump_module(mod, "asm.gv") or_return
 		for sym in mod.symbols {
 			#partial switch s in sym.derived {
 				case ^Function:
