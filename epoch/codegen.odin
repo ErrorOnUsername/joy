@@ -181,6 +181,7 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 			if input != nil && !worklist_contains(visited, input) {
 				append(&stack, input)
 				unhandled_input = true
+				break
 			}
 		}
 
@@ -226,6 +227,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				assert(input.kind == .Start || is_node_pinned(input))
 				append(&stack, input)
 				unhandled_input = true
+				break
 			}
 		}
 
@@ -278,6 +280,7 @@ local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool
 				assert(input.kind == .Start || is_node_pinned(input))
 				append(&stack, input)
 				unhandled_input = true
+				break
 			}
 		}
 
