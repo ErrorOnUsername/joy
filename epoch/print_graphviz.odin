@@ -11,6 +11,8 @@ dump_module :: proc(mod: ^Module, out_path: string) -> bool {
 
 	fmt.sbprintfln(&sb, "digraph {} {{", mod.name)
 
+	fmt.sbprintln(&sb, "rankdir=\"BT\";")
+
 	for sym in mod.symbols {
 		asm_symbol(sym, &sb) or_return
 		fmt.sbprint(&sb, "\n")
