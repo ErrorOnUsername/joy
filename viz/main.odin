@@ -31,6 +31,11 @@ main :: proc() {
 	}
 
 	wnd := glfw.CreateWindow(1280, 720, "Epoch Visualizer", nil, nil)
+	if wnd == nil {
+		fmt.println("Failed to create GLFW window!")
+		return
+	}
+
 	defer glfw.DestroyWindow(wnd)
 
 	glfw.MakeContextCurrent(wnd)
