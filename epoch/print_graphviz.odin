@@ -5,7 +5,7 @@ import "core:io"
 import "core:os"
 import "core:strings"
 
-dump_module :: proc(mod: ^Module, out_path: string) -> bool {
+dump_module_gviz :: proc(mod: ^Module, out_path: string) -> bool {
 	sb: strings.Builder
 	defer strings.builder_destroy(&sb)
 
