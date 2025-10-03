@@ -564,14 +564,10 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				else_br := end
 				if curr_if.cond != nil {
 					then := epoch.new_region(fn, "if.then", 1)
-					// this will either be the pred of the first if or the if.else of the previous if (holds the condition check and branch)
-					epoch.region_add_pred(then, fn.meta.curr_ctrl, 0)
 
 					if curr_if.else_block != nil {
 						else_br = epoch.new_region(fn, "if.else", 1)
 					}
-
-					epoch.region_add_pred(else_br, fn.meta.curr_ctrl, 0)
 
 					true_val := epoch.new_int_const(fn, epoch.TY_BOOL, i64(1))
 					cond_v := cg_emit_expr(ctx, e.cond) or_return
@@ -587,7 +583,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 				br_v := cg_emit_expr(ctx, curr_if.then) or_return
 
 				// jmp to end after then block
-				epoch.region_add_pred(end, fn.meta.curr_ctrl, block_idx)
 				epoch.insr_goto(fn, end)
 
 				block_idx += 1
@@ -640,9 +635,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_header
 
-			epoch.region_add_pred(loop_header, fn.meta.curr_ctrl, 0)
-			epoch.region_add_pred(loop_end, loop_header, 0)
-
 			iv_slot := epoch.add_local(fn, "iv", ty_builtin_rawptr.size, ty_builtin_rawptr.alignment)
 
 			// Induction Variable Init
@@ -672,9 +664,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			}
 
 			loop_body := epoch.new_region(fn, "loop.body", 1)
-
-			epoch.region_add_pred(loop_header, loop_body, 1)
-			epoch.region_add_pred(loop_body, loop_header, 0)
 
 			epoch.insr_goto(fn, loop_header)
 			epoch.set_control(fn, loop_header)
@@ -743,8 +732,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_header
 
-			epoch.region_add_pred(loop_header, fn.meta.curr_ctrl, 0)
-
 			epoch.insr_goto(fn, loop_header) // We have to reuse the condition check every loop so just jmp
 			epoch.set_control(fn, loop_header)
 
@@ -753,10 +740,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			cmp := epoch.insr_cmp_eq(fn, cond_v, true_val)
 
 			loop_body := epoch.new_region(fn, "loop.body", 1)
-
-			epoch.region_add_pred(loop_header, loop_body, 1)
-			epoch.region_add_pred(loop_body, loop_header, 0)
-			epoch.region_add_pred(loop_end, loop_header, 0)
 
 			epoch.insr_br(fn, cmp, loop_body, loop_end)
 
@@ -783,9 +766,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^epoch.Node, ok
 			last_start := ctx.cg_loop_start
 			defer ctx.cg_loop_start = last_start
 			ctx.cg_loop_start = loop_body
-
-			epoch.region_add_pred(loop_body, fn.meta.curr_ctrl, 0)
-			epoch.region_add_pred(loop_end, loop_body, 0)
 
 			dst_slot: ^epoch.Node
 			if !ty_is_void(e.type) {

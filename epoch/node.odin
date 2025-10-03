@@ -139,12 +139,6 @@ new_region :: proc(fn: ^Function, name: string, pred_count: int) -> ^Node {
 	return n
 }
 
-region_add_pred :: proc(region: ^Node, pred: ^Node, idx: int) {
-	assert(region.kind == .Region)
-	assert(ty_is_ctrl(pred.type))
-	region.inputs[idx] = pred
-}
-
 new_extra :: proc($T: typeid, fn: ^Function) -> ^T {
 	e := new(T, fn.allocator)
 	e.extra.derived = e
@@ -382,6 +376,20 @@ insert_region_mem_edge :: proc(target: ^Node, mem: ^Node) {
 	assert(found_slot)
 }
 
+@(private = "file")
+insert_region_ctrl_edge :: proc(target: ^Node, ctrl: ^Node) {
+	assert(target.kind == .Region)
+	found_slot := false
+	for &input in &target.inputs {
+		if input == nil {
+			input = ctrl
+			found_slot = true
+			break
+		}
+	}
+	assert(found_slot)
+}
+
 insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	assert(ty_is_bool(cond.type))
 	assert(ty_is_ctrl(then.type))
@@ -392,7 +400,9 @@ insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	set_input(n, 2, then)
 	set_input(n, 3, else_l)
 	insert_region_mem_edge(then, fn.meta.curr_mem)
+	insert_region_ctrl_edge(then, fn.meta.curr_ctrl)
 	insert_region_mem_edge(else_l, fn.meta.curr_mem)
+	insert_region_ctrl_edge(else_l, fn.meta.curr_ctrl)
 }
 
 insr_goto :: proc(fn: ^Function, to: ^Node) {
@@ -401,6 +411,7 @@ insr_goto :: proc(fn: ^Function, to: ^Node) {
 	set_input(n, 0, transfer_control(fn, n))
 	set_input(n, 1, to)
 	insert_region_mem_edge(to, fn.meta.curr_mem)
+	insert_region_ctrl_edge(to, fn.meta.curr_ctrl)
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {

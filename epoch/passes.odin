@@ -5,7 +5,7 @@ VizBackend :: enum {
 	GraphViz,
 	EViz
 }
-VIZ_BACKEND :: VizBackend.EViz
+VIZ_BACKEND :: VizBackend.GraphViz
 dump_module :: proc(mod: ^Module, out_path: string) -> bool {
 	switch VIZ_BACKEND {
 		case .GraphViz: return dump_module_gviz(mod, out_path)
