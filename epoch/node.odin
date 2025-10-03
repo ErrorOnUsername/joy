@@ -129,8 +129,12 @@ set_input :: proc(n: ^Node, i: int, v: ^Node) {
 new_region :: proc(fn: ^Function, name: string, pred_count: int) -> ^Node {
 	n := new_node(fn, .Region, TY_CTRL, pred_count)
 
+	mem_in := new_node(fn, .Phi, TY_MEM, 1 + pred_count)
+	set_input(mem_in, 0, n)
+
 	e := new_extra(RegionExtra, fn)
 	e.extra.tag = name // lifetime issue
+	e.mem_in = mem_in
 	n.extra = e
 	return n
 }
@@ -239,7 +243,9 @@ insert_mem_effect :: proc(fn: ^Function, new_mem: ^Node) -> ^Node {
 
 set_control :: proc(fn: ^Function, ctrl: ^Node) {
 	assert(ty_is_ctrl(ctrl.type))
+	assert(ctrl.kind == .Region)
 	fn.meta.curr_ctrl = ctrl
+	fn.meta.curr_mem = ctrl.extra.derived.(^RegionExtra).mem_in
 	fn.end.inputs[0] = ctrl
 }
 
@@ -361,6 +367,21 @@ new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^F
 	return proto
 }
 
+@(private = "file")
+insert_region_mem_edge :: proc(target: ^Node, mem: ^Node) {
+	assert(target.kind == .Region)
+	mem_in := target.extra.derived.(^RegionExtra).mem_in
+	found_slot := false
+	for &input in &mem_in.inputs {
+		if input == nil {
+			input = mem
+			found_slot = true
+			break
+		}
+	}
+	assert(found_slot)
+}
+
 insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	assert(ty_is_bool(cond.type))
 	assert(ty_is_ctrl(then.type))
@@ -370,6 +391,8 @@ insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	set_input(n, 1, cond)
 	set_input(n, 2, then)
 	set_input(n, 3, else_l)
+	insert_region_mem_edge(then, fn.meta.curr_mem)
+	insert_region_mem_edge(else_l, fn.meta.curr_mem)
 }
 
 insr_goto :: proc(fn: ^Function, to: ^Node) {
@@ -377,6 +400,7 @@ insr_goto :: proc(fn: ^Function, to: ^Node) {
 	n := new_node(fn, .Goto, TY_CTRL, 2)
 	set_input(n, 0, transfer_control(fn, n))
 	set_input(n, 1, to)
+	insert_region_mem_edge(to, fn.meta.curr_mem)
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {
@@ -707,6 +731,7 @@ ProjExtra :: struct {
 
 RegionExtra :: struct {
 	using extra: NodeExtra,
+	mem_in: ^Node,
 }
 
 AnyExtra :: union {

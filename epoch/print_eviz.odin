@@ -151,7 +151,12 @@ print_node :: proc(sb: ^strings.Builder, n: ^Node) {
 			print_node_name(sb, n.inputs[1])
 			fmt.sbprint(sb, "; }")
 		case .Phi:
-			fmt.sbprint(sb, "phi")
+			fmt.sbprint(sb, "phi { ")
+			for input, i in n.inputs {
+				fmt.sbprintf(sb, "in{} = ", i)
+				print_node_name(sb, input)
+				fmt.sbprint(sb, "; ")
+			}
 		case .Load:
 			fmt.sbprint(sb, "load { pred = ")
 			print_node_name(sb, n.inputs[0])
