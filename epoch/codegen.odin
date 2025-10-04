@@ -4,6 +4,8 @@ import "core:fmt"
 
 
 codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
+	log(fn, "-- Begin CodeGen --")
+	defer log(fn, "-- End CodeGen --")
 	// TODO: insr selection
 
 	block_map := block_map_create(fn)
@@ -24,6 +26,9 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
 	defer worklist_deinit(&visited)
+
+	log(fn, "-- Begin CFG Build --")
+	defer log(fn, "-- End CFG Build --")
 
 	start: ^BasicBlock
 
@@ -145,6 +150,9 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 }
 
 perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
+	log(fn, "-- Begin Code Motion --")
+	defer log(fn, "-- End Code Motion --")
+
 	build_dominator_tree(fn, start, bm) or_return
 
 	visited: Worklist
@@ -166,6 +174,9 @@ perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBloc
 
 // Schedules all the floating nodes as soon as their inputs allow
 schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
+	log(fn, "-- Begin Global Schedule [early] --")
+	defer log(fn, "-- End Global Schedule [early] --")
+
 	stack: [dynamic]^Node
 	append(&stack, fn.end)
 
@@ -211,6 +222,9 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 // Picks the final location for the nodes (as late as possible while also pulling code out of loops as much as it can)
 final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
+	log(fn, "-- Begin Global Schedule [final] --")
+	defer log(fn, "-- End Global Schedule [final] --")
+
 	stack: [dynamic]^Node
 	append(&stack, fn.end)
 
@@ -264,6 +278,9 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 }
 
 local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
+	log(fn, "-- Begin Local Schedule --")
+	defer log(fn, "-- End Local Schedule --")
+
 	stack: [dynamic]^Node
 	append(&stack, fn.end)
 
@@ -303,6 +320,9 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 	assert(fn != nil)
 	assert(start != nil)
 	assert(bm != nil)
+
+	log(fn, "-- Begin Dominator Tree Build --")
+	defer log(fn, "-- End Dominator Tree Build --")
 
 	blocks: [dynamic]^Node // this is kinda stupid just build a list in the first place lol
 	defer delete(blocks)

@@ -1,17 +1,8 @@
 package epoch
 
 
-VizBackend :: enum {
-	GraphViz,
-	EViz
-}
-VIZ_BACKEND :: VizBackend.GraphViz
 dump_module :: proc(mod: ^Module, out_path: string) -> bool {
-	switch VIZ_BACKEND {
-		case .GraphViz: return dump_module_gviz(mod, out_path)
-		case .EViz: return dump_module_eviz(mod, out_path)
-	}
-	return true
+	return dump_module_gviz(mod, out_path)
 }
 
 run_passes :: proc(ctx: ^EpochContext) -> bool {
@@ -26,6 +17,7 @@ run_passes :: proc(ctx: ^EpochContext) -> bool {
 				case ^Function:
 					opto_function(ctx, s) or_return
 					codegen_function(ctx, s) or_return
+					dump_logs(s)
 			}
 		}
 		mod_head = mod_head.next

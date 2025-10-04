@@ -25,6 +25,8 @@ FunctionMetaState :: struct {
 
 	curr_ctrl: ^Node,
 	curr_mem: ^Node,
+
+	logs: [dynamic]string,
 }
 
 Function :: struct {
