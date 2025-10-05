@@ -1,6 +1,7 @@
 package epoch
 
 import "core:fmt"
+import "core:strings"
 
 
 codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
@@ -11,9 +12,10 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	block_map := block_map_create(fn)
 	defer block_map_destroy(&block_map)
 
-	start := build_cfg(ctx, fn, &block_map) or_return
+	blocks := build_cfg(ctx, fn, &block_map) or_return
+	start := blocks[0]
 
-	perform_code_motion(ctx, fn, start, &block_map) or_return
+	perform_code_motion(ctx, fn, blocks, &block_map) or_return
 
 	register_allocate(fn, start) or_return
 
@@ -22,7 +24,7 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	return true
 }
 
-build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBlock, bool) {
+build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> ([]^BasicBlock, bool) {
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
 	defer worklist_deinit(&visited)
@@ -40,6 +42,9 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 		return pop(a)
 	}
 
+	blocks_map: map[string]^BasicBlock
+	defer delete(blocks_map)
+
 	append(&stack, fn.start)
 	for x := stack_pop(&stack); x != nil; x = stack_pop(&stack) {
 		if worklist_contains(&visited, x) do continue
@@ -50,13 +55,33 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 		assert(is_bb_term(end))
 
 		block_name := x.extra.tag if x.extra != nil && len(x.extra.tag) > 0 else "nil"
-		log(fn, "new block: {}.{}", block_name, x.gvn)
+
+		block_name_scratch: strings.Builder
+		if block_name in blocks_map {
+			block_idx := 1
+			new_block_name := block_name
+			for {
+				new_block_name = fmt.sbprintf(&block_name_scratch, "{}.{}", block_name, block_idx)
+				block_idx += 1
+				if !(new_block_name in blocks_map) {
+					break
+				}
+				strings.builder_reset(&block_name_scratch)
+			}
+			block_name = strings.clone(new_block_name)
+		}
+		strings.builder_destroy(&block_name_scratch)
+
+		log(fn, "new block: {}", block_name)
 
 		bb := new(BasicBlock, fn.allocator)
+		bb.name = block_name
 		append(&bb.nodes, x)
 		block_map_set_node_block(bm, x, bb)
 		append(&bb.nodes, end)
 		block_map_set_node_block(bm, end, bb)
+
+		blocks_map[block_name] = bb
 
 		// Add all the pinned nodes (for scheduling purposes later on)
 		walk := end
@@ -91,7 +116,38 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 		}
 	}
 
-	return start, true
+	block_stack: [dynamic]^BasicBlock
+	defer delete(block_stack)
+
+	append(&block_stack, start)
+
+	// pre-order DFS to build the final list of blocks in execution order
+	final_block_list := make([]^BasicBlock, len(blocks_map))
+	final_index := 0
+	for len(block_stack) > 0 {
+		bb := block_stack[len(block_stack) - 1]
+
+		if blocks_map[bb.name] != nil {
+			blocks_map[bb.name] = nil
+			final_block_list[final_index] = bb
+			final_index += 1
+		}
+
+		unhandled_succ := false
+		for s in bb.succ {
+			s_bb := block_map_get_node_block(bm, s)
+			if blocks_map[s_bb.name] != nil {
+				unhandled_succ = true
+				append(&block_stack, s_bb)
+				break
+			}
+		}
+		if unhandled_succ do continue
+
+		pop(&block_stack)
+	}
+
+	return final_block_list, true
 }
 
 is_bb_start :: proc(n: ^Node) -> bool {
@@ -152,9 +208,11 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 	return x
 }
 
-perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
+perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
 	log(fn, "-- Begin Code Motion --")
 	defer log(fn, "-- End Code Motion --")
+
+	start := blocks[0]
 
 	build_dominator_tree(fn, start, bm) or_return
 
@@ -170,7 +228,7 @@ perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, start: ^BasicBloc
 
 	worklist_clear(&visited)
 
-	local_schedule(fn, bm, &visited) or_return
+	local_schedule(fn, blocks, bm, &visited) or_return
 
 	return true
 }
@@ -213,8 +271,7 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				}
 			}
 
-			block_name := deepest_input_bb.nodes[0].extra.tag if deepest_input_bb.nodes[0].extra != nil && len(deepest_input_bb.nodes[0].extra.tag) > 0 else "nil"
-			log(fn, "moving node v{} to block {}.{}", n.gvn, block_name, deepest_input_bb.nodes[0].gvn)
+			log(fn, "moving node v{} to block {}", n.gvn, deepest_input_bb.name)
 
 			block_map_set_node_block(bm, n, deepest_input_bb)
 			n.inputs[0] = deepest_input_bb.nodes[0]
@@ -276,8 +333,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 			block_map_set_node_block(bm, n, final_bb)
 			n.inputs[0] = final_bb.nodes[0]
 
-			block_name := final_bb.nodes[0].extra.tag if final_bb.nodes[0].extra != nil && len(final_bb.nodes[0].extra.tag) > 0 else "nil"
-			log(fn, "moving node v{} to block {}.{}", n.gvn, block_name, final_bb.nodes[0].gvn)
+			log(fn, "moving node v{} to block {}", n.gvn, final_bb.name)
 		}
 
 		pop(&stack)
@@ -286,7 +342,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 	return true
 }
 
-local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool {
+local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visited: ^Worklist) -> bool {
 	log(fn, "-- Begin Local Schedule --")
 	defer log(fn, "-- End Local Schedule --")
 
@@ -321,6 +377,15 @@ local_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) -> bool
 
 		pop(&stack)
 	}
+
+	// logging the final block schedule
+	for bb in blocks {
+		log(fn, "%%{}:", bb.name)
+		for n in bb.nodes {
+			log(fn, "\tv{} = {}", n.gvn, n.kind)
+		}
+	}
+
 	return true
 }
 
@@ -408,10 +473,7 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 			assert(highest_bb != nil)
 			bb.dom = highest_bb
 
-			block_name := x.extra.tag if x.extra != nil && len(x.extra.tag) > 0 else "nil"
-			dom_name := highest_bb.nodes[0].extra.tag if highest_bb.nodes[0].extra != nil && len(highest_bb.nodes[0].extra.tag) > 0 else "nil"
-
-			log(fn, "{}.{} is dominated by {}.{}", block_name, x.gvn, dom_name, highest_bb.nodes[0].gvn)
+			log(fn, "{} is dominated by {}", bb.name, highest_bb.name)
 
 			// copy bookkeeping state so that child blocks makes sense
 			bb.dom_depth = highest_bb.dom_depth + 1

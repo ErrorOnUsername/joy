@@ -2,6 +2,7 @@ package epoch
 
 
 BasicBlock :: struct {
+	name:      string,
 	id:        int,
 	nodes:     [dynamic]^Node,
 	succ:      []^Node,
