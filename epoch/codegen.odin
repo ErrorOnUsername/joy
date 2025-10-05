@@ -375,16 +375,41 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 		pop(&stack)
 	}
 
+	node_args_scratch: strings.Builder
+	defer strings.builder_destroy(&node_args_scratch)
 	// logging the final block schedule
 	for bb in blocks {
 		log(fn, "%%{}:", bb.name)
 		for n in bb.nodes {
-			log(fn, "        v{} = {}", n.gvn, n.kind)
+			node_args := print_node_args(&node_args_scratch, n, bm)
+			log(fn, "        v{} = {} {}", n.gvn, n.kind, node_args)
+			strings.builder_reset(&node_args_scratch)
 		}
+	}
+
+	print_node_args :: proc(sb: ^strings.Builder, n: ^Node, bm: ^BlockMap) -> string {
+		if n.kind == .Proj {
+			fmt.sbprintf(sb, "v{}", n.inputs[0].gvn )
+		} else if n.kind == .Goto {
+			bb := block_map_get_node_block(bm, n.inputs[1])
+			fmt.sbprintf(sb, "%%{}", bb.name)
+		} else if n.kind == .Branch {
+			bb_t := block_map_get_node_block(bm, n.inputs[2])
+			bb_f := block_map_get_node_block(bm, n.inputs[3])
+			fmt.sbprintf(sb, "v{} %%{} %%{}", n.inputs[1].gvn, bb_t.name, bb_f.name)
+		} else {
+			for input, i in n.inputs {
+				if i == 0 do continue
+				fmt.sbprintf(sb, "v{} ", input.gvn)
+			}
+		}
+
+		return strings.to_string(sb^)
 	}
 
 	return true
 }
+
 
 // There's probably a goofy ass paper out there that has this same solution idk i just wrote the sombitch from first principles
 build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -> bool {
