@@ -17,7 +17,6 @@ run_passes :: proc(ctx: ^EpochContext) -> bool {
 				case ^Function:
 					opto_function(ctx, s) or_return
 					codegen_function(ctx, s) or_return
-					dump_logs(s)
 			}
 		}
 		mod_head = mod_head.next
