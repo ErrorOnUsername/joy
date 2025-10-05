@@ -274,7 +274,6 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 			log(fn, "moving node v{} to block {}", n.gvn, deepest_input_bb.name)
 
 			block_map_set_node_block(bm, n, deepest_input_bb)
-			n.inputs[0] = deepest_input_bb.nodes[0]
 		}
 
 		pop(&stack)
@@ -299,9 +298,9 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 		unhandled_input := false
 		for input in n.inputs {
+			if input == nil do continue
 			if !worklist_contains(visited, input) {
 				// start nodes don't have inputs but we still want to add them ig. not super important
-				assert(input.kind == .Start || is_node_pinned(input))
 				append(&stack, input)
 				unhandled_input = true
 				break
@@ -310,7 +309,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 		if unhandled_input do continue
 
-		if block_map_get_node_block(bm, n) == nil && n.kind != .End { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
+		if n.kind != .Start && n.inputs[0] == nil { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
 			// place the node before the first use and hoist out of loops where needed
 			pin_bb := block_map_get_node_block(bm, n)
 			highest_use: ^BasicBlock
@@ -331,9 +330,8 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 			}
 
 			block_map_set_node_block(bm, n, final_bb)
-			n.inputs[0] = final_bb.nodes[0]
 
-			log(fn, "moving node v{} to block {}", n.gvn, final_bb.name)
+			log(fn, "moving node v{} from {} to {}", n.gvn, pin_bb.name, final_bb.name)
 		}
 
 		pop(&stack)
@@ -357,9 +355,8 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 
 		unhandled_input := false
 		for input in n.inputs {
+			if input == nil do continue
 			if !worklist_contains(visited, input) {
-				// start nodes don't have inputs but we still want to add them ig. not super important
-				assert(input.kind == .Start || is_node_pinned(input))
 				append(&stack, input)
 				unhandled_input = true
 				break
@@ -368,7 +365,7 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 
 		if unhandled_input do continue
 
-		if block_map_get_node_block(bm, n) == nil && n.kind != .End {
+		if !is_bb_start(n) && !is_bb_term(n) && n.kind != .End {
 			// place the node before the first use and hoist out of loops where needed
 			pin_bb := block_map_get_node_block(bm, n)
 
@@ -382,7 +379,7 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 	for bb in blocks {
 		log(fn, "%%{}:", bb.name)
 		for n in bb.nodes {
-			log(fn, "\tv{} = {}", n.gvn, n.kind)
+			log(fn, "        v{} = {}", n.gvn, n.kind)
 		}
 	}
 
