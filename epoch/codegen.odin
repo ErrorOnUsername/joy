@@ -49,6 +49,9 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (^BasicBl
 		end := get_bb_terminator_from(x)
 		assert(is_bb_term(end))
 
+		block_name := x.extra.tag if x.extra != nil && len(x.extra.tag) > 0 else "nil"
+		log(fn, "new block: {}.{}", block_name, x.gvn)
+
 		bb := new(BasicBlock, fn.allocator)
 		append(&bb.nodes, x)
 		block_map_set_node_block(bm, x, bb)
@@ -210,6 +213,9 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				}
 			}
 
+			block_name := deepest_input_bb.nodes[0].extra.tag if deepest_input_bb.nodes[0].extra != nil && len(deepest_input_bb.nodes[0].extra.tag) > 0 else "nil"
+			log(fn, "moving node v{} to block {}.{}", n.gvn, block_name, deepest_input_bb.nodes[0].gvn)
+
 			block_map_set_node_block(bm, n, deepest_input_bb)
 			n.inputs[0] = deepest_input_bb.nodes[0]
 		}
@@ -269,6 +275,9 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 			block_map_set_node_block(bm, n, final_bb)
 			n.inputs[0] = final_bb.nodes[0]
+
+			block_name := final_bb.nodes[0].extra.tag if final_bb.nodes[0].extra != nil && len(final_bb.nodes[0].extra.tag) > 0 else "nil"
+			log(fn, "moving node v{} to block {}.{}", n.gvn, block_name, final_bb.nodes[0].gvn)
 		}
 
 		pop(&stack)
@@ -398,6 +407,11 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 			highest_bb := block_map_get_node_block(bm, highest)
 			assert(highest_bb != nil)
 			bb.dom = highest_bb
+
+			block_name := x.extra.tag if x.extra != nil && len(x.extra.tag) > 0 else "nil"
+			dom_name := highest_bb.nodes[0].extra.tag if highest_bb.nodes[0].extra != nil && len(highest_bb.nodes[0].extra.tag) > 0 else "nil"
+
+			log(fn, "{}.{} is dominated by {}.{}", block_name, x.gvn, dom_name, highest_bb.nodes[0].gvn)
 
 			// copy bookkeeping state so that child blocks makes sense
 			bb.dom_depth = highest_bb.dom_depth + 1
