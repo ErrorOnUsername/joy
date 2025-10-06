@@ -399,7 +399,7 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 			fmt.sbprintf(sb, "v{} %%{} %%{}", n.inputs[1].gvn, bb_t.name, bb_f.name)
 		} else {
 			for input, i in n.inputs {
-				if i == 0 do continue
+				if n.kind != .Region && i == 0 do continue
 				fmt.sbprintf(sb, "v{} ", input.gvn)
 			}
 		}
