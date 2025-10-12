@@ -1,6 +1,6 @@
 package main
 
-import "../epoch"
+import "../opto"
 
 import "base:intrinsics"
 import "core:math/big"
@@ -316,7 +316,7 @@ AnyNode :: union {
 Node :: struct {
 	span:        Span,
 	type:        ^Type,
-	cg_val:      ^epoch.Node,
+	cg_val:      ^opto.Node,
 	derived:     AnyNode,
 	check_state: CheckState,
 }

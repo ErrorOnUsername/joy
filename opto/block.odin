@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 
 BasicBlock :: struct {
@@ -34,4 +34,3 @@ block_map_get_node_block :: proc(bm: ^BlockMap, n: ^Node) -> ^BasicBlock {
 	assert(int(n.gvn) < len(bm.blocks))
 	return bm.blocks[n.gvn]
 }
-

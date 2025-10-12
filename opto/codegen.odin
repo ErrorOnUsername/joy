@@ -1,10 +1,10 @@
-package epoch
+package opto
 
 import "core:fmt"
 import "core:strings"
 
 
-codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
+codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	log(fn, "-- Begin CodeGen --")
 	defer log(fn, "-- End CodeGen --")
 	// TODO: insr selection
@@ -23,7 +23,7 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	return true
 }
 
-build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (blocks: []^BasicBlock, ok: bool) {
+build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: []^BasicBlock, ok: bool) {
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
 	defer worklist_deinit(&visited)
@@ -251,7 +251,7 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 	return x
 }
 
-perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
+perform_code_motion :: proc(ctx: ^OptoContext, fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
 	log(fn, "-- Begin Code Motion --")
 	defer log(fn, "-- End Code Motion --")
 

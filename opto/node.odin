@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 import "core:mem"
 import "core:sync"
@@ -827,4 +827,3 @@ NodeKind :: enum {
 	Not,
 	Negate,
 }
-

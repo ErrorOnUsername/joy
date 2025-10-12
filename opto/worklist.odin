@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 import "core:mem"
 import "base:runtime"
@@ -59,4 +59,3 @@ worklist_pop :: proc(w: ^Worklist) -> ^Node {
 worklist_peek :: proc(w: ^Worklist) -> ^Node {
 	return w.nodes[len(w.nodes) - 1]
 }
-

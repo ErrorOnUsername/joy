@@ -1,6 +1,6 @@
 package main
 
-import "../epoch"
+import "../opto"
 
 import "core:fmt"
 import "core:math/bits"
@@ -38,7 +38,7 @@ Type :: struct {
 	alignment:  int,
 
 	debug_type_mtx: sync.Recursive_Mutex, // This needs to be recursive so we don't deadlock due to self-referential type definitions (linked lists for example)
-	debug_type:     ^epoch.DebugType,
+	debug_type:     ^opto.DebugType,
 }
 
 PointerType :: struct {
@@ -466,4 +466,3 @@ ty_is_mut_pointer :: proc(ty: ^Type) -> bool {
 	}
 	return false
 }
-

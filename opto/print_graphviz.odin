@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 import "core:fmt"
 import "core:io"
@@ -89,4 +89,3 @@ print_fn_gv :: proc(fn: ^Function, sb: ^strings.Builder) -> bool {
 print_node_name_gv :: proc(sb: ^strings.Builder, n: ^Node) {
 	fmt.sbprintf(sb, "{}{}", n.kind, n.gvn)
 }
-

@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:sync"
 
-import "../epoch"
+import "../opto"
 
 main :: proc() {
 	if !parse_args() || g_cl_state.mode == .Help {
@@ -53,9 +53,9 @@ exec_phases :: proc(root_id: FileID) -> int {
 
 	init_builtin_types(host_target)
 
-	cg_ctx: epoch.EpochContext
-	epoch.context_init(&cg_ctx)
-	cg_module := epoch.create_module(&cg_ctx, "code")
+	cg_ctx: opto.OptoContext
+	opto.context_init(&cg_ctx)
+	cg_module := opto.create_module(&cg_ctx, "code")
 	c.cg_module = cg_module
 
 	tasks_failed = tc_initialize_scopes(&c, packages_to_check)
@@ -67,7 +67,7 @@ exec_phases :: proc(root_id: FileID) -> int {
 	tasks_failed = tc_check_proc_bodies(&c)
 	if tasks_failed != 0 do return tasks_failed
 
-	cg_ok := epoch.run_passes(&cg_ctx)
+	cg_ok := opto.run_passes(&cg_ctx)
 	if !cg_ok do return 1
 
 	return 0

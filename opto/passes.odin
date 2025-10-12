@@ -1,11 +1,11 @@
-package epoch
+package opto
 
 
 dump_module :: proc(mod: ^Module, out_path: string) -> bool {
 	return dump_module_gviz(mod, out_path)
 }
 
-run_passes :: proc(ctx: ^EpochContext) -> bool {
+run_passes :: proc(ctx: ^OptoContext) -> bool {
 	// TODO(RD): multi-thread this, with the thread pool so that the main compiler
 	//           can pump this and make it go wide (think pick_up_work)
 	mod_head := ctx.modules
@@ -26,4 +26,3 @@ run_passes :: proc(ctx: ^EpochContext) -> bool {
 
 	return true
 }
-

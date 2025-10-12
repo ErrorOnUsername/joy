@@ -5,7 +5,7 @@ import "core:sync"
 import "core:strings"
 import "core:fmt"
 
-import "../epoch"
+import "../opto"
 
 
 tc_cycle_check_rec :: proc(pkg: ^Package, cycle_checker: ^[dynamic]^Package) -> (found_cycle := false, cycle_report := "<none>") {
@@ -95,7 +95,7 @@ ProcBodyWorkData :: struct {
 Checker :: struct {
 	proc_work_mutex: sync.Mutex,
 	proc_bodies:     [dynamic]ProcBodyWorkData,
-	cg_module:       ^epoch.Module,
+	cg_module:       ^opto.Module,
 }
 
 
@@ -204,9 +204,9 @@ pump_tc_check_proc_body :: proc(c: ^Checker, p: ^ProcProto, m: ^Module) -> PumpR
 	ctx.mod = m
 	fn_node := p.cg_val
 	assert(fn_node.kind == .Symbol)
-	sym, is_sym := fn_node.extra.derived.(^epoch.SymbolExtra)
+	sym, is_sym := fn_node.extra.derived.(^opto.SymbolExtra)
 	assert(is_sym)
-	ctx.cg_fn = sym.sym.derived.(^epoch.Function)
+	ctx.cg_fn = sym.sym.derived.(^opto.Function)
 
 	for stmnt in p.body.stmnts {
 		stmnt_ok := tc_check_stmnt(&ctx, stmnt)
@@ -1497,7 +1497,7 @@ CheckerContext :: struct {
 	curr_loop:     ^Expr,
 	addr_mode:     AddressingMode,
 	hint_type:     ^Type,
-	cg_fn:         ^epoch.Function,
-	cg_loop_start: ^epoch.Node, // target for continue
-	cg_loop_end:   ^epoch.Node, // target for break
+	cg_fn:         ^opto.Function,
+	cg_loop_start: ^opto.Node, // target for continue
+	cg_loop_end:   ^opto.Node, // target for break
 }

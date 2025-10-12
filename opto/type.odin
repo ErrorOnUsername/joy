@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 TypeKind :: enum {
 	Int,
@@ -62,4 +62,3 @@ ty_is_tuple :: proc(t: Type) -> bool {
 ty_is_ctrl :: proc(t: Type) -> bool {
 	return t.kind == .Control
 }
-

@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 import "core:mem"
 import "core:sync"
@@ -17,14 +17,14 @@ Module :: struct {
 	symbols: [dynamic]^Symbol,
 }
 
-EpochContext :: struct {
+OptoContext :: struct {
 	global_alloc_lock: sync.Mutex,
 	pool: mem.Dynamic_Pool,
 	global_allocator: mem.Allocator,
 	modules: ^ListEntry(Module),
 }
 
-context_init :: proc(ctx: ^EpochContext) {
+context_init :: proc(ctx: ^OptoContext) {
 	mem.dynamic_pool_init(&ctx.pool)
 	ctx.global_allocator = mem.dynamic_pool_allocator(&ctx.pool)
 
@@ -38,7 +38,7 @@ module_list_get_tail :: proc(head: ^ListEntry(Module)) -> ^ListEntry(Module) {
 	return head
 }
 
-create_module :: proc(ctx: ^EpochContext, name: string) -> ^Module {
+create_module :: proc(ctx: ^OptoContext, name: string) -> ^Module {
 	mod := new(ListEntry(Module), ctx.global_allocator)
 	mod.el.name = name
 	mem.dynamic_pool_init(&mod.el.pool)

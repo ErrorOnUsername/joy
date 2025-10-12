@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 import "core:mem"
 import "core:sync"
@@ -139,7 +139,7 @@ new_debug_type :: proc($T: typeid, a: mem.Allocator) -> ^T {
 	return t
 }
 
-init_builtin_types :: proc(ctx: ^EpochContext) {
+init_builtin_types :: proc(ctx: ^OptoContext) {
 	sync.mutex_lock(&ctx.global_alloc_lock)
 	defer sync.mutex_unlock(&ctx.global_alloc_lock)
 
@@ -330,4 +330,3 @@ debug_type_get_member_offset :: proc(ty: ^DebugType, member_name: string) -> int
 	}
 	return -1
 }
-

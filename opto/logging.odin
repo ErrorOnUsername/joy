@@ -1,4 +1,4 @@
-package epoch
+package opto
 
 import "core:fmt"
 import "core:strings"
@@ -18,4 +18,3 @@ log :: proc(fn: ^Function, msg: string, args: ..any) {
 		fmt.println(fnl_msg)
 	}
 }
-
