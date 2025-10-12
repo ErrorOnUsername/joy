@@ -20,4 +20,3 @@ decl main = fn() {
 - [x] Custom IR (multithreaded)
 - [ ] Custom backend (Sea of Nodes) (in-progress)
 - [ ] Metaprogramming (maybe. this might be out of the scope of the language)
-

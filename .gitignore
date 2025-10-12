@@ -5,3 +5,6 @@
 /ols.json
 /.vscode/
 /.vs/
+/.idea/
+# This way no one accidentally commits the debug shit
+/asm.gv

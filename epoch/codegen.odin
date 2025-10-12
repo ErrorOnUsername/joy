@@ -24,7 +24,7 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	return true
 }
 
-build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> ([]^BasicBlock, bool) {
+build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> (blocks: []^BasicBlock, ok: bool) {
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
 	defer worklist_deinit(&visited)
@@ -116,33 +116,77 @@ build_cfg :: proc(ctx: ^EpochContext, fn: ^Function, bm: ^BlockMap) -> ([]^Basic
 		}
 	}
 
+	build_dominator_tree(fn, start, bm) or_return
+
 	block_stack: [dynamic]^BasicBlock
 	defer delete(block_stack)
 
-	append(&block_stack, start)
+	end := block_map_get_node_block(bm, fn.end.inputs[0])
+	assert(end != nil)
+	append(&block_stack, end)
 
-	// pre-order DFS to build the final list of blocks in execution order
 	final_block_list := make([]^BasicBlock, len(blocks_map))
 	final_index := 0
 	for len(block_stack) > 0 {
 		bb := block_stack[len(block_stack) - 1]
+		bb_start := bb.nodes[0]
 
 		if blocks_map[bb.name] != nil {
 			blocks_map[bb.name] = nil
-			final_block_list[final_index] = bb
-			final_index += 1
 		}
 
-		unhandled_succ := false
-		for s in bb.succ {
-			s_bb := block_map_get_node_block(bm, s)
-			if blocks_map[s_bb.name] != nil {
-				unhandled_succ = true
-				append(&block_stack, s_bb)
+		is_dominated_by :: proc(from: ^BasicBlock, to: ^BasicBlock) -> bool {
+		    curr := from
+			for curr != curr.dom {
+			    if curr == to do break
+				curr = curr.dom
+			}
+			return curr == to
+		}
+
+		// This sucks maybe just flag the block so this is fast
+		is_block_scheduled :: proc(block_list: []^BasicBlock, bb: ^BasicBlock) -> bool {
+		    for block in block_list {
+				if block == bb do return true
+			}
+			return false
+		}
+
+		is_loop_header := false
+		loop_body_bb: ^BasicBlock
+		is_body_done := false
+		all_other_edges_done := true
+		for input in bb_start.inputs {
+		    in_bb := block_map_get_node_block(bm, input)
+			if is_dominated_by(in_bb, bb) {
+			    is_loop_header = true
+				loop_body_bb = in_bb
+				is_body_done = blocks_map[in_bb.name] == nil
+			} else if !is_block_scheduled(final_block_list, in_bb) {
+			    all_other_edges_done = false
+			}
+		}
+
+		if is_loop_header && all_other_edges_done && !is_body_done {
+    		final_block_list[final_index] = bb
+    		final_index += 1
+		}
+
+		unhandled_in := false
+		for input in bb_start.inputs {
+			in_bb := block_map_get_node_block(bm, input) // bb end nodes are still mapped so this will work
+			if blocks_map[in_bb.name] != nil {
+				unhandled_in = true
+				append(&block_stack, in_bb)
 				break
 			}
 		}
-		if unhandled_succ do continue
+		if unhandled_in do continue
+
+		if !is_loop_header {
+    		final_block_list[final_index] = bb
+    		final_index += 1
+		}
 
 		pop(&block_stack)
 	}
@@ -211,10 +255,6 @@ get_bb_terminator_from :: proc(n: ^Node) -> ^Node {
 perform_code_motion :: proc(ctx: ^EpochContext, fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
 	log(fn, "-- Begin Code Motion --")
 	defer log(fn, "-- End Code Motion --")
-
-	start := blocks[0]
-
-	build_dominator_tree(fn, start, bm) or_return
 
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
@@ -519,4 +559,3 @@ register_allocate :: proc(fn: ^Function, start: ^BasicBlock) -> bool {
 write_machine_code :: proc(fn: ^Function, start: ^BasicBlock) -> ([]u8, bool) {
 	return {}, true
 }
-
