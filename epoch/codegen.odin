@@ -13,13 +13,12 @@ codegen_function :: proc(ctx: ^EpochContext, fn: ^Function) -> bool {
 	defer block_map_destroy(&block_map)
 
 	blocks := build_cfg(ctx, fn, &block_map) or_return
-	start := blocks[0]
 
 	perform_code_motion(ctx, fn, blocks, &block_map) or_return
 
-	register_allocate(fn, start) or_return
+	register_allocate(fn, blocks) or_return
 
-	buf := write_machine_code(fn, start) or_return
+	emit(fn, blocks) or_return
 
 	return true
 }
@@ -552,10 +551,10 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 	return true
 }
 
-register_allocate :: proc(fn: ^Function, start: ^BasicBlock) -> bool {
+register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	return true
 }
 
-write_machine_code :: proc(fn: ^Function, start: ^BasicBlock) -> ([]u8, bool) {
-	return {}, true
+emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
+	return true
 }
