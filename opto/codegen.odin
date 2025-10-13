@@ -556,5 +556,8 @@ register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 }
 
 emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
+    impl := arch_impl(.Amd64)
+    impl.select(nil, nil)
+    impl.encode(nil, nil)
 	return true
 }
