@@ -20,16 +20,16 @@ ArchImpl :: struct {
 }
 
 PlatformABI :: struct {
-    // Theres more then one because sysv is just cool like that for some fucking reason
-    return_regs: RegisterMask,
-    caller_saved_regs: RegisterMask,
+	// Theres more then one because sysv is just cool like that for some fucking reason
+	return_regs: RegisterMask,
+	caller_saved_regs: RegisterMask,
 	callee_saved_regs: RegisterMask,
 }
 
 arch_impl :: proc(arch: Arch) -> ^ArchImpl {
 	switch arch {
-    	case .Amd64:
-    		return &impl_amd64
+		case .Amd64:
+			return &impl_amd64
 	}
 	return nil
 }

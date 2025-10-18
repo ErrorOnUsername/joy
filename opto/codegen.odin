@@ -135,9 +135,9 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 		}
 
 		is_dominated_by :: proc(from: ^BasicBlock, to: ^BasicBlock) -> bool {
-		    curr := from
+			curr := from
 			for curr != curr.dom {
-			    if curr == to do break
+				if curr == to do break
 				curr = curr.dom
 			}
 			return curr == to
@@ -145,7 +145,7 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 
 		// This sucks maybe just flag the block so this is fast
 		is_block_scheduled :: proc(block_list: []^BasicBlock, bb: ^BasicBlock) -> bool {
-		    for block in block_list {
+			for block in block_list {
 				if block == bb do return true
 			}
 			return false
@@ -156,19 +156,19 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 		is_body_done := false
 		all_other_edges_done := true
 		for input in bb_start.inputs {
-		    in_bb := block_map_get_node_block(bm, input)
+			in_bb := block_map_get_node_block(bm, input)
 			if is_dominated_by(in_bb, bb) {
-			    is_loop_header = true
+				is_loop_header = true
 				loop_body_bb = in_bb
 				is_body_done = blocks_map[in_bb.name] == nil
 			} else if !is_block_scheduled(final_block_list, in_bb) {
-			    all_other_edges_done = false
+				all_other_edges_done = false
 			}
 		}
 
 		if is_loop_header && all_other_edges_done && !is_body_done {
-    		final_block_list[final_index] = bb
-    		final_index += 1
+			final_block_list[final_index] = bb
+			final_index += 1
 		}
 
 		unhandled_in := false
@@ -183,8 +183,8 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 		if unhandled_in do continue
 
 		if !is_loop_header {
-    		final_block_list[final_index] = bb
-    		final_index += 1
+			final_block_list[final_index] = bb
+			final_index += 1
 		}
 
 		pop(&block_stack)
@@ -556,8 +556,8 @@ register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 }
 
 emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
-    impl := arch_impl(.Amd64)
-    impl.select(nil, nil)
-    impl.encode(nil, nil)
+	impl := arch_impl(.Amd64)
+	impl.select(nil, nil)
+	impl.encode(nil, nil)
 	return true
 }
