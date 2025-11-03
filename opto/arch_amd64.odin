@@ -59,9 +59,121 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
-insrs := [Amd64Insr]InsrTableEntry {}
+
+MachineNode :: struct {
+}
+
+InsrTableEntry :: struct {
+	in_regmask:  Amd64RegMask,
+	out_regmask: Amd64RegMask,
+	encode:      #type proc(m: ^MachineNode) -> bool,
+}
+
+ret_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+call_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+jmp_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+load_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+store_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+add_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+sub_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+mul_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+shl_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+shr_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+or_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+xor_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+cmp_encode :: proc(m: ^MachineNode) -> bool {
+	return true
+}
+
+insr_table := [Amd64Insr]InsrTableEntry {
+	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {}, encode = ret_encode },
+	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {}, encode = call_encode },
+	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {}, encode = jmp_encode },
+	.Load = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = load_encode },
+	.Store = { in_regmask = GPR_READ_MASK, out_regmask = {}, encode = store_encode },
+	.Add = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = add_encode },
+	.AddImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = add_encode },
+	.AddMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = add_encode },
+	.Sub = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = sub_encode },
+	.SubImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = sub_encode },
+	.SubMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = sub_encode },
+	.Mul = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = mul_encode },
+	.MulImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = mul_encode },
+	.MulMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = mul_encode },
+	.Shl = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = shl_encode },
+	.ShlImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = shl_encode },
+	.Shr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = shr_encode },
+	.ShrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = shr_encode },
+	.Or = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = or_encode },
+	.OrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = or_encode },
+	.XOr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, encode = xor_encode },
+	.XOrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, encode = xor_encode },
+	.Cmp = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK, encode = cmp_encode },
+	.CmpImm = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK, encode = cmp_encode },
+	.CmpMem = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK, encode = cmp_encode },
+}
 
 Amd64Insr :: enum {
-	ADDL,
+	Ret,
+	Call,
+	Jmp,
+	Load,
+	Store,
+	Add,
+	AddImm,
+	AddMem,
+	Sub,
+	SubImm,
+	SubMem,
+	Mul,
+	MulImm,
+	MulMem,
+	Shl,
+	ShlImm,
+	Shr,
+	ShrImm,
+	Or,
+	OrImm,
+	XOr,
+	XOrImm,
+	Cmp,
+	CmpImm,
+	CmpMem,
 }
 
