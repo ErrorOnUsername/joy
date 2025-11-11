@@ -49,8 +49,15 @@ impl_amd64 := ArchImpl {
 	encode = amd64_encode,
 }
 
+MachineNode :: struct {
+	uop:         Amd64Insr,
+	in_regmask:  Amd64RegMask,
+	out_regmask: Amd64RegMask,
+}
+
 amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	fmt.println("test select")
+	insr: Amd64Insr
 	return INVALID_OP
 }
 
@@ -59,6 +66,69 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
+InsrMatchProc :: #type proc (n: Node) -> bool
+InsrMatchPred :: struct {
+	insr: Amd64Insr,
+	match_proc: InsrMatchProc,
+}
+InsrMatch :: struct {
+	predicates: []InsrMatchPred,
+}
+
+match_table := [NodeKind]InsrMatch {
+	.Start = {},
+	.End = {},
+	.Region = {},
+	.Proj = {},
+	.IntConst = {},
+	.F32Const = {},
+	.F64Const = {},
+	.Local = {},
+	.Symbol = {},
+	.Return = { { { insr = .Ret } } },
+	.Call = { { { insr = .Call } } },
+	.Branch = { { { insr = .Jmp } } },
+	.Goto = { { { insr = .Jmp } } },
+	.Phi = {},
+	.Load = { { { insr = .Load } } },
+	.Store = { { { insr = .Store } } },
+	.MemCpy = {},
+	.MemSet = {},
+	.VolatileRead = { { { insr = .Load } } },
+	.VolatileWrite = { { { insr = .Store } } },
+	.GetMemberPtr = {},
+	.And = { { { insr = .And } } },
+	.Or = { { { insr = .Or } } },
+	.XOr = { { { insr = .XOr } } },
+	.Add = { { { insr = .Add } } },
+	.Sub = { { { insr = .Sub } } },
+	.Mul = { { { insr = .Mul } } },
+	.Shl = { { { insr = .Shl } } },
+	.Shr = { { { insr = .Shr } } },
+	.Sar = { { { insr = .Sar } } },
+	.Rol = {},
+	.Ror = {},
+	.UDiv = { { { insr = .Div } } },
+	.SDiv = { { { insr = .Div } } },
+	.UMod = {},
+	.SMod = {},
+	.FAdd = { { { insr = .AddF } } },
+	.FSub = { { { insr = .SubF } } },
+	.FMul = { { { insr = .MulF } } },
+	.FDiv = { { { insr = .DivF } } },
+	.FMax = {},
+	.FMin = {},
+	.CmpEq = { { { insr = .Cmp } } },
+	.CmpNeq = { { { insr = .Cmp } } },
+	.CmpULt = { { { insr = .Cmp } } },
+	.CmpULe = { { { insr = .Cmp } } },
+	.CmpSLt = { { { insr = .Cmp } } },
+	.CmpSLe = { { { insr = .Cmp } } },
+	.CmpFLt = { { { insr = .Cmp } } },
+	.CmpFLe = { { { insr = .Cmp } } },
+	.Not = {},
+	.Negate = {},
+}
 
 InsrTableEntry :: struct {
 	in_regmask:  Amd64RegMask,
@@ -80,10 +150,27 @@ insr_table := [Amd64Insr]InsrTableEntry {
 	.Mul = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.MulImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
 	.MulMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.Div = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.DivImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
+	.DivMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.AddF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.AddFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.SubF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.SubFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.MulF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.MulFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.DivF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.DivFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
+	.Sal = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.SalImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
+	.Sar = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.SarImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
 	.Shl = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.ShlImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
 	.Shr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.ShrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
+	.And = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.AndImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
 	.Or = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.OrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
 	.XOr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
@@ -108,10 +195,27 @@ Amd64Insr :: enum {
 	Mul,
 	MulImm,
 	MulMem,
+	Div,
+	DivImm,
+	DivMem,
+	AddF,
+	AddFMem,
+	SubF,
+	SubFMem,
+	MulF,
+	MulFMem,
+	DivF,
+	DivFMem,
+	Sal,
+	SalImm,
+	Sar,
+	SarImm,
 	Shl,
 	ShlImm,
 	Shr,
 	ShrImm,
+	And,
+	AndImm,
 	Or,
 	OrImm,
 	XOr,
