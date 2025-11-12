@@ -66,13 +66,25 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
-InsrMatchProc :: #type proc (n: Node) -> bool
+InsrMatchProc :: #type proc (n: ^Node) -> bool
 InsrMatchPred :: struct {
 	insr: Amd64Insr,
-	match_proc: InsrMatchProc,
+	pred: InsrMatchProc,
 }
 InsrMatch :: struct {
 	predicates: []InsrMatchPred,
+}
+
+amd64_reg_format :: proc(n: ^Node) -> bool {
+	return true
+}
+
+amd64_imm_format :: proc(n: ^Node) -> bool {
+	return true
+}
+
+amd64_mem_format :: proc(n: ^Node) -> bool {
+	return true
 }
 
 match_table := [NodeKind]InsrMatch {
@@ -85,7 +97,7 @@ match_table := [NodeKind]InsrMatch {
 	.F64Const = {},
 	.Local = {},
 	.Symbol = {},
-	.Return = { { { insr = .Ret } } },
+	.Return = { { { insr = .Ret, pred = amd64_reg_format } } },
 	.Call = { { { insr = .Call } } },
 	.Branch = { { { insr = .Jmp } } },
 	.Goto = { { { insr = .Jmp } } },
@@ -97,35 +109,35 @@ match_table := [NodeKind]InsrMatch {
 	.VolatileRead = { { { insr = .Load } } },
 	.VolatileWrite = { { { insr = .Store } } },
 	.GetMemberPtr = {},
-	.And = { { { insr = .And } } },
-	.Or = { { { insr = .Or } } },
-	.XOr = { { { insr = .XOr } } },
-	.Add = { { { insr = .Add } } },
-	.Sub = { { { insr = .Sub } } },
-	.Mul = { { { insr = .Mul } } },
-	.Shl = { { { insr = .Shl } } },
-	.Shr = { { { insr = .Shr } } },
-	.Sar = { { { insr = .Sar } } },
+	.And = { { { insr = .And, pred = amd64_reg_format }, { insr = .AndImm, pred = amd64_imm_format } } },
+	.Or = { { { insr = .Or, pred = amd64_reg_format }, { insr = .OrImm, pred = amd64_imm_format } } },
+	.XOr = { { { insr = .XOr, pred = amd64_reg_format }, { insr = .XOrImm, pred = amd64_imm_format } } },
+	.Add = { { { insr = .Add, pred = amd64_reg_format }, { insr = .AddImm, pred = amd64_imm_format }, { insr = .AddMem, pred = amd64_mem_format } } },
+	.Sub = { { { insr = .Sub, pred = amd64_reg_format }, { insr = .SubImm, pred = amd64_imm_format }, { insr = .SubMem, pred = amd64_mem_format } } },
+	.Mul = { { { insr = .Mul, pred = amd64_reg_format }, { insr = .MulImm, pred = amd64_imm_format }, { insr = .MulMem, pred = amd64_mem_format } } },
+	.Shl = { { { insr = .Shl, pred = amd64_reg_format }, { insr = .ShlImm, pred = amd64_imm_format } } },
+	.Shr = { { { insr = .Shr, pred = amd64_reg_format }, { insr = .ShrImm, pred = amd64_imm_format } } },
+	.Sar = { { { insr = .Sar, pred = amd64_reg_format }, { insr = .SarImm, pred = amd64_imm_format } } },
 	.Rol = {},
 	.Ror = {},
-	.UDiv = { { { insr = .Div } } },
-	.SDiv = { { { insr = .Div } } },
+	.UDiv = { { { insr = .Div, pred = amd64_reg_format }, { insr = .DivImm, pred = amd64_imm_format }, { insr = .DivMem, pred = amd64_mem_format } } },
+	.SDiv = { { { insr = .Div, pred = amd64_reg_format }, { insr = .DivImm, pred = amd64_imm_format }, { insr = .DivMem, pred = amd64_mem_format } } },
 	.UMod = {},
 	.SMod = {},
-	.FAdd = { { { insr = .AddF } } },
-	.FSub = { { { insr = .SubF } } },
-	.FMul = { { { insr = .MulF } } },
-	.FDiv = { { { insr = .DivF } } },
+	.FAdd = { { { insr = .AddF, pred = amd64_reg_format }, { insr = .AddFMem, pred = amd64_mem_format } } },
+	.FSub = { { { insr = .SubF, pred = amd64_reg_format }, { insr = .SubFMem, pred = amd64_mem_format } } },
+	.FMul = { { { insr = .MulF, pred = amd64_reg_format }, { insr = .MulFMem, pred = amd64_mem_format } } },
+	.FDiv = { { { insr = .DivF, pred = amd64_reg_format }, { insr = .DivFMem, pred = amd64_mem_format } } },
 	.FMax = {},
 	.FMin = {},
-	.CmpEq = { { { insr = .Cmp } } },
-	.CmpNeq = { { { insr = .Cmp } } },
-	.CmpULt = { { { insr = .Cmp } } },
-	.CmpULe = { { { insr = .Cmp } } },
-	.CmpSLt = { { { insr = .Cmp } } },
-	.CmpSLe = { { { insr = .Cmp } } },
-	.CmpFLt = { { { insr = .Cmp } } },
-	.CmpFLe = { { { insr = .Cmp } } },
+	.CmpEq = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpNeq = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpULt = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpULe = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpSLt = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpSLe = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpFLt = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
+	.CmpFLe = { { { insr = .Cmp, pred = amd64_reg_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .CmpMem, pred = amd64_mem_format } } },
 	.Not = {},
 	.Negate = {},
 }
