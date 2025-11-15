@@ -7,7 +7,8 @@ import "core:strings"
 codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	log(fn, "-- Begin CodeGen --")
 	defer log(fn, "-- End CodeGen --")
-	// TODO: insr selection
+
+	insr_select(fn) or_return
 
 	block_map := block_map_create(fn)
 	defer block_map_destroy(&block_map)
@@ -20,6 +21,47 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 
 	emit(fn, blocks) or_return
 
+	return true
+}
+
+insr_select :: proc(fn: ^Function) -> bool {
+	impl := arch_impl(.Amd64)
+
+	visited: Worklist
+	worklist_init(&visited, fn.node_count)
+	defer worklist_deinit(&visited)
+
+	stack: [dynamic]^Node
+	defer delete(stack)
+
+	for len(stack) > 0 {
+		x := stack[len(stack) - 1]
+
+		unhandled_input := false
+		for input in x.inputs {
+			if input != nil && !worklist_contains(&visited, input) {
+				unhandled_input = true
+				append(&stack, input)
+				break
+			}
+		}
+		if unhandled_input do continue
+
+		if is_selectable_node(x) {
+			impl.select(fn, x)
+		}
+
+		pop(&stack)
+	}
+
+	return true
+}
+
+is_selectable_node :: proc(n: ^Node) -> bool {
+	#partial switch n.kind {
+		case .Start, .End, .Region, .Proj, .IntConst, .F32Const, .F64Const, .Local, .Symbol, .Phi, .GetMemberPtr:
+			return false
+	}
 	return true
 }
 
@@ -557,7 +599,6 @@ register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 
 emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	impl := arch_impl(.Amd64)
-	impl.select(nil, nil)
 	impl.encode(nil, nil)
 	return true
 }
