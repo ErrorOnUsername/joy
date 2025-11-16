@@ -87,5 +87,5 @@ print_fn_gv :: proc(fn: ^Function, sb: ^strings.Builder) -> bool {
 
 @(private = "file")
 print_node_name_gv :: proc(sb: ^strings.Builder, n: ^Node) {
-	fmt.sbprintf(sb, "{}{}", to_node_kind(n.kind), n.gvn)
+	fmt.sbprintf(sb, "{}{}", n.kind, n.gvn)
 }

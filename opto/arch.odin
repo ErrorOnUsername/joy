@@ -12,17 +12,6 @@ RegisterID :: int
 INVALID_REG :: RegisterID(-1)
 RegisterMask :: int
 
-ARCH_TYPE_MASK :: NodeKindRaw(0xff << 24)
-
-has_arch_mask :: proc(kind: NodeKindRaw) -> bool {
-	return kind & ARCH_TYPE_MASK != 0
-}
-
-as_node_kind_raw :: proc(arch: Arch, op: MachineOp) -> NodeKindRaw {
-	assert(int(arch) < 0xff)
-	return ((NodeKindRaw(arch) + 1) << 24) | NodeKindRaw(op)
-}
-
 ArchImpl :: struct {
 	reg_names: []string,
 	abi: []PlatformABI,
