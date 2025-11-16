@@ -56,7 +56,7 @@ MachineNode :: struct {
 }
 
 amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
-	match := match_table[n.kind]
+	match := match_table[to_node_kind(n.kind)]
 	for pred in match.predicates {
 		if pred.pred(n) {
 			return MachineOp(pred.insr)

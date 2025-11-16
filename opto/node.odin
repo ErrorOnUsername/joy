@@ -159,10 +159,9 @@ new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^
 	return proj
 }
 
-
 new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) -> ^Node {
 	n, _ := new(Node, fn.allocator)
-	n.kind = kind
+	n.kind = NodeKindRaw(kind) // these just cast directly since theres no arch
 	n.gvn = u32(fn.node_count)
 	n.type = type
 	inputs, _ := make([]^Node, input_count, fn.allocator)
@@ -239,7 +238,7 @@ insert_mem_effect :: proc(fn: ^Function, new_mem: ^Node) -> ^Node {
 
 set_control :: proc(fn: ^Function, ctrl: ^Node) {
 	assert(ty_is_ctrl(ctrl.type))
-	assert(ctrl.kind == .Region)
+	assert(to_node_kind(ctrl.kind) == .Region)
 	fn.meta.curr_ctrl = ctrl
 	fn.meta.curr_mem = ctrl.extra.derived.(^RegionExtra).mem_in
 	fn.end.inputs[0] = ctrl
@@ -365,7 +364,7 @@ new_function_proto_from_debug_type :: proc(m: ^Module, dbg_ty: ^DebugType) -> ^F
 
 @(private = "file")
 insert_region_mem_edge :: proc(target: ^Node, mem: ^Node) {
-	assert(target.kind == .Region)
+	assert(to_node_kind(target.kind) == .Region)
 	mem_in := target.extra.derived.(^RegionExtra).mem_in
 	found_slot := false
 	for &input in &mem_in.inputs {
@@ -380,7 +379,7 @@ insert_region_mem_edge :: proc(target: ^Node, mem: ^Node) {
 
 @(private = "file")
 insert_region_ctrl_edge :: proc(target: ^Node, ctrl: ^Node) {
-	assert(target.kind == .Region)
+	assert(to_node_kind(target.kind) == .Region)
 	found_slot := false
 	for &input in &target.inputs {
 		if input == nil {
@@ -694,8 +693,9 @@ insr_neg :: proc(fn: ^Function, v: ^Node) -> ^Node {
 }
 
 
+NodeKindRaw :: distinct u32
 Node :: struct {
-	kind:   NodeKind,
+	kind:   NodeKindRaw,
 	type:   Type,
 	gvn:    u32,
 	inputs: []^Node,
@@ -760,6 +760,11 @@ AnyExtra :: union {
 NodeExtra :: struct {
 	tag: string,
 	derived: AnyExtra,
+}
+
+to_node_kind :: proc(kind: NodeKindRaw) -> NodeKind {
+	assert(!has_arch_mask(kind))
+	return NodeKind(kind)
 }
 
 NodeKind :: enum {

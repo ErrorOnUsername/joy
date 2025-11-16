@@ -48,7 +48,8 @@ insr_select :: proc(fn: ^Function) -> bool {
 		if unhandled_input do continue
 
 		if is_selectable_node(x) {
-			impl.select(fn, x)
+			op := impl.select(fn, x)
+			x.kind = as_node_kind_raw(.Amd64, op)
 		}
 
 		pop(&stack)
@@ -58,7 +59,7 @@ insr_select :: proc(fn: ^Function) -> bool {
 }
 
 is_selectable_node :: proc(n: ^Node) -> bool {
-	#partial switch n.kind {
+	#partial switch to_node_kind(n.kind) {
 		case .Start, .End, .Region, .Proj, .IntConst, .F32Const, .F64Const, .Local, .Symbol, .Phi, .GetMemberPtr:
 			return false
 	}
@@ -138,12 +139,13 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 			walk = walk.inputs[0]
 		}
 
-		if end.kind == .Branch {
+		end_kind := to_node_kind(end.kind)
+		if end_kind == .Branch {
 			bb.succ = make([]^Node, 2, fn.allocator)
 
 			bb.succ[0] = end.inputs[2] // true branch
 			bb.succ[1] = end.inputs[3] // false branch
-		} else if end.kind == .Goto {
+		} else if end_kind == .Goto {
 			bb.succ = make([]^Node, 1, fn.allocator)
 			bb.succ[0] = end.inputs[1]
 		}
@@ -152,7 +154,7 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 			append(&stack, s)
 		}
 
-		if x.kind == .Start {
+		if to_node_kind(x.kind) == .Start {
 			start = bb
 		}
 	}
@@ -238,7 +240,7 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 is_bb_start :: proc(n: ^Node) -> bool {
 	if n == nil do return false
 
-	#partial switch n.kind {
+	#partial switch to_node_kind(n.kind) {
 		case .Region, .Start: return true
 	}
 
@@ -248,7 +250,7 @@ is_bb_start :: proc(n: ^Node) -> bool {
 is_bb_term :: proc(n: ^Node) -> bool {
 	if n == nil do return false
 
-	#partial switch n.kind {
+	#partial switch to_node_kind(n.kind) {
 		case .Goto, .Branch, .Return: return true
 	}
 
@@ -256,7 +258,7 @@ is_bb_term :: proc(n: ^Node) -> bool {
 }
 
 is_control_proj :: proc(n: ^Node) -> bool {
-	return n.kind == .Proj && ty_is_ctrl(n.type)
+	return to_node_kind(n.kind) == .Proj && ty_is_ctrl(n.type)
 }
 
 is_ctrl_node :: proc(n: ^Node) -> bool {
@@ -341,7 +343,7 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 		if unhandled_input do continue
 
 		// This ones ready to schedule (all inputs pinned already)
-		if n.kind != .Start && !is_node_pinned(n) {
+		if to_node_kind(n.kind) != .Start && !is_node_pinned(n) {
 			deepest_input_bb: ^BasicBlock
 			for input in n.inputs {
 				if input == nil do continue // control (input[0]) is null sicne this is a floating node
@@ -390,7 +392,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 		if unhandled_input do continue
 
-		if n.kind != .Start && n.inputs[0] == nil { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
+		if to_node_kind(n.kind) != .Start && n.inputs[0] == nil { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
 			// place the node before the first use and hoist out of loops where needed
 			pin_bb := block_map_get_node_block(bm, n)
 			highest_use: ^BasicBlock
@@ -446,7 +448,7 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 
 		if unhandled_input do continue
 
-		if !is_bb_start(n) && !is_bb_term(n) && n.kind != .End {
+		if !is_bb_start(n) && !is_bb_term(n) && to_node_kind(n.kind) != .End {
 			// place the node before the first use and hoist out of loops where needed
 			pin_bb := block_map_get_node_block(bm, n)
 
@@ -463,24 +465,25 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 		log(fn, "%%{}:", bb.name)
 		for n in bb.nodes {
 			node_args := print_node_args(&node_args_scratch, n, bm)
-			log(fn, "        v{} = {} {}", n.gvn, n.kind, node_args)
+			log(fn, "        v{} = {} {}", n.gvn, to_node_kind(n.kind), node_args)
 			strings.builder_reset(&node_args_scratch)
 		}
 	}
 
 	print_node_args :: proc(sb: ^strings.Builder, n: ^Node, bm: ^BlockMap) -> string {
-		if n.kind == .Proj {
+		kind := to_node_kind(n.kind)
+		if kind == .Proj {
 			fmt.sbprintf(sb, "v{}", n.inputs[0].gvn )
-		} else if n.kind == .Goto {
+		} else if kind == .Goto {
 			bb := block_map_get_node_block(bm, n.inputs[1])
 			fmt.sbprintf(sb, "%%{}", bb.name)
-		} else if n.kind == .Branch {
+		} else if kind == .Branch {
 			bb_t := block_map_get_node_block(bm, n.inputs[2])
 			bb_f := block_map_get_node_block(bm, n.inputs[3])
 			fmt.sbprintf(sb, "v{} %%{} %%{}", n.inputs[1].gvn, bb_t.name, bb_f.name)
 		} else {
 			for input, i in n.inputs {
-				if n.kind != .Region && i == 0 do continue
+				if kind != .Region && i == 0 do continue
 				fmt.sbprintf(sb, "v{} ", input.gvn)
 			}
 		}

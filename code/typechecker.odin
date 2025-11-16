@@ -203,7 +203,7 @@ pump_tc_check_proc_body :: proc(c: ^Checker, p: ^ProcProto, m: ^Module) -> PumpR
 	ctx.checker = c
 	ctx.mod = m
 	fn_node := p.cg_val
-	assert(fn_node.kind == .Symbol)
+	assert(opto.to_node_kind(fn_node.kind) == .Symbol)
 	sym, is_sym := fn_node.extra.derived.(^opto.SymbolExtra)
 	assert(is_sym)
 	ctx.cg_fn = sym.sym.derived.(^opto.Function)
