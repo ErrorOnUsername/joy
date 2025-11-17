@@ -25,6 +25,9 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 }
 
 insr_select :: proc(fn: ^Function) -> bool {
+	log(fn, "-- Begin ISel --")
+	defer log(fn, "-- End ISel --")
+
 	impl := arch_impl(.Amd64)
 
 	visited: Worklist
