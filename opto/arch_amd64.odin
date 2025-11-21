@@ -154,6 +154,7 @@ InsrTableEntry :: struct {
 }
 
 insr_table := [Amd64Insr]InsrTableEntry {
+	.Invalid = { },
 	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
@@ -199,6 +200,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 }
 
 Amd64Insr :: enum {
+	Invalid,
 	Ret,
 	Call,
 	Jmp,
