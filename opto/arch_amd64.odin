@@ -59,6 +59,7 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	match := match_table[n.kind]
 	for pred in match.predicates {
 		if pred.pred == nil || pred.pred(n) {
+			log(fn, "{}{} -> amd64.{}", n.kind, n.gvn, pred.insr)
 			return MachineOp(pred.insr)
 		}
 	}

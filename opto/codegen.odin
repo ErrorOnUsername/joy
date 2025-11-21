@@ -37,8 +37,12 @@ insr_select :: proc(fn: ^Function) -> bool {
 	stack: [dynamic]^Node
 	defer delete(stack)
 
+	append(&stack, fn.end)
+
 	for len(stack) > 0 {
 		x := stack[len(stack) - 1]
+
+		worklist_push(&visited, x)
 
 		unhandled_input := false
 		for input in x.inputs {
