@@ -172,6 +172,10 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	return n
 }
 
+is_const_node :: proc(n: ^Node) -> bool {
+	return n.kind == .IntConst || n.kind == .F32Const || n.kind == .F64Const
+}
+
 new_int_const :: proc(fn: ^Function, type: Type, val: IntConstVal) -> ^Node {
 	n := new_node(fn, .IntConst, type, 1)
 	set_input(n, 0, fn.start)
