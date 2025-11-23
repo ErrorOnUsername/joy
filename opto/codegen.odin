@@ -602,6 +602,7 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 }
 
 register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
+	click_briggs_chaitin(fn, blocks) or_return
 	return true
 }
 
