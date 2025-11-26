@@ -47,6 +47,8 @@ impl_amd64 := ArchImpl {
 	},
 	select = amd64_select,
 	encode = amd64_encode,
+	get_src_regmask = amd64_get_src_regmask,
+	get_dst_regmask = amd64_get_dst_regmask,
 }
 
 MachineNode :: struct {
@@ -70,6 +72,14 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	fmt.println("test encode")
 	return true
+}
+
+amd64_get_src_regmask :: proc(n: ^Node) -> RegisterMask {
+	return transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
+}
+
+amd64_get_dst_regmask :: proc(n: ^Node) -> RegisterMask {
+	return transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].out_regmask
 }
 
 InsrMatchProc :: #type proc (n: ^Node) -> bool

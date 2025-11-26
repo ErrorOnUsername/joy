@@ -7,7 +7,7 @@ Arch :: enum {
 
 // Opaque definitions that are specified in the architecture implementation
 MachineOp :: u32
-INVALID_OP :: MachineOp(~u32(0))
+INVALID_OP :: MachineOp(0) // all archs should define this as INVALID since it's a sentinel state. Could also just use a Maybe but maybe you should sugma
 RegisterID :: int
 INVALID_REG :: RegisterID(-1)
 RegisterMask :: int
@@ -17,6 +17,8 @@ ArchImpl :: struct {
 	abi: []PlatformABI,
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
 	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
+	get_src_regmask: #type proc(n: ^Node) -> RegisterMask,
+	get_dst_regmask: #type proc(n: ^Node) -> RegisterMask,
 }
 
 PlatformABI :: struct {
