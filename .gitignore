@@ -2,6 +2,7 @@
 *.bin
 *.pdb
 *.rdi
+*.dSYM/
 /ols.json
 /.vscode/
 /.vs/

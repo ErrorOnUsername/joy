@@ -82,7 +82,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					lrg = merge_live_range(ctx, lrg, input)
 				}
 				if lrg.available_mask == 0 {
-					log(fn, "Exhausted available registers on {}{}", n.kind, n.gvn)
+					log(fn, "Exhausted available registers on merge at {}{}", n.kind, n.gvn)
 					record_regalloc_failure(ctx, lrg)
 				}
 			} else if n.uop != 0 {
@@ -98,7 +98,11 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					in_lrg := find_live_range(ctx, input)
 					if in_lrg == nil do continue
 					if in_lrg.available_mask & src_regmask == 0 {
-						log(fn, "Found incompatible register mask from def {}{} to use {}{}", input.kind, input.gvn, n.kind, n.gvn)
+						src_mask_str := arch_get_register_mask_str(ctx.arch, src_regmask)
+						defer delete(src_mask_str)
+						in_mask_str := arch_get_register_mask_str(ctx.arch, in_lrg.available_mask)
+						defer delete(in_mask_str)
+						log(fn, "Found incompatible register mask from def {}{} (available: {}) to use {}{} (requires: {})", input.kind, input.gvn, in_mask_str, n.kind, n.gvn, src_mask_str)
 						record_regalloc_failure(ctx, in_lrg)
 					}
 				}
