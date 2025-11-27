@@ -32,9 +32,7 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	attempt := 1
 	for !color_graph(&ctx, attempt, blocks) {
 		assert(attempt <= MAX_REGALLOC_ATTEMPTS)
-
 		split_conflicting_live_ranges(&ctx)
-
 		attempt += 1
 		log(fn, "Starting Allocation Attempt {}...", attempt)
 	}
@@ -45,6 +43,9 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 }
 
 color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock) -> bool {
+	ctx.live_range_count = 0
+	clear(&ctx.lrgs)
+	clear(&ctx.failures)
 	allocation_success := build_live_ranges(ctx, attempt_no, blocks) &&
 		build_interference_graph(ctx, attempt_no, blocks) &&
 		color_interference_graph(ctx, attempt_no, blocks)
@@ -89,7 +90,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 				dst_regmask := arch.get_dst_regmask(n)
 				lrg := make_live_range(ctx, n)
 				assert(lrg != nil)
-				lrg.available_mask &= dst_regmask
+				lrg.available_mask = dst_regmask
 				src_regmask := arch.get_src_regmask(n)
 				// looking up to inputs to check for self-conflicts
 				for input in n.inputs[1:] {
@@ -97,7 +98,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					in_lrg := find_live_range(ctx, input)
 					if in_lrg == nil do continue
 					if in_lrg.available_mask & src_regmask == 0 {
-						log(fn, "Found incompatible register mask from def {}{} to use {}{}", n.kind, n.gvn, input.kind, input.gvn)
+						log(fn, "Found incompatible register mask from def {}{} to use {}{}", input.kind, input.gvn, n.kind, n.gvn)
 						record_regalloc_failure(ctx, in_lrg)
 					}
 				}
@@ -120,6 +121,8 @@ make_live_range :: proc(ctx: ^RegAllocContext, n: ^Node) -> ^LiveRange {
 	assert(!(n in ctx.lrgs))
 	ctx.lrgs[n] = {}
 	lrg = &ctx.lrgs[n]
+	ctx.live_range_count += 1
+	lrg.id = LiveRangeID(ctx.live_range_count)
 	return lrg
 }
 
