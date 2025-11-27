@@ -31,9 +31,9 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 
 	attempt := 1
 	for !color_graph(&ctx, attempt, blocks) {
-		assert(attempt <= MAX_REGALLOC_ATTEMPTS)
 		split_conflicting_live_ranges(&ctx)
 		attempt += 1
+		assert(attempt <= MAX_REGALLOC_ATTEMPTS)
 		log(fn, "Starting Allocation Attempt {}...", attempt)
 	}
 
