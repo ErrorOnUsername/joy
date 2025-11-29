@@ -93,7 +93,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 				lrg.available_mask = dst_regmask
 				src_regmask := arch.get_src_regmask(n)
 				// looking up to inputs to check for self-conflicts
-				input_slice_start := 2 if n.kind == .Load || n.kind == .Store else 1
+				input_slice_start := 2 if ty_is_mem(n.type) || n.kind == .Load else 1
 				for input in n.inputs[input_slice_start:] {
 					assert(input != nil)
 					in_lrg := find_live_range(ctx, input)
