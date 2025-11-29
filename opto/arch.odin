@@ -20,13 +20,23 @@ ArchImpl :: struct {
 	abi: []PlatformABI,
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
 	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
-	get_src_regmask: #type proc(n: ^Node) -> RegisterMask,
+	get_src_regmask: #type proc(n: ^Node, from: int) -> RegisterMask,
 	get_dst_regmask: #type proc(n: ^Node) -> RegisterMask,
+	get_kill_regmask: #type proc(n: ^Node) -> RegisterMask, // some instructions kill registers (function calls for instance)
+}
+
+ABIParameterOrder :: enum {
+	LeftToRight,
+	RightToLeft,
 }
 
 PlatformABI :: struct {
+	param_order:       ABIParameterOrder,
+	param_stack_order: ABIParameterOrder,
+	int_param_regs:    []RegisterMask,
+	float_param_regs:  []RegisterMask,
 	// Theres more then one because sysv is just cool like that for some fucking reason
-	return_regs: RegisterMask,
+	return_regs:       RegisterMask,
 	caller_saved_regs: RegisterMask,
 	callee_saved_regs: RegisterMask,
 }

@@ -34,12 +34,20 @@ impl_amd64 := ArchImpl {
 	abi = {
 		// Win64
 		{
+			param_order = .LeftToRight,
+			param_stack_order = .RightToLeft,
+			int_param_regs = { transmute(RegisterMask)Amd64RegMask { .RCX }, transmute(RegisterMask)Amd64RegMask { .RDX }, transmute(RegisterMask)Amd64RegMask { .R9 }, transmute(RegisterMask)Amd64RegMask { .R8 } },
+			float_param_regs = { transmute(RegisterMask)Amd64RegMask { .XMM0 }, transmute(RegisterMask)Amd64RegMask { .XMM1 }, transmute(RegisterMask)Amd64RegMask { .XMM2 }, transmute(RegisterMask)Amd64RegMask { .XMM3 } },
 			return_regs = transmute(RegisterMask)Amd64RegMask { .RAX },
 			caller_saved_regs = transmute(RegisterMask)Amd64RegMask { .RAX, .RCX, .RDX, .R8, .R9, .R10, .R11, .XMM0, .XMM1, .XMM2, .XMM3, .XMM4, .XMM5 },
 			callee_saved_regs = transmute(RegisterMask)Amd64RegMask { .RBX, .RBP, .RDI, .RSI, .RSP, .R12, .R13, .R14, .R15, .XMM6, .XMM7, .XMM8, .XMM9, .XMM10, .XMM11, .XMM12, .XMM13, .XMM14, .XMM15 },
 		},
 		// SysV64
 		{
+			param_order = .LeftToRight,
+			param_stack_order = .RightToLeft,
+			int_param_regs = { transmute(RegisterMask)Amd64RegMask { .RDI }, transmute(RegisterMask)Amd64RegMask { .RSI }, transmute(RegisterMask)Amd64RegMask { .RDX }, transmute(RegisterMask)Amd64RegMask { .RCX }, transmute(RegisterMask)Amd64RegMask { .R8 }, transmute(RegisterMask)Amd64RegMask { .R9 } },
+			float_param_regs = { transmute(RegisterMask)Amd64RegMask { .XMM0 }, transmute(RegisterMask)Amd64RegMask { .XMM1 }, transmute(RegisterMask)Amd64RegMask { .XMM2 }, transmute(RegisterMask)Amd64RegMask { .XMM3 }, transmute(RegisterMask)Amd64RegMask { .XMM4 }, transmute(RegisterMask)Amd64RegMask { .XMM5 }, transmute(RegisterMask)Amd64RegMask { .XMM6 }, transmute(RegisterMask)Amd64RegMask { .XMM7 } },
 			return_regs = transmute(RegisterMask)Amd64RegMask { .RAX, .RDX },
 			caller_saved_regs = transmute(RegisterMask)Amd64RegMask { .RAX, .RDI, .RSI, .RCX, .RDX, .R8, .R9, .R10, .R11 },
 			callee_saved_regs = transmute(RegisterMask)Amd64RegMask { .RBX, .RBP, .RSP, .R12, .R13, .R14, .R15, .XMM0, .XMM1, .XMM2, .XMM3, .XMM4, .XMM5, .XMM6, .XMM7, .XMM8, .XMM9, .XMM10, .XMM11, .XMM12, .XMM13, .XMM14, .XMM15 },
@@ -49,12 +57,14 @@ impl_amd64 := ArchImpl {
 	encode = amd64_encode,
 	get_src_regmask = amd64_get_src_regmask,
 	get_dst_regmask = amd64_get_dst_regmask,
+	get_kill_regmask = amd64_get_kill_regmask,
 }
 
 MachineNode :: struct {
-	uop:         Amd64Insr,
-	in_regmask:  Amd64RegMask,
-	out_regmask: Amd64RegMask,
+	uop:          Amd64Insr,
+	in_regmask:   Amd64RegMask,
+	out_regmask:  Amd64RegMask,
+	kill_regmask: Amd64RegMask,
 }
 
 amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
@@ -74,12 +84,50 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
-amd64_get_src_regmask :: proc(n: ^Node) -> RegisterMask {
-	return transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
+// because amd64 is just cool like that
+DEBUG_ABI :: Amd64ABI.SysV64
+
+amd64_get_src_regmask :: proc(n: ^Node, from: int) -> RegisterMask {
+	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
+	uop := Amd64Insr(n.uop)
+	#partial switch uop {
+		case .Call:
+			// FIXME: If you have too many integer arguments into the function the codegen backend for the lanuage might make some assumptions about the ABI instead of naively just spitting out types...
+			// Double check on this because it would fuck up the counts maybe idk. the stack is the stack but still just check.
+			param_node := n.inputs[from]
+			param_mask_offset := from
+			// There might be a better way to do this but it would require allocating memory or some shit i think, so come back and fix it if it matters at all ig...
+			for i := from - 1; i > 2; i -= 1 {
+				if !ty_equal(param_node.type, n.inputs[i].type) {
+					param_mask_offset -= 1
+				}
+			}
+			param_mask_offset -= 2 // transform to 0..n space to index the register mask out of the 2..n space for the parmeters
+			if ty_is_int(param_node.type) {
+				regmask = impl_amd64.abi[int(DEBUG_ABI)].int_param_regs[param_mask_offset]
+			} else if ty_is_float(param_node.type) {
+				regmask = impl_amd64.abi[int(DEBUG_ABI)].float_param_regs[param_mask_offset]
+			}
+			assert(regmask != 0)
+		case .Ret:
+			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs // TODO: There's register splitting on SysV so just make sure all that bullshit works, idk...
+	}
+	assert(regmask != 0)
+	return regmask
 }
 
 amd64_get_dst_regmask :: proc(n: ^Node) -> RegisterMask {
-	return transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].out_regmask
+	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].out_regmask
+	uop := Amd64Insr(n.uop)
+	#partial switch uop {
+		case .Call:
+		case .Ret:
+	}
+	return regmask // some insrs are allowed to not produce any regs (Stores for example)
+}
+
+amd64_get_kill_regmask :: proc(n: ^Node) -> RegisterMask {
+	return RegisterMask(0)
 }
 
 InsrMatchProc :: #type proc (n: ^Node) -> bool
