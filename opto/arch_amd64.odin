@@ -209,6 +209,12 @@ match_table := [NodeKind]InsrMatch {
 	.CmpSLe = { { { insr = .CmpMem, pred = amd64_mem_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
 	.CmpFLt = { { { insr = .CmpMem, pred = amd64_mem_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
 	.CmpFLe = { { { insr = .CmpMem, pred = amd64_mem_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
+	.SetEq = { { { insr = .SetEq } } },
+	.SetNeq = { { { insr = .SetNeq } } },
+	.SetULt = { { { insr = .SetULt } } },
+	.SetULe = { { { insr = .SetULe } } },
+	.SetSLt = { { { insr = .SetSLt } } },
+	.SetSLe = { { { insr = .SetSLe } } },
 	.Not = {},
 	.Negate = {},
 }
@@ -262,6 +268,12 @@ insr_table := [Amd64Insr]InsrTableEntry {
 	.Cmp = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
 	.CmpImm = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
 	.CmpMem = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
+	.SetEq = { in_regmask = FLAGS_MASK, out_regmask = GPR_WRITE_MASK },
+	.SetNeq = { in_regmask = FLAGS_MASK, out_regmask = GPR_WRITE_MASK },
+	.SetULt = { in_regmask = FLAGS_MASK, out_regmask = GPR_WRITE_MASK },
+	.SetULe = { in_regmask = FLAGS_MASK, out_regmask = GPR_WRITE_MASK },
+	.SetSLt = { in_regmask = FLAGS_MASK, out_regmask = GPR_WRITE_MASK },
+	.SetSLe = { in_regmask = FLAGS_MASK, out_regmask = GPR_WRITE_MASK },
 }
 
 Amd64Insr :: enum {
@@ -308,5 +320,11 @@ Amd64Insr :: enum {
 	Cmp,
 	CmpImm,
 	CmpMem,
+	SetEq,
+	SetNeq,
+	SetULt,
+	SetULe,
+	SetSLt,
+	SetSLe,
 }
 
