@@ -401,9 +401,7 @@ insr_br :: proc(fn: ^Function, cond: ^Node, then: ^Node, else_l: ^Node) {
 	assert(ty_is_ctrl(else_l.type))
 	n := new_node(fn, .Branch, TY_CTRL, 4)
 	set_input(n, 0, transfer_control(fn, n))
-	cc := cond.inputs[1] if is_set_node(cond) else cond
-	assert(is_cmp_node(cc))
-	set_input(n, 1, cc)
+	set_input(n, 1, cond)
 	set_input(n, 2, then)
 	set_input(n, 3, else_l)
 	insert_region_mem_edge(then, fn.meta.curr_mem)
@@ -627,80 +625,44 @@ insr_cmp :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node
 	return n
 }
 
-@(private = "file")
-is_set_node :: proc(n: ^Node) -> bool {
-	#partial switch n.kind {
-		case .SetEq, .SetNeq, .SetULt, .SetULe, .SetSLt, .SetSLe:
-			return true
-	}
-	return false
-}
-
-@(private = "file")
-is_cmp_node :: proc(n: ^Node) -> bool {
-	#partial switch n.kind {
-		case .CmpEq, .CmpNeq, .CmpULt, .CmpULe, .CmpSLt, .CmpSLe:
-			return true
-	}
-	return false
-}
-
-@(private = "file")
-insr_set :: proc(fn: ^Function, cmp: ^Node) -> ^Node {
-	insr: NodeKind
-	#partial switch cmp.kind {
-		case .CmpEq:  insr = .SetEq
-		case .CmpNeq: insr = .SetNeq
-		case .CmpULt: insr = .SetULt
-		case .CmpULe: insr = .SetULe
-		case .CmpSLt: insr = .SetSLt
-		case .CmpSLe: insr = .SetSLe
-		case: unimplemented()
-	}
-
-	set_n := new_node(fn, insr, TY_BOOL, 2)
-	set_input(set_n, 1, cmp)
-	return set_n
-}
-
 insr_cmp_eq :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpEq, lhs, rhs))
+	return insr_cmp(fn, .CmpEq, lhs, rhs)
 }
 
 insr_cmp_ne :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpNeq, lhs, rhs))
+	return insr_cmp(fn, .CmpNeq, lhs, rhs)
 }
 
 insr_cmp_ult :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpULt, lhs, rhs))
+	return insr_cmp(fn, .CmpULt, lhs, rhs)
 }
 
 insr_cmp_ule :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpULe, lhs, rhs))
+	return insr_cmp(fn, .CmpULe, lhs, rhs)
 }
 
 insr_cmp_ugt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpULt, rhs, lhs))
+	return insr_cmp(fn, .CmpULt, rhs, lhs)
 }
 
 insr_cmp_uge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpULe, rhs, lhs))
+	return insr_cmp(fn, .CmpULe, rhs, lhs)
 }
 
 insr_cmp_slt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpSLt, lhs, rhs))
+	return insr_cmp(fn, .CmpSLt, lhs, rhs)
 }
 
 insr_cmp_sle :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpSLe, lhs, rhs))
+	return insr_cmp(fn, .CmpSLe, lhs, rhs)
 }
 
 insr_cmp_sgt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpSLt, rhs, lhs))
+	return insr_cmp(fn, .CmpSLt, rhs, lhs)
 }
 
 insr_cmp_sge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_set(fn, insr_cmp(fn, .CmpSLe, rhs, lhs))
+	return insr_cmp(fn, .CmpSLe, rhs, lhs)
 }
 
 insr_cmp_flt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
@@ -865,13 +827,6 @@ NodeKind :: enum {
 	CmpSLe,
 	CmpFLt,
 	CmpFLe,
-
-	SetEq,
-	SetNeq,
-	SetULt,
-	SetULe,
-	SetSLt,
-	SetSLe,
 
 	Not,
 	Negate,
