@@ -568,12 +568,8 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 					if curr_if.else_block != nil {
 						else_br = opto.new_region(fn, "if.else", 1)
 					}
-
-					true_val := opto.new_int_const(fn, opto.TY_BOOL, i64(1))
 					cond_v := cg_emit_expr(ctx, e.cond) or_return
-					cmp := opto.insr_cmp_eq(fn, cond_v, true_val)
-
-					opto.insr_br(fn, cmp, then, else_br)
+					opto.insr_br(fn, cond_v, then, else_br)
 					opto.set_control(fn, then)
 				}
 
@@ -735,13 +731,9 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			opto.insr_goto(fn, loop_header) // We have to reuse the condition check every loop so just jmp
 			opto.set_control(fn, loop_header)
 
-			true_val := opto.new_int_const(fn, opto.TY_BOOL, i64(1))
 			cond_v := cg_emit_expr(ctx, e.cond) or_return
-			cmp := opto.insr_cmp_eq(fn, cond_v, true_val)
-
 			loop_body := opto.new_region(fn, "loop.body", 1)
-
-			opto.insr_br(fn, cmp, loop_body, loop_end)
+			opto.insr_br(fn, cond_v, loop_body, loop_end)
 
 			opto.set_control(fn, loop_body)
 
