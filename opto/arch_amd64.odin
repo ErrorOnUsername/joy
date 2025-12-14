@@ -121,7 +121,7 @@ amd64_get_dst_regmask :: proc(n: ^Node) -> RegisterMask {
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
 		case .Call:
-		case .Ret:
+			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs
 	}
 	return regmask // some insrs are allowed to not produce any regs (Stores for example)
 }
