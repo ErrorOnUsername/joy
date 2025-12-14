@@ -806,11 +806,6 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			param_vals: [dynamic]^opto.Node
 			defer delete(param_vals)
 
-			for p in e.params {
-				v := cg_emit_expr(ctx, p) or_return
-				append(&param_vals, v)
-			}
-
 			fn_decl := e.target.derived_stmnt.(^ConstDecl)
 			target_function_in_callee_context := fn_decl.value.cg_val
 
@@ -818,6 +813,19 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			actual_sym := sym_extra.sym
 			target_function := opto.add_sym(fn, actual_sym)
 			proto := actual_sym.derived.(^opto.Function).proto
+
+			for p, i in e.params {
+				v := cg_emit_expr(ctx, p) or_return
+				if opto.ty_is_ptr(v.type) && !opto.ty_is_ptr(proto.params[i].type) {
+					new_v, load_ok := cg_load_number_val(ctx, p)
+					if !load_ok {
+						log_spanned_errorf(&p.span, "Internal Compiler Error: Tried to emit load for for param of type {} but it failed", p.type.name)
+						return nil, false
+					}
+					v = new_v
+				}
+				append(&param_vals, v)
+			}
 
 			call := opto.insr_call(fn, target_function, proto, param_vals[:])
 			e.cg_val = call
