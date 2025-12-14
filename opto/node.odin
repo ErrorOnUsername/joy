@@ -266,6 +266,7 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	set_input(n, 1, insert_mem_effect(fn, mem_proj))
 	set_input(n, 2, target) // the symbol of the function we want to call
 	for p, i in params {
+		assert(ty_equal(p.type, proto.params[i].type))
 		set_input(n, 3 + i, p)
 	}
 
