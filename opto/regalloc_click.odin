@@ -87,7 +87,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 				}
 			} else if n.uop != 0 {
 				arch := arch_impl(ctx.arch)
-				dst_regmask := arch.get_dst_regmask(n)
+				dst_regmask := arch.get_dst_regmask(ctx, n)
 				lrg := make_live_range(ctx, n)
 				assert(lrg != nil)
 				lrg.available_mask = dst_regmask
@@ -95,7 +95,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 				input_slice_start := 2 if ty_is_mem(n.type) || n.kind == .Load else 3 if n.kind == .Call else 1 // fugly as all getout but leave me alone im annoyed rn
 				for input, idx in n.inputs[input_slice_start:] {
 					assert(input != nil)
-					src_regmask := arch.get_src_regmask(n, idx + input_slice_start) // the for loop uses a different index for the slice interator since its a whole new slice, not just a sub-iter
+					src_regmask := arch.get_src_regmask(ctx, n, idx + input_slice_start) // the for loop uses a different index for the slice interator since its a whole new slice, not just a sub-iter
 					in_lrg := find_live_range(ctx, input)
 					if in_lrg == nil do continue
 					if in_lrg.available_mask & src_regmask == 0 {

@@ -87,7 +87,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 // because amd64 is just cool like that
 DEBUG_ABI :: Amd64ABI.SysV64
 
-amd64_get_src_regmask :: proc(n: ^Node, from: int) -> RegisterMask {
+amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask {
 	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
@@ -116,8 +116,15 @@ amd64_get_src_regmask :: proc(n: ^Node, from: int) -> RegisterMask {
 	return regmask
 }
 
-amd64_get_dst_regmask :: proc(n: ^Node) -> RegisterMask {
-	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].out_regmask
+amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
+	table_ent := &insr_table[Amd64Insr(n.uop)]
+
+	if table_ent.two_address_index != 0 {
+		two_addr_lrg := find_live_range(ctx, n.inputs[table_ent.two_address_index])
+		return merge_live_range(ctx, two_addr_lrg, n).available_mask
+	}
+
+	regmask := transmute(RegisterMask)table_ent.out_regmask
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
 		case .Call:
@@ -214,8 +221,9 @@ match_table := [NodeKind]InsrMatch {
 }
 
 InsrTableEntry :: struct {
-	in_regmask:  Amd64RegMask,
-	out_regmask: Amd64RegMask,
+	in_regmask:        Amd64RegMask,
+	out_regmask:       Amd64RegMask,
+	two_address_index: int,
 }
 
 insr_table := [Amd64Insr]InsrTableEntry {
@@ -225,40 +233,40 @@ insr_table := [Amd64Insr]InsrTableEntry {
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
 	.Load = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.Store = { in_regmask = GPR_READ_MASK, out_regmask = {} },
-	.Add = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.AddImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.AddMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.Sub = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.SubImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.SubMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.Mul = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.MulImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.MulMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.Div = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.DivImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.DivMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.AddF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.AddFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.SubF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.SubFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.MulF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.MulFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.DivF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.DivFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK },
-	.Sal = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.SalImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.Sar = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.SarImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.Shl = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.ShlImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.Shr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.ShrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.And = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.AndImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.Or = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.OrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
-	.XOr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
-	.XOrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK },
+	.Add = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.AddImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.AddMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Sub = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.SubImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.SubMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Mul = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.MulImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.MulMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Div = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.DivImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.DivMem = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.AddF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.AddFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.SubF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.SubFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.MulF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.MulFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.DivF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.DivFMem = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.Sal = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.SalImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Sar = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.SarImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Shl = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.ShlImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Shr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.ShrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.And = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.AndImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Or = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.OrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.XOr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.XOrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Cmp = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
 	.CmpImm = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
 	.CmpMem = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
