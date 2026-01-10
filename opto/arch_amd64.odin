@@ -133,7 +133,7 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	return regmask // some insrs are allowed to not produce any regs (Stores for example)
 }
 
-amd64_get_kill_regmask :: proc(n: ^Node) -> RegisterMask {
+amd64_get_kill_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	return RegisterMask(0)
 }
 

@@ -22,7 +22,7 @@ ArchImpl :: struct {
 	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
 	get_src_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask,
 	get_dst_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask,
-	get_kill_regmask: #type proc(n: ^Node) -> RegisterMask, // some instructions kill registers (function calls for instance)
+	get_kill_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask, // some instructions kill registers (function calls for instance)
 }
 
 ABIParameterOrder :: enum {

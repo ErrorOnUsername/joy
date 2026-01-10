@@ -10,15 +10,21 @@ LiveRange :: struct {
 	available_mask: RegisterMask,
 }
 
+LiveRangeMap :: map[^LiveRange]^Node
+
 RegAllocContext :: struct {
 	fn: ^Function,
 	arch: Arch,
 	failures: [dynamic]^LiveRange,
 	live_range_count: int,
 	lrgs: map[^Node]LiveRange,
+
+	work: Worklist,
+	bb_out: map[^BasicBlock]LiveRangeMap,
+	block_live: LiveRangeMap,
 }
 
-click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
+click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
 	log(fn, "-- Click/Briggs/Chaitin RegAlloc Begin --")
 	defer log(fn, "-- Click/Briggs/Chaitin RegAlloc End --")
 
@@ -30,7 +36,7 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	MAX_REGALLOC_ATTEMPTS :: 7
 
 	attempt := 1
-	for !color_graph(&ctx, attempt, blocks) {
+	for !color_graph(&ctx, attempt, blocks, block_map) {
 		split_conflicting_live_ranges(&ctx)
 		attempt += 1
 		assert(attempt <= MAX_REGALLOC_ATTEMPTS)
@@ -42,13 +48,13 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	return true
 }
 
-color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock) -> bool {
+color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
 	ctx.live_range_count = 0
 	clear(&ctx.lrgs)
 	clear(&ctx.failures)
 	allocation_success := build_live_ranges(ctx, attempt_no, blocks) &&
-		build_interference_graph(ctx, attempt_no, blocks) &&
-		color_interference_graph(ctx, attempt_no, blocks)
+		build_interference_graph(ctx, attempt_no, blocks, block_map) &&
+		color_interference_graph(ctx, attempt_no, blocks, block_map)
 	return allocation_success
 }
 
@@ -178,12 +184,162 @@ merge_live_range :: proc(ctx: ^RegAllocContext, range: ^LiveRange, n: ^Node) -> 
 }
 
 // returns true if there we no confliting live ranges
-build_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock) -> bool {
-	return true
+build_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
+	worklist_init(&ctx.work, ctx.fn.node_count)
+
+	for bb in blocks {
+		assert(!worklist_contains(&ctx.work, bb.nodes[0]))
+		worklist_push(&ctx.work, bb.nodes[0])
+	}
+
+	for {
+		x := worklist_pop(&ctx.work)
+		if x == nil do break
+
+		assert(is_bb_start(x))
+		bb := block_map_get_node_block(block_map, x)
+
+		ifg_build_block(ctx, bb, block_map)
+	}
+
+	return len(ctx.failures) == 0
+}
+
+ifg_build_block :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, block_map: ^BlockMap) {
+	clear(&ctx.block_live)
+
+	bb_start := bb.nodes[0]
+
+	#reverse for n in bb.nodes {
+		if n.uop != 0 {
+			ifg_build_node(ctx, bb, n)
+		}
+	}
+
+	for i in 1..<len(bb_start.inputs) {
+		ifg_merge_live_out(ctx, bb, i, block_map)
+	}
+}
+
+ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
+	lrg := find_live_range(ctx, n)
+	if lrg != nil {
+		check_for_self_conflict(ctx, n, lrg)
+		delete_key(&ctx.block_live, lrg)
+	}
+
+	if n.kind == .Phi {
+		return // ignore these for now
+	}
+
+	if lrg != nil {
+		if n.uop != 0 {
+			ifg_prop_arch_killmap(ctx, n)
+		}
+
+		for other_lrg, live in ctx.block_live {
+			assert(other_lrg.leader == nil)
+			if lrg != other_lrg && other_lrg.available_mask & lrg.available_mask != 0 {
+				log(ctx.fn, "ifg-build: live value {}{} interferes with other live value {}{}", n.kind, n.gvn, live.kind, live.gvn)
+				record_regalloc_failure(ctx, other_lrg)
+			}
+		}
+	}
+
+	for i in 1..<len(n.inputs) {
+		def := n.inputs[i]
+		if def == nil do continue
+		def_lrg := find_live_range(ctx, def)
+		if def_lrg == nil do continue
+
+		// we need to make sure the value uses don't conflict as well
+		check_for_self_conflict(ctx, def, def_lrg)
+
+		if n.uop != 0 {
+			arch := arch_impl(ctx.arch)
+			n_input_mask := arch.get_src_regmask(ctx, n, i)
+			single_reg := n_input_mask & -n_input_mask == n_input_mask
+			if single_reg {
+				for other_lrg, live in ctx.block_live {
+					assert(other_lrg.leader == nil)
+					live_out_mask := arch.get_dst_regmask(ctx, live)
+					ranges_overlap := n_input_mask & live_out_mask != 0
+					if live != def && live.uop != 0 && ranges_overlap {
+						other_lrg.available_mask = other_lrg.available_mask & ~n_input_mask
+						if other_lrg.available_mask == 0 {
+							log(ctx.fn, "ifg-build: single-register input of {}{} doesn't conform to output of value {}{}", n.kind, n.gvn, live.kind, live.gvn)
+							record_regalloc_failure(ctx, other_lrg)
+						}
+					}
+				}
+			}
+		}
+
+		// da inputs are now live >:D
+		ctx.block_live[def_lrg] = def
+	}
+}
+
+ifg_prop_arch_killmap :: proc(ctx: ^RegAllocContext, n: ^Node) {
+	assert(n.uop != 0)
+	lrg := find_live_range(ctx, n)
+	arch := arch_impl(ctx.arch)
+	kill_mask := arch.get_kill_regmask(ctx, n)
+	if kill_mask == 0 do return
+
+	for other_lrg, live in ctx.block_live {
+		mask_overlaps := other_lrg.available_mask & kill_mask != 0
+		if mask_overlaps {
+			other_lrg.available_mask = other_lrg.available_mask & ~kill_mask
+			if other_lrg.available_mask == 0 {
+				log(ctx.fn, "ifg-build: {}{} killed all the registers of {}{}. need to split...", n.kind, n.gvn, live.kind, live.gvn)
+				record_regalloc_failure(ctx, other_lrg)
+			}
+		}
+	}
+}
+
+ifg_merge_live_out :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, pred_idx: int, block_map: ^BlockMap) {
+	bb_start := bb.nodes[0]
+	assert(bb_start != nil)
+	assert(is_bb_start(bb_start))
+	pred := bb_start.inputs[pred_idx]
+	assert(pred != nil)
+	assert(is_bb_start(pred))
+	pred_bb := block_map_get_node_block(block_map, pred)
+	assert(pred_bb != nil)
+
+	out_map := &ctx.bb_out[pred_bb]
+
+	for lrg, live in ctx.block_live {
+		if lrg in out_map {
+			check_is_conflicting(ctx, live, lrg, out_map[lrg])
+		} else {
+			out_map[lrg] = live
+			if !worklist_contains(&ctx.work, pred) {
+				worklist_push(&ctx.work, pred)
+			}
+		}
+	}
+}
+
+check_for_self_conflict :: proc(ctx: ^RegAllocContext, n: ^Node, lrg: ^LiveRange) {
+	other_active := ctx.block_live[lrg]
+	if other_active != nil && n != other_active {
+		log(ctx.fn, "ifg-build: {}{} using same live range as {}{}", n.kind, n.gvn, other_active.kind, other_active.gvn)
+		record_regalloc_failure(ctx, lrg)
+	}
+}
+
+check_is_conflicting :: proc(ctx: ^RegAllocContext, n: ^Node, lrg: ^LiveRange, maybe_prior: ^Node) {
+	if maybe_prior != nil && n != maybe_prior {
+		log(ctx.fn, "ifg-build: {}{} using same live range as {}{}", n.kind, n.gvn, maybe_prior.kind, maybe_prior.gvn)
+		record_regalloc_failure(ctx, lrg)
+	}
 }
 
 // returns true if coloring succeeded
-color_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock) -> bool {
+color_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
 	return true
 }
 

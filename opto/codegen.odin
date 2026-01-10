@@ -17,7 +17,7 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 
 	perform_code_motion(ctx, fn, blocks, &block_map) or_return
 
-	register_allocate(fn, blocks) or_return
+	register_allocate(fn, blocks, &block_map) or_return
 
 	emit(fn, blocks) or_return
 
@@ -547,6 +547,7 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 			if curr == to {
 				return true
 			}
+			// FIXME: didn't this change when we added the region memory phis... somehow everything seems to work? lol
 			curr = get_pred(curr)
 		}
 		return false
@@ -611,8 +612,8 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 	return true
 }
 
-register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
-	click_briggs_chaitin(fn, blocks) or_return
+register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
+	click_briggs_chaitin(fn, blocks, block_map) or_return
 	return true
 }
 
@@ -621,3 +622,4 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	impl.encode(nil, nil)
 	return true
 }
+
