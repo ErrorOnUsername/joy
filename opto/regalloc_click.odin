@@ -51,6 +51,9 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^B
 
 color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
 	ctx.live_range_count = 0
+	for _, &lrg in ctx.lrgs {
+		delete(lrg.self_conflicts)
+	}
 	clear(&ctx.lrgs)
 	clear(&ctx.failures)
 	allocation_success := build_live_ranges(ctx, attempt_no, blocks) &&
@@ -61,6 +64,27 @@ color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlo
 
 split_conflicting_live_ranges :: proc(ctx: ^RegAllocContext) {
 	log(ctx.fn, "Splitting Conflicting Live Ranges...")
+
+	for lrg in ctx.failures {
+		assert(lrg.leader == nil)
+
+		if len(lrg.self_conflicts) > 0 {
+			split_self_conflicts(ctx, lrg)
+		} else if lrg.available_mask == 0 {
+			split_empty_regmask(ctx, lrg)
+		} else {
+			split_loop(ctx, lrg)
+		}
+	}
+}
+
+split_self_conflicts :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+}
+
+split_empty_regmask :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+}
+
+split_loop :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
 }
 
 // returns true if no hard register conflicts
