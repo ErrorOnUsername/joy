@@ -8,6 +8,7 @@ LiveRange :: struct {
 	leader: ^LiveRange, // rep of the subset for the union-find of disjointed set
 	reg: int,
 	available_mask: RegisterMask,
+	self_conflicts: [dynamic]^Node,
 }
 
 LiveRangeMap :: map[^LiveRange]^Node
@@ -240,7 +241,11 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 		for other_lrg, live in ctx.block_live {
 			assert(other_lrg.leader == nil)
 			if lrg != other_lrg && other_lrg.available_mask & lrg.available_mask != 0 {
-				log(ctx.fn, "ifg-build: live value {}{} interferes with other live value {}{}", n.kind, n.gvn, live.kind, live.gvn)
+				n_regs := arch_get_register_mask_str(ctx.arch, lrg.available_mask)
+				defer delete(n_regs)
+				live_regs := arch_get_register_mask_str(ctx.arch, other_lrg.available_mask)
+				defer delete(live_regs)
+				log(ctx.fn, "ifg-build: live value {}{}({}) interferes with other live value {}{}({})", n.kind, n.gvn, n_regs, live.kind, live.gvn, live_regs)
 				record_regalloc_failure(ctx, other_lrg)
 			}
 		}
@@ -267,7 +272,11 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 					if live != def && live.uop != 0 && ranges_overlap {
 						other_lrg.available_mask = other_lrg.available_mask & ~n_input_mask
 						if other_lrg.available_mask == 0 {
-							log(ctx.fn, "ifg-build: single-register input of {}{} doesn't conform to output of value {}{}", n.kind, n.gvn, live.kind, live.gvn)
+							n_regs := arch_get_register_mask_str(ctx.arch, n_input_mask)
+							defer delete(n_regs)
+							live_regs := arch_get_register_mask_str(ctx.arch, other_lrg.available_mask)
+							defer delete(live_regs)
+							log(ctx.fn, "ifg-build: single-register input of {}{}({}) doesn't conform to output of value {}{}({})", n.kind, n.gvn, n_regs, live.kind, live.gvn, live_regs)
 							record_regalloc_failure(ctx, other_lrg)
 						}
 					}
@@ -327,6 +336,8 @@ check_for_self_conflict :: proc(ctx: ^RegAllocContext, n: ^Node, lrg: ^LiveRange
 	other_active := ctx.block_live[lrg]
 	if other_active != nil && n != other_active {
 		log(ctx.fn, "ifg-build: {}{} using same live range as {}{}", n.kind, n.gvn, other_active.kind, other_active.gvn)
+		append(&lrg.self_conflicts, other_active)
+		append(&lrg.self_conflicts, n)
 		record_regalloc_failure(ctx, lrg)
 	}
 }
@@ -334,6 +345,8 @@ check_for_self_conflict :: proc(ctx: ^RegAllocContext, n: ^Node, lrg: ^LiveRange
 check_is_conflicting :: proc(ctx: ^RegAllocContext, n: ^Node, lrg: ^LiveRange, maybe_prior: ^Node) {
 	if maybe_prior != nil && n != maybe_prior {
 		log(ctx.fn, "ifg-build: {}{} using same live range as {}{}", n.kind, n.gvn, maybe_prior.kind, maybe_prior.gvn)
+		append(&lrg.self_conflicts, maybe_prior)
+		append(&lrg.self_conflicts, n)
 		record_regalloc_failure(ctx, lrg)
 	}
 }
