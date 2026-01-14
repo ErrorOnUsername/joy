@@ -4,14 +4,20 @@ import "core:fmt"
 import "core:os"
 
 CompilerMode :: enum {
-    None,
-    Build,
-    BuildAndRun,
-    Help,
+	None,
+	Build,
+	BuildAndRun,
+	Help,
+}
+
+CompilerCodegenBackend :: enum {
+	C,
+	Opto,
 }
 
 CLState :: struct {
-    mode: CompilerMode,
+	mode: CompilerMode,
+	backend: CompilerCodegenBackend,
 }
 
 g_cl_state: CLState
@@ -25,37 +31,37 @@ modes:
 `
 
 print_usage :: proc() {
-    fmt.printf(g_usage_string, os.args[0])
+	fmt.printf(g_usage_string, os.args[0])
 }
 
 parse_args :: proc() -> bool {
-    if len(os.args) < 2 {
-        print_usage()
-        return false
-    }
+	if len(os.args) < 2 {
+		print_usage()
+		return false
+	}
 
-    mode := os.args[1]
-    g_cl_state.mode = .None
+	mode := os.args[1]
+	g_cl_state.mode = .None
 
-    switch mode {
-        case "build":
-            g_cl_state.mode = .Build
+	switch mode {
+		case "build":
+			g_cl_state.mode = .Build
 
-        case "run":
-            g_cl_state.mode = .BuildAndRun
+		case "run":
+			g_cl_state.mode = .BuildAndRun
 
-        case "help":
-            g_cl_state.mode = .Help
+		case "help":
+			g_cl_state.mode = .Help
 
-            print_usage()
-            return true
-    }
+			print_usage()
+			return true
+	}
 
-    if g_cl_state.mode == .None {
-        fmt.printf("invalid compiler mode: '{}'\n", mode)
-        print_usage()
-        return false
-    }
+	if g_cl_state.mode == .None {
+		fmt.printf("invalid compiler mode: '{}'\n", mode)
+		print_usage()
+		return false
+	}
 
-    return true
+	return true
 }
