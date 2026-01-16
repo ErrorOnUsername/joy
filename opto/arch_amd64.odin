@@ -121,7 +121,7 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 
 	if table_ent.two_address_index != 0 {
 		two_addr_lrg := find_live_range(ctx, n.inputs[table_ent.two_address_index])
-		return merge_live_range(ctx, two_addr_lrg, n).available_mask
+		return ctx.lrg_store[merge_live_range(ctx, two_addr_lrg, n)].available_mask
 	}
 
 	regmask := transmute(RegisterMask)table_ent.out_regmask
