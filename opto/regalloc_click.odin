@@ -1,6 +1,7 @@
 package opto
 
 import "core:container/bit_array"
+import "core:math/bits"
 
 // Check out Chapter 20 of Simple (thank you, Cliff): https://github.com/SeaOfNodes/Simple/blob/main/chapter20/README.md
 
@@ -11,7 +12,11 @@ LiveRange :: struct {
 	leader: LiveRangeID, // rep of the subset for the union-find of disjointed set
 	reg: int,
 	available_mask: RegisterMask,
+	def: ^Node,
+	split_def: ^Node,
+	split_use: ^Node,
 	self_conflicts: [dynamic]^Node,
+	adj: [dynamic]^LiveRange,
 }
 
 LiveRangeMap :: map[LiveRangeID]^Node
@@ -275,9 +280,13 @@ ifg_build_block :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, block_map: ^Bloc
 	}
 }
 
-is_lrg_single_reg :: proc(ctx: ^RegAllocContext, lrg: LiveRangeID) -> bool {
+is_lrg_id_single_reg :: proc(ctx: ^RegAllocContext, lrg: LiveRangeID) -> bool {
 	live_range := &ctx.lrg_store[lrg]
 	return live_range.available_mask & -live_range.available_mask == live_range.available_mask
+}
+
+is_live_range_single_reg :: proc(lrg: ^LiveRange) -> bool {
+	return lrg.available_mask & -lrg.available_mask == lrg.available_mask
 }
 
 ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
@@ -296,7 +305,7 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 			ifg_prop_arch_killmap(ctx, n)
 		}
 
-		lrg_is_single_reg := is_lrg_single_reg(ctx, lrg)
+		lrg_is_single_reg := is_lrg_id_single_reg(ctx, lrg)
 		live_range := &ctx.lrg_store[lrg]
 		for other_lrg, live in ctx.block_live {
 			other_live_range := &ctx.lrg_store[other_lrg]
@@ -433,6 +442,161 @@ check_is_conflicting :: proc(ctx: ^RegAllocContext, n: ^Node, lrg: LiveRangeID, 
 
 // returns true if coloring succeeded
 color_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
-	return true
+	for i in 0..<len(ctx.lrg_store) {
+		lrg := &ctx.lrg_store[i]
+		assert(lrg.id != INVALID_LRG)
+		intrf_set := ctx.ifg[lrg.id]
+		iter := bit_array.make_iterator(intrf_set)
+		id, it_ok := bit_array.iterate_by_set(&iter)
+		for it_ok {
+			defer id, it_ok = bit_array.iterate_by_set(&iter)
+			other_lrg := &ctx.lrg_store[id]
+			append(&lrg.adj, other_lrg)
+			append(&other_lrg.adj, lrg)
+		}
+	}
+
+	work := 0
+	stack_len := 0
+	color_stack := make([]^LiveRange, len(ctx.lrg_store))
+	defer delete(color_stack)
+	for i in 0..<len(ctx.lrg_store) {
+		lrg := &ctx.lrg_store[i]
+		assert(lrg.id != INVALID_LRG)
+		color_stack[stack_len] = lrg
+		if len(lrg.adj) < bits.count_ones(lrg.available_mask) {
+			color_stack_swap(color_stack, work, stack_len)
+			work += 1
+		}
+		stack_len += 1
+	}
+
+	ptr := 0
+	for ptr < len(color_stack) {
+		shuffle_next_best_to_front(color_stack, ptr, work)
+
+		lrg := color_stack[ptr]
+		ptr += 1
+
+		if ptr > work {
+			work = ptr
+		}
+
+		for adj in lrg.adj {
+			if remove_check_made_low_risk(adj, lrg) {
+				adj_stack_idx := work
+				for color_stack[adj_stack_idx] != adj {
+					adj_stack_idx += 1
+				}
+				color_stack_swap(color_stack, work, adj_stack_idx)
+				work += 1
+			}
+		}
+	}
+
+	for ptr > 0 {
+		ptr -= 1
+		lrg := color_stack[ptr]
+		for adj in lrg.adj {
+			append(&adj.adj, lrg)
+			adj_reg := adj.reg
+			if adj_reg != -1 {
+				lrg.available_mask &= ~RegisterMask(1 << uint(adj_reg))
+			}
+		}
+
+		if lrg.available_mask == 0 {
+			log(ctx.fn, "failed to assign a register to lrg {}", lrg.id)
+			lrg.reg = -1
+			record_regalloc_failure(ctx, lrg.id)
+		} else {
+			reg := bits.count_trailing_zeros(lrg.available_mask)
+			if bits.count_ones(lrg.available_mask) > 1 {
+				reg = bias_color(ctx, lrg, reg, lrg.available_mask)
+			}
+			lrg.reg = reg
+		}
+	}
+
+	return len(ctx.failures) == 0
+}
+
+remove_check_made_low_risk :: proc(a: ^LiveRange, b: ^LiveRange) -> bool {
+	idx := -1
+	for adj, i in a.adj {
+		if adj == b {
+			idx = i
+		}
+	}
+	assert(idx != -1)
+	unordered_remove(&a.adj, idx)
+	return len(a.adj) < bits.count_ones(a.available_mask)
+}
+
+color_stack_swap :: proc(color_stack: []^LiveRange, a: int, b: int) {
+	tmp := color_stack[a]
+	color_stack[a] = color_stack[b]
+	color_stack[b] = tmp
+}
+
+shuffle_next_best_to_front :: proc(color_stack: []^LiveRange, ptr: int, work: int) {
+	if ptr == work {
+		risky := pick_risky(color_stack, ptr)
+		color_stack_swap(color_stack, ptr, risky)
+	}
+
+	best_idx := ptr
+	best_lrg := color_stack[best_idx]
+	for i in ptr + 1..<work {
+		test_lrg := color_stack[i]
+		if is_better_lrg(best_lrg, test_lrg) {
+			best_lrg = test_lrg
+			best_idx = i
+		}
+	}
+
+	color_stack_swap(color_stack, ptr, best_idx)
+}
+
+pick_risky :: proc(color_stack: []^LiveRange, ptr: int) -> int {
+	best_idx := ptr
+	best_score := risk_score(color_stack[ptr])
+	for i in ptr + 1..<len(color_stack) {
+		if best_score == 9999 do return best_idx
+		iter_score := risk_score(color_stack[i])
+		if iter_score > best_score {
+			best_idx = i
+			best_score = iter_score
+		}
+	}
+	return best_idx
+}
+
+risk_score :: proc(lrg: ^LiveRange) -> int {
+	if lrg.def.kind == .CalleeSave {
+		return 9998
+	}
+	if lrg.split_def != nil && lrg.split_def.inputs[1].kind == .CalleeSave && lrg.split_use != nil && lrg.split_use.users[0].n.kind == .Return {
+		return 9999
+	}
+	return 100
+}
+
+has_split :: proc(lrg: ^LiveRange) -> bool {
+	return lrg.split_use != nil || lrg.split_def != nil
+}
+
+is_better_lrg :: proc(curr: ^LiveRange, test: ^LiveRange) -> bool {
+	if is_live_range_single_reg(curr) != is_live_range_single_reg(test) {
+		return is_live_range_single_reg(curr) // we want to leave single-reg live ranges for last
+	}
+	if has_split(curr) != has_split(test) {
+		return has_split(test) // take the one with the split if we have it
+	}
+	return bits.count_ones(curr.available_mask) < bits.count_ones(test.available_mask) // take the one with more available registers
+}
+
+bias_color :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange, reg: int, mask: RegisterMask) -> int {
+	return reg
 }
 
