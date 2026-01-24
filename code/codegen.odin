@@ -96,12 +96,13 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 
 			opto.insr_goto(fn, ctx.cg_loop_end)
 		case ^ReturnStmnt:
+			v: ^opto.Node
 			if s.expr != nil {
-				v := cg_emit_expr(ctx, s.expr) or_return
-				opto.insr_ret(ctx.cg_fn, v)
+				v = cg_emit_expr(ctx, s.expr) or_return
 			} else {
-				opto.insr_ret(ctx.cg_fn, nil)
+				v = opto.new_int_const(ctx.cg_fn, opto.TY_VOID, u64(0))
 			}
+			opto.insr_ret(ctx.cg_fn, v)
 	}
 
 	return true

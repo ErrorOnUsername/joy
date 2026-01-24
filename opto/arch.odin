@@ -20,6 +20,7 @@ ArchImpl :: struct {
 	abi: []PlatformABI,
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
 	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
+	get_callee_save_regmask: #type proc(ctx: ^RegAllocContext) -> RegisterMask,
 	get_src_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask,
 	get_dst_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask,
 	get_kill_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask, // some instructions kill registers (function calls for instance)

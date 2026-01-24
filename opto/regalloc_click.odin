@@ -43,9 +43,12 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^B
 	ctx: RegAllocContext
 	ctx.fn = fn
 	ctx.lrg_map = make(map[^Node]LiveRangeID)
+	ctx.arch = .Amd64
 	defer delete(ctx.lrg_map)
 
 	MAX_REGALLOC_ATTEMPTS :: 7
+
+	insert_callee_saved_values(&ctx)
 
 	attempt := 1
 	for !color_graph(&ctx, attempt, blocks, block_map) {
@@ -58,6 +61,24 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^B
 	log(fn, "Successfully Allocated Registers After {} Round(s) of Graph Coloring", attempt)
 
 	return true
+}
+
+insert_callee_saved_values :: proc(ctx: ^RegAllocContext) {
+	ret := ctx.fn.end.inputs[0]
+	assert(ret != nil)
+	assert(ret.kind == .Return) // this must be true or the function is malformed
+
+	arch := arch_impl(ctx.arch)
+	callee_save_mask := arch.get_callee_save_regmask(ctx)
+	bits := bit_array.create(callee_save_mask)
+	defer bit_array.destroy(bits)
+	iter := bit_array.make_iterator(bits)
+	reg, it_ok := bit_array.iterate_by_set(&iter)
+	for it_ok {
+		defer reg, it_ok = bit_array.iterate_by_set(&iter)
+		save := new_node(ctx.fn, .CalleeSave, TY_VOID, 0)
+		FIXME_add_input(ctx, ret, save)
+	}
 }
 
 color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {

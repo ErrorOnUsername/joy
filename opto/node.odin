@@ -122,6 +122,16 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	return fn
 }
 
+@(private)
+FIXME_add_input :: proc(ctx: ^RegAllocContext, n: ^Node, def: ^Node) {
+	new_inputs := make([]^Node, len(n.inputs) + 1, ctx.fn.allocator) // this is kinda stupid lol
+	copy(new_inputs, n.inputs)
+	i := len(n.inputs)
+	new_inputs[i] = def
+	n.inputs = new_inputs
+	append(&def.users, User { n, i })
+}
+
 @(private = "file")
 set_input :: proc(n: ^Node, i: int, v: ^Node) {
 	n.inputs[i] = v
@@ -421,15 +431,11 @@ insr_goto :: proc(fn: ^Function, to: ^Node) {
 }
 
 insr_ret :: proc(fn: ^Function, val: ^Node) {
-	n: ^Node
-	if val != nil {
-		n = new_node(fn, .Return, TY_CTRL, 3)
-		set_input(n, 2, val)
-	} else {
-		n = new_node(fn, .Return, TY_CTRL, 2)
-	}
+	assert(val != nil)
+	n := new_node(fn, .Return, TY_CTRL, 3)
 	set_input(n, 0, transfer_control(fn, n))
 	set_input(n, 1, fn.meta.curr_mem)
+	set_input(n, 2, val)
 }
 
 insr_phi :: proc(fn: ^Function, a: ^Node, b: ^Node) -> ^Node {
@@ -781,6 +787,7 @@ NodeKind :: enum {
 	Local,
 	Symbol,
 
+	CalleeSave,
 	Return,
 	Call,
 	Branch,

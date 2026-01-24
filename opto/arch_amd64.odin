@@ -55,6 +55,7 @@ impl_amd64 := ArchImpl {
 	},
 	select = amd64_select,
 	encode = amd64_encode,
+	get_callee_save_regmask = amd64_get_callee_save_regmask,
 	get_src_regmask = amd64_get_src_regmask,
 	get_dst_regmask = amd64_get_dst_regmask,
 	get_kill_regmask = amd64_get_kill_regmask,
@@ -86,6 +87,10 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 // because amd64 is just cool like that
 DEBUG_ABI :: Amd64ABI.SysV64
+
+amd64_get_callee_save_regmask :: proc(ctx: ^RegAllocContext) -> RegisterMask {
+	return impl_amd64.abi[int(DEBUG_ABI)].callee_saved_regs
+}
 
 amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask {
 	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
@@ -175,6 +180,7 @@ match_table := [NodeKind]InsrMatch {
 	.F64Const = {},
 	.Local = {},
 	.Symbol = {},
+	.CalleeSave = {},
 	.Return = { { { insr = .Ret, pred = amd64_reg_format } } },
 	.Call = { { { insr = .Call } } },
 	.Branch = { { { insr = .Jmp } } },
