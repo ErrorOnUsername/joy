@@ -550,8 +550,9 @@ remove_check_made_low_risk :: proc(a: ^LiveRange, b: ^LiveRange) -> bool {
 		}
 	}
 	assert(idx != -1)
+	about_to_go_trivial := len(a.adj) == bits.count_ones(a.available_mask)
 	unordered_remove(&a.adj, idx)
-	return len(a.adj) < bits.count_ones(a.available_mask)
+	return about_to_go_trivial
 }
 
 color_stack_swap :: proc(color_stack: []^LiveRange, a: int, b: int) {
