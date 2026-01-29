@@ -87,10 +87,12 @@ color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlo
 		bit_array.destroy(ctx.ifg[i])
 	}
 	delete(ctx.ifg)
+	ctx.ifg = {}
 	for &lrg in ctx.lrg_store {
 		delete(lrg.self_conflicts)
 	}
 	delete(ctx.lrg_store)
+	ctx.lrg_store = {}
 	clear(&ctx.lrg_map)
 	clear(&ctx.failures)
 	ctx.lrg_build_done = false
@@ -156,12 +158,10 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					record_regalloc_failure(ctx, lrg)
 				}
 			} else if n.uop != 0 {
-				arch := arch_impl(ctx.arch)
-				dst_regmask := arch.get_dst_regmask(ctx, n)
-				lrg := make_live_range(ctx, n)
-				assert(lrg != INVALID_LRG)
-				ctx.lrg_store[lrg].available_mask = dst_regmask
+				def_live_range(ctx, n)
+
 				// looking up to inputs to check for self-conflicts
+				arch := arch_impl(ctx.arch)
 				input_slice_start := 2 if ty_is_mem(n.type) || n.kind == .Load else 3 if n.kind == .Call else 1 // fugly as all getout but leave me alone im annoyed rn
 				for input, idx in n.inputs[input_slice_start:] {
 					assert(input != nil)
@@ -192,6 +192,20 @@ record_regalloc_failure :: proc(ctx: ^RegAllocContext, range: LiveRangeID) {
 	live_range := &ctx.lrg_store[range]
 	assert(live_range.leader == INVALID_LRG) // must be the leader since it would've created its own live range on a conflict
 	append(&ctx.failures, range)
+}
+
+def_live_range :: proc(ctx: ^RegAllocContext, n: ^Node) {
+	arch := arch_impl(ctx.arch)
+	assert(n.uop != 0)
+	dst_regmask := arch.get_dst_regmask(ctx, n)
+	if dst_regmask == 0 do return // stores and shit shouldn't produce a live range
+	lrg := make_live_range(ctx, n)
+	assert(lrg != INVALID_LRG)
+	live_range := &ctx.lrg_store[lrg]
+	live_range.available_mask = dst_regmask
+	if live_range.def == nil || is_live_range_single_reg(live_range) {
+		live_range.def = n
+	}
 }
 
 make_live_range :: proc(ctx: ^RegAllocContext, n: ^Node) -> LiveRangeID {
@@ -527,7 +541,7 @@ color_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks:
 		}
 
 		if lrg.available_mask == 0 {
-			log(ctx.fn, "failed to assign a register to lrg {}", lrg.id)
+			log(ctx.fn, "failed to assign a register to lrg {} ({}{})", lrg.id, lrg.def.kind, lrg.def.gvn)
 			lrg.reg = -1
 			record_regalloc_failure(ctx, lrg.id)
 		} else {
