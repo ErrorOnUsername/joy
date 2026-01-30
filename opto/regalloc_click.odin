@@ -70,12 +70,9 @@ insert_callee_saved_values :: proc(ctx: ^RegAllocContext) {
 
 	arch := arch_impl(ctx.arch)
 	callee_save_mask := arch.get_callee_save_regmask(ctx)
-	bits := bit_array.create(callee_save_mask)
-	defer bit_array.destroy(bits)
-	iter := bit_array.make_iterator(bits)
-	reg, it_ok := bit_array.iterate_by_set(&iter)
-	for it_ok {
-		defer reg, it_ok = bit_array.iterate_by_set(&iter)
+	for mask := callee_save_mask; mask != 0; mask &= ~(1 << u64(bits.count_trailing_zeros(mask))) {
+		reg := mask & (1 << u64(bits.count_trailing_zeros(mask)))
+		assert(reg != 0)
 		save := new_node(ctx.fn, .CalleeSave, TY_VOID, 0)
 		FIXME_add_input(ctx, ret, save)
 	}
