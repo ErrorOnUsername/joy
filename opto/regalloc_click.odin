@@ -107,22 +107,46 @@ split_conflicting_live_ranges :: proc(ctx: ^RegAllocContext) {
 		assert(live_range.leader == INVALID_LRG)
 
 		if len(live_range.self_conflicts) > 0 {
-			split_self_conflicts(ctx, lrg)
+			split_self_conflicts(ctx, live_range)
 		} else if live_range.available_mask == 0 {
-			split_empty_regmask(ctx, lrg)
+			split_empty_regmask(ctx, live_range)
 		} else {
-			split_loop(ctx, lrg)
+			split_loop(ctx, live_range)
 		}
 	}
 }
 
-split_self_conflicts :: proc(ctx: ^RegAllocContext, lrg: LiveRangeID) {
+split_self_conflicts :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+	sc_sort :: proc(a, b: ^Node) -> bool {
+		return a.gvn < b.gvn
+	}
+	conflicts := lrg.self_conflicts[:]
+	slice.sort_by(conflicts, sc_sort)
+
+	for def in conflicts {
+		assert(find_live_range(def) == lrg.id)
+
+		if def.kind == .Phi {
+		}
+
+		if def.uop != 0 {
+		}
+
+		for use in def.users {
+		}
+	}
 }
 
-split_empty_regmask :: proc(ctx: ^RegAllocContext, lrg: LiveRangeID) {
+split_empty_regmask :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
 }
 
-split_loop :: proc(ctx: ^RegAllocContext, lrg: LiveRangeID) {
+split_loop :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+}
+
+split_before :: proc(ctx: ^RegAllocContext) {
+}
+
+split_after :: proc(ctx: ^RegAllocContext) {
 }
 
 // returns true if no hard register conflicts
