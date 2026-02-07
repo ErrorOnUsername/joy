@@ -24,6 +24,8 @@ ArchImpl :: struct {
 	get_src_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask,
 	get_dst_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask,
 	get_kill_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask, // some instructions kill registers (function calls for instance)
+	is_two_address_op: #type proc(ctx: ^RegAllocContext, n: ^Node) -> bool,
+	get_two_address_index: #type proc(ctx: ^RegAllocContext, n: ^Node) -> int,
 }
 
 ABIParameterOrder :: enum {

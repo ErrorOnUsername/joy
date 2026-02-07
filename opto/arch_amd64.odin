@@ -59,6 +59,8 @@ impl_amd64 := ArchImpl {
 	get_src_regmask = amd64_get_src_regmask,
 	get_dst_regmask = amd64_get_dst_regmask,
 	get_kill_regmask = amd64_get_kill_regmask,
+	is_two_address_op = amd64_is_two_address_op,
+	get_two_address_index = amd64_get_two_address_index,
 }
 
 MachineNode :: struct {
@@ -124,7 +126,7 @@ amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> Reg
 amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	table_ent := &insr_table[Amd64Insr(n.uop)]
 
-	if table_ent.two_address_index != 0 {
+	if amd64_is_two_address_op(ctx, n){
 		two_addr_lrg := find_live_range(ctx, n.inputs[table_ent.two_address_index])
 		return ctx.lrg_store[merge_live_range(ctx, two_addr_lrg, n)].available_mask
 	}
@@ -140,6 +142,18 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 
 amd64_get_kill_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	return RegisterMask(0)
+}
+
+amd64_is_two_address_op :: proc(ctx: ^RegAllocContext, n: ^Node) -> bool {
+	assert(n != nil)
+	assert(n.uop != 0)
+	return insr_table[Amd64Insr(n.uop)].two_address_index != 0
+}
+
+amd64_get_two_address_index :: proc(ctx: ^RegAllocContext, n: ^Node) -> int {
+	assert(n != nil)
+	assert(n.uop != 0)
+	return insr_table[Amd64Insr(n.uop)].two_address_index
 }
 
 InsrMatchProc :: #type proc (n: ^Node) -> bool
