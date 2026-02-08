@@ -14,8 +14,12 @@ LiveRange :: struct {
 	reg: int,
 	available_mask: RegisterMask,
 	def: ^Node,
+	use: ^Node,
+	use_idx: int,
 	split_def: ^Node,
 	split_use: ^Node,
+	single_reg_def_count: int,
+	single_reg_use_count: int,
 	self_conflicts: [dynamic]^Node,
 	adj: [dynamic]^LiveRange,
 }
@@ -110,7 +114,11 @@ split_conflicting_live_ranges :: proc(ctx: ^RegAllocContext) {
 		if len(live_range.self_conflicts) > 0 {
 			split_self_conflicts(ctx, live_range)
 		} else if live_range.available_mask == 0 {
-			split_empty_regmask(ctx, live_range)
+			if live_range.single_reg_def_count <= 1 && live_range.single_reg_use_count <= 1 && (live_range.single_reg_def_count + live_range.single_reg_use_count) > 0 {
+				split_empty_regmask_simple(ctx, live_range)
+			} else {
+				split_loop(ctx, live_range)
+			}
 		} else {
 			split_loop(ctx, live_range)
 		}
@@ -137,17 +145,37 @@ split_self_conflicts :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
 		}
 
 		for use in def.users {
+			use_node := use.n
+			is_not_loop_bound_phi := use_node.kind == .Phi // FIXME: theres a check if we're in a loop that stops this
+			is_two_address_split_point := use_node.uop != 0 && arch.is_two_address_op(ctx, use_node) && use_node.inputs[arch.get_two_address_index(ctx, use_node)] == def
+			if is_not_loop_bound_phi || is_two_address_split_point {
+				idx, found := slice.linear_search(use_node.inputs, def)
+				assert(found)
+				insert_split_before(ctx, use_node, idx, lrg)
+			}
 		}
 	}
 }
 
-split_empty_regmask :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+split_empty_regmask_simple :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+	if lrg.single_reg_def_count > 0 {
+		insert_split_after(ctx, lrg.def, lrg)
+	}
+	if lrg.single_reg_use_count > 0 {
+		insert_split_before(ctx, lrg.use, lrg.use_idx, lrg)
+	}
 }
 
 split_loop :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
+	unimplemented()
+}
+
+insert_split_after :: proc(ctx: ^RegAllocContext, def: ^Node, lrg: ^LiveRange) {
+	unimplemented()
 }
 
 insert_split_before :: proc(ctx: ^RegAllocContext, def: ^Node, in_idx: int, lrg: ^LiveRange) {
+	unimplemented()
 }
 
 // returns true if no hard register conflicts
