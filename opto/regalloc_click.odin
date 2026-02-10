@@ -107,22 +107,7 @@ color_graph :: proc (ctx: ^RegAllocContext, attempt_no: int, blocks: []^BasicBlo
 split_conflicting_live_ranges :: proc(ctx: ^RegAllocContext) {
 	log(ctx.fn, "Splitting Conflicting Live Ranges...")
 
-	for lrg in ctx.failures {
-		live_range := &ctx.lrg_store[lrg]
-		assert(live_range.leader == INVALID_LRG)
-
-		if len(live_range.self_conflicts) > 0 {
-			split_self_conflicts(ctx, live_range)
-		} else if live_range.available_mask == 0 {
-			if live_range.single_reg_def_count <= 1 && live_range.single_reg_use_count <= 1 && (live_range.single_reg_def_count + live_range.single_reg_use_count) > 0 {
-				split_empty_regmask_simple(ctx, live_range)
-			} else {
-				split_loop(ctx, live_range)
-			}
-		} else {
-			split_loop(ctx, live_range)
-		}
-	}
+	unimplemented()
 }
 
 split_self_conflicts :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
