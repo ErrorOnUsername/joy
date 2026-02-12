@@ -443,7 +443,7 @@ KeywordEntry :: struct {
 keyword_map := [?]KeywordEntry {
 	{ "void", .Void },
 	{ "use", .Use },
-	{ "decl", .Decl },
+	{ "const", .Const },
 	{ "let", .Let },
 	{ "mut", .Mut },
 	{ "struct", .Struct },
@@ -547,7 +547,7 @@ TokenKind :: enum {
 	EndOfLine,
 
 	Use,
-	Decl,
+	Const,
 	Let,
 	Mut,
 

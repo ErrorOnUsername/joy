@@ -77,7 +77,7 @@ parse_top_level_stmnts :: proc(file_data: ^FileData, mod: ^Module) -> (ok := tru
 
 	for ok && first_tk.kind != .EndOfFile {
 		#partial switch first_tk.kind {
-			case .Decl:
+			case .Const:
 				decl_ptr := parse_decl(file_data, mod.file_scope)
 
 				ok = decl_ptr != nil
@@ -94,7 +94,7 @@ parse_top_level_stmnts :: proc(file_data: ^FileData, mod: ^Module) -> (ok := tru
 			case .EndOfLine:
 				file_data.tk_idx += 1
 			case:
-				log_errorf("Unexpected token kind: {}", first_tk.kind)
+				log_spanned_errorf(&first_tk.span, "Unexpected token kind: {}", first_tk.kind)
 				ok = false
 		}
 
@@ -105,7 +105,7 @@ parse_top_level_stmnts :: proc(file_data: ^FileData, mod: ^Module) -> (ok := tru
 }
 
 parse_decl :: proc(file_data: ^FileData, scope: ^Scope) -> ^ConstDecl {
-	if !try_consume_tk(file_data, .Decl) {
+	if !try_consume_tk(file_data, .Const) {
 		log_spanned_error(&curr_tk(file_data).span, "expected 'decl")
 	}
 
@@ -152,7 +152,7 @@ parse_stmnt :: proc(file_data: ^FileData, scope: ^Scope) -> ^Stmnt {
 	start_tk := curr_tk(file_data)
 
 	#partial switch start_tk.kind {
-		case .Decl: return parse_decl(file_data, scope)
+		case .Const: return parse_decl(file_data, scope)
 		case .Let:
 			if !try_consume_tk(file_data, .Let) {
 				log_spanned_error(&start_tk.span, "Expected 'let' at start of variable declaration")

@@ -1,23 +1,23 @@
-decl MyStruct = struct {
+const MyStruct = struct {
 	member_0: uint;
 	member_1: string;
 };
 
-decl MyEnum = enum {
+const MyEnum = enum {
 	VariantA;
 	VariantB;
 };
 
-decl MyUnion = union {
+const MyUnion = union {
 	VariantA(a: i32, slice: [mut u32]);
 	VariantB(thing: MyStruct, name: string);
 };
 
-decl square = fn(n: int) -> int {
+const square = fn(n: int) -> int {
 	return n * n;
 };
 
-decl main = fn() {
+const main = fn() {
 	// Line comment.
 	let a: string = "haha";
 	let mut b = 10;
