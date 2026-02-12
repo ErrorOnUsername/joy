@@ -141,7 +141,15 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 }
 
 amd64_get_kill_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
-	return RegisterMask(0)
+	assert(n != nil)
+	assert(n.uop != 0)
+	uop := Amd64Insr(n.uop)
+	regmask := transmute(RegisterMask)insr_table[uop].killmap
+	#partial switch uop {
+		case .Call:
+			regmask = impl_amd64.abi[int(DEBUG_ABI)].caller_saved_regs
+	}
+	return regmask // some insrs are allowed to not produce any regs (Stores for example)
 }
 
 amd64_is_two_address_op :: proc(ctx: ^RegAllocContext, n: ^Node) -> bool {
@@ -244,6 +252,7 @@ InsrTableEntry :: struct {
 	in_regmask:        Amd64RegMask,
 	out_regmask:       Amd64RegMask,
 	two_address_index: int,
+	killmap:           Amd64RegMask,
 }
 
 insr_table := [Amd64Insr]InsrTableEntry {
