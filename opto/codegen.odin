@@ -619,7 +619,40 @@ register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^Bloc
 
 emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	impl := arch_impl(.Amd64)
-	impl.encode(nil, nil)
+
+	out := &fn.out
+
+	label_seen :: proc(search_name: string, labels: []FunctionBlockLabel) -> (int, bool) {
+		for label in labels {
+			if label.name == search_name {
+				return label.offset, true
+			}
+		}
+		return -1, false
+	}
+	labels_allocated := 0
+	out.labels := make([]FunctionBlockLabel, len(blocks))
+
+	// TODO: we should do some basic bb reordering for fallthroughs to reduce the number of branches we emit but we can do that shit later :D
+	for bb in blocks {
+		_, found := label_seen(bb.name, out.labels)
+		assert(!found)
+		out.labels[labels_allocated] = FunctionBlockLabel { name = bb.name, offset = len(out.data) }
+		labels_allocated += 1
+		for node in bb.nodes {
+			if node.uop != 0 {
+				impl.encode(fn, node, &out.data)
+			}
+		}
+	}
+
+	// rel jump offset fixup
+	// TODO: we should also downsize reljumps to the smallest necessary bit-width so that we don't waste icache space
+	for block in blocks {
+		for node in block.nodes {
+		}
+	}
+
 	return true
 }
 

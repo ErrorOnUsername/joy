@@ -39,6 +39,17 @@ Function :: struct {
 	start: ^Node,
 	end: ^Node,
 	meta: FunctionMetaState,
+	output: FuntionOutput,
+}
+
+FunctionOutput :: struct {
+	labels: []FuntionBlockLabel,
+	data: [dynamic]u8,
+}
+
+FunctionBlockLabel :: struct {
+	name:   string,
+	offset: int,
 }
 
 GlobalData :: []u8

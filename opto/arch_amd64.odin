@@ -82,8 +82,57 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	return INVALID_OP
 }
 
-amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
-	fmt.println("test encode")
+amd64_encode :: proc(fn: ^Function, n: ^Node, out: ^[dynamic]u8) -> bool {
+	uop := Amd64Insr(n.uop)
+	switch uop {
+	case .Invalid:
+		unreachable("invalid amd64 instruction")
+	case .Ret:
+		// we just always use near returns
+		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
+		append(out, 0xC3)
+	case .Call:
+	case .Jmp:
+	case .Load:
+	case .Store:
+	case .Add:
+	case .AddImm:
+	case .AddMem:
+	case .Sub:
+	case .SubImm:
+	case .SubMem:
+	case .Mul:
+	case .MulImm:
+	case .MulMem:
+	case .Div:
+	case .DivImm:
+	case .DivMem:
+	case .AddF:
+	case .AddFMem:
+	case .SubF:
+	case .SubFMem:
+	case .MulF:
+	case .MulFMem:
+	case .DivF:
+	case .DivFMem:
+	case .Sal:
+	case .SalImm:
+	case .Sar:
+	case .SarImm:
+	case .Shl:
+	case .ShlImm:
+	case .Shr:
+	case .ShrImm:
+	case .And:
+	case .AndImm:
+	case .Or:
+	case .OrImm:
+	case .XOr:
+	case .XOrImm:
+	case .Cmp:
+	case .CmpImm:
+	case .CmpMem:
+	}
 	return true
 }
 
