@@ -39,17 +39,16 @@ Function :: struct {
 	start: ^Node,
 	end: ^Node,
 	meta: FunctionMetaState,
-	output: FuntionOutput,
+	output: FunctionOutput,
 }
 
 FunctionOutput :: struct {
-	labels: []FuntionBlockLabel,
+	relos: []LocalRelo,
 	data: [dynamic]u8,
 }
 
-FunctionBlockLabel :: struct {
-	name:   string,
-	offset: int,
+LocalRelo :: struct {
+	n: ^Node,
 }
 
 GlobalData :: []u8

@@ -86,7 +86,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, out: ^[dynamic]u8) -> bool {
 	uop := Amd64Insr(n.uop)
 	switch uop {
 	case .Invalid:
-		unreachable("invalid amd64 instruction")
+		panic("invalid amd64 instruction")
 	case .Ret:
 		// we just always use near returns
 		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
