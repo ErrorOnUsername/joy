@@ -621,11 +621,44 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	impl := arch_impl(.Amd64)
 	// TODO: we should do some basic bb reordering for fallthroughs to reduce the number of branches we emit but we can do that shit later :P
 
+	// we don't need to actually care about the non-jumps and shit, but having it be like this makes for easy indexing.
+	// TODO: see if we can be a little kinder about memory usage here
+	starts := make([]int, fn.node_count)
+	defer delete(starts)
+	sizes  := make([]int, fn.node_count)
+	defer delete(sizes)
+
 	// Writing the function body:
 	// 1. Write out the rough encoding (assuming short RIP/PC-relative jumps where necessary)
+	for block in blocks {
+		for n in block.nodes {
+			if n.uop != 0 {
+				starts[n.gvn] = len(fn.output.data)
+				impl.encode(fn, n)
+				sizes[n.gvn] = len(fn.output.data) - starts[n.gvn] // the initial encoding size, since we're about to resize some of them where we need to
+			}
+		}
+	}
+
 	// 2. Making allocated RIP/PC-relative displacements bigger where needed
+
+	// calculating new starts and sizes
+	bytes_added := 0
+	for relo in fn.output.relos {
+		if !relo.is_local do continue
+		start := starts[relo.n.gvn]
+		target_start := starts[relo.target.gvn]
+		to_target_delta_by_start := target_start - start
+		old_size := sizes[relo.n.gvn]
+		encoding_size := impl.encoding_size(n, to_target_delta_by_start)
+		sizes[relo.n.gvn] = encoding_size
+		if old_size < encoding_size {
+		}
+	}
+
+	// copying all that into the new buffer
+
 	// 3. Patch the local displacements with the relative locations where possible (function calls/symbols get ignored and will have to be handled by a final link)
 
 	return true
 }
-
