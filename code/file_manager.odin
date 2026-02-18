@@ -27,15 +27,21 @@ file_registry: [dynamic]FileData
 
 
 fm_open :: proc(path: string) -> (id: FileID, ok: bool) {
-	working_dir := os.get_current_directory()
-	defer delete(working_dir)
-
-	abs_path, abs_path_ok := filepath.abs(path)
-	if !abs_path_ok {
-		log_errorf("Could not get absolute path for given path: '{}'", path)
+	working_dir, cwd_err := os.get_working_directory(context.allocator)
+	if cwd_err != nil {
+		log_errorf("Could not get the current working directory (error: {})", cwd_err)
 		ok = false
 		return
 	}
+	defer delete(working_dir)
+
+	abs_path, abs_path_err := os.get_absolute_path(path, context.allocator)
+	if abs_path_err != nil {
+		log_errorf("Could not get absolute path for given path: '{}' (error: {})", path, abs_path_err)
+		ok = false
+		return
+	}
+	defer delete(abs_path)
 
 	rel_path, lex_err := filepath.rel(working_dir, abs_path)
 	if lex_err != .None {
@@ -57,11 +63,11 @@ fm_open :: proc(path: string) -> (id: FileID, ok: bool) {
 	is_dir := os.is_dir(abs_path)
 
 	raw_data: []u8
-	read_ok: bool
+	read_ok: os.Error
 
 	if !is_dir {
-		raw_data, read_ok = os.read_entire_file(path)
-		if !read_ok {
+		raw_data, read_ok = os.read_entire_file(path, context.allocator)
+		if read_ok != nil {
 			id = 0
 			ok = false
 
