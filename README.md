@@ -2,6 +2,9 @@
 
 A language made for fun and to learn more about compilers
 
+> [!NOTE]
+> This is only tested to compile and run with Odin dev-2026-02
+
 
 ### Syntax
 ```
