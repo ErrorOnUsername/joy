@@ -24,32 +24,27 @@ pump_parse_package :: proc(file_id: FileID) -> PumpResult {
 
 	file_data.pkg = pkg
 
-	w := os.walker_create(file_data.abs_path)
-	defer os.walker_destroy(&w)
+	handle, open_errno := os.open(file_data.abs_path)
+	defer os.close(handle)
 
-	for f_info in os.walker_walk(&w) {
-		if path, err := os.walker_error(&w); err != nil {
-			log_errorf("Failed walking '{}' with error {}", path, err)
-			return .Error
-		}
+	if open_errno != os.ERROR_NONE {
+		log_errorf("Could not open directory: '{}' (errno: {})", file_data.rel_path, open_errno)
+		return .Error
+	}
 
-		// we don't want to recurse into child directories sub-packages should be included through a dedicated statement
+
+	f_infos, errno := os.read_dir(handle, -1)
+
+	for f_info in f_infos {
 		ext := filepath.ext(f_info.fullpath)
-		if ext != ".joy" {
-			if f_info.type == .Directory {
-				os.walker_skip_dir(&w)
-				continue
-			}
-		} else do continue
-
-		assert(f_info.type != .Directory)
+		if !f_info.is_dir && ext != ".joy" do continue
 
 		sub_file_id, open_ok := fm_open(f_info.fullpath)
 		sub_file_data        := fm_get_data(sub_file_id)
 
 		sub_file_data.pkg = file_data.pkg
 
-		compiler_enqueue_work(.ParseFile, sub_file_id)
+		compiler_enqueue_work(.ParsePackage if sub_file_data.is_dir else .ParseFile, sub_file_id)
 	}
 
 	return .Continue

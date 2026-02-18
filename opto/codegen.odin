@@ -643,7 +643,6 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	// 2. Making allocated RIP/PC-relative displacements bigger where needed
 
 	// calculating new starts and sizes
-	/*
 	bytes_added := 0
 	for relo in fn.output.relos {
 		if !relo.is_local do continue
@@ -656,7 +655,6 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 		if old_size < encoding_size {
 		}
 	}
-	*/
 
 	// copying all that into the new buffer
 

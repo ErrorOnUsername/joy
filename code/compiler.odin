@@ -55,7 +55,7 @@ thread_data_initialized: bool
 
 
 compiler_init :: proc() {
-	thread.pool_init(&job_pool, context.allocator, os.get_processor_core_count())
+	thread.pool_init(&job_pool, context.allocator, os.processor_core_count())
 	thread.pool_start(&job_pool)
 
 	mem.arena_init(&job_data_arena, job_data_raw_pool[:])
