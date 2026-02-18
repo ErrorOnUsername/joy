@@ -82,7 +82,8 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	return INVALID_OP
 }
 
-amd64_encode :: proc(fn: ^Function, n: ^Node, out: ^[dynamic]u8) -> bool {
+amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
+	out := &fn.output.data
 	uop := Amd64Insr(n.uop)
 	switch uop {
 	case .Invalid:
