@@ -20,7 +20,7 @@ dump_module_gviz :: proc(mod: ^Module, out_path: string) -> bool {
 
 	fmt.sbprintln(&sb, "}")
 
-	err := os.write_entire_file_or_err(out_path, sb.buf[:])
+	err := os.write_entire_file(out_path, sb.buf[:])
 	if err != nil {
 		fmt.printfln("Failed to dump module '{}'. Reason: {}", mod.name, os.error_string(err))
 		return false

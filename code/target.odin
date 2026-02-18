@@ -1,6 +1,6 @@
 package main
 
-import "core:os"
+import "core:sys/info"
 
 Architecture :: enum {
 	Invalid,
@@ -21,16 +21,16 @@ TargetDesc :: struct {
 
 get_host_target_desc :: proc() -> TargetDesc {
 	platform: Platform
-	when os.OS == .Windows {
+	if info.os_version.platform == .Windows {
 		platform = .Windows
-	} else when os.OS == .Darwin {
+	} else if info.os_version.platform == .iOS || info.os_version.platform == .MacOS {
 		platform = .MacOS
-	} else when os.OS == .Linux {
+	} else if info.os_version.platform == .Linux {
 		platform = .Linux
 	}
 
 	arch: Architecture
-	when os.ARCH == .amd64 {
+	when ODIN_ARCH == .amd64 {
 		arch = .Amd64
 	}
 
