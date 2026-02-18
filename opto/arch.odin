@@ -19,7 +19,7 @@ ArchImpl :: struct {
 	reg_names: []string,
 	abi: []PlatformABI,
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
-	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
+	encode: #type proc(fn: ^Function, n: ^Node, out: ^[dynamic]u8) -> bool,
 	get_callee_save_regmask: #type proc(ctx: ^RegAllocContext) -> RegisterMask,
 	get_src_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask,
 	get_dst_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask,

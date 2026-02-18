@@ -43,15 +43,12 @@ Function :: struct {
 }
 
 FunctionOutput :: struct {
-	// These are in serialize order so that we don't have to iterate through all the nodes in the bbs just to fixup the relos
 	relos: []LocalRelo,
 	data: [dynamic]u8,
 }
 
 LocalRelo :: struct {
-	is_local: bool,
 	n: ^Node,
-	target: ^Node,
 }
 
 GlobalData :: []u8
