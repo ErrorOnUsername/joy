@@ -41,7 +41,6 @@ fm_open :: proc(path: string) -> (id: FileID, ok: bool) {
 		ok = false
 		return
 	}
-	defer delete(abs_path)
 
 	rel_path, lex_err := filepath.rel(working_dir, abs_path)
 	if lex_err != .None {
@@ -49,7 +48,6 @@ fm_open :: proc(path: string) -> (id: FileID, ok: bool) {
 		ok = false
 		return
 	}
-
 
 	if abs_path in file_id_map {
 		log_warningf("Tried to open file '{}', but it's already been opened", rel_path)

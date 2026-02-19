@@ -38,9 +38,9 @@ pump_parse_package :: proc(file_id: FileID) -> PumpResult {
 		if ext != ".joy" {
 			if f_info.type == .Directory {
 				os.walker_skip_dir(&w)
-				continue
 			}
-		} else do continue
+			continue
+		}
 
 		assert(f_info.type != .Directory)
 

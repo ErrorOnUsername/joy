@@ -1,5 +1,6 @@
 package main
 
+import "core:fmt"
 import "core:sys/info"
 
 Architecture :: enum {
@@ -30,9 +31,8 @@ get_host_target_desc :: proc() -> TargetDesc {
 	}
 
 	arch: Architecture
-	when ODIN_ARCH == .amd64 {
-		arch = .Amd64
-	}
+	arch = .Amd64
+	fmt.println("forcing to amd64 architecture")
 
 	return { arch, platform }
 }
