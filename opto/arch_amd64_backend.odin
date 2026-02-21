@@ -55,6 +55,7 @@ impl_amd64 := ArchImpl {
 	},
 	select = amd64_select,
 	encode = amd64_encode,
+	encoding_size = amd64_encoding_size,
 	get_callee_save_regmask = amd64_get_callee_save_regmask,
 	get_src_regmask = amd64_get_src_regmask,
 	get_dst_regmask = amd64_get_dst_regmask,
@@ -135,6 +136,10 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .CmpMem:
 	}
 	return true
+}
+
+amd64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
+	return 0
 }
 
 // because amd64 is just cool like that
@@ -396,4 +401,3 @@ Amd64Insr :: enum {
 	CmpImm,
 	CmpMem,
 }
-

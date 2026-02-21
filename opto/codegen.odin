@@ -642,25 +642,57 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 
 	// 2. Making allocated RIP/PC-relative displacements bigger where needed
 
+	old_starts := make([]int, fn.node_count)
+	copy(old_starts, starts)
+
 	// calculating new starts and sizes
-	/*
-	bytes_added := 0
+	ReloDelta :: struct {
+		start: int,
+		bytes_to_add: int,
+	}
+	total_add := 0
+	deltas: [dynamic]ReloDelta
+	defer delete(deltas)
 	for relo in fn.output.relos {
 		if !relo.is_local do continue
+		old_size := sizes[relo.n.gvn]
 		start := starts[relo.n.gvn]
 		target_start := starts[relo.target.gvn]
 		to_target_delta_by_start := target_start - start
-		old_size := sizes[relo.n.gvn]
-		encoding_size := impl.encoding_size(n, to_target_delta_by_start)
-		sizes[relo.n.gvn] = encoding_size
+		encoding_size := impl.encoding_size(relo.n, to_target_delta_by_start)
 		if old_size < encoding_size {
+			add := encoding_size - old_size
+			total_add += add
+			append(&deltas, ReloDelta { start, add })
+			for other in fn.output.relos {
+				if !other.is_local do continue
+				if starts[other.target.gvn] > start {
+					starts[other.target.gvn] += add
+				}
+			}
 		}
 	}
-	*/
 
 	// copying all that into the new buffer
+	new_data := make([dynamic]u8, len(fn.output.data) + total_add)
+	added_so_far := 0
+	last_end_new := 0
+	last_end := 0
+	for delta in deltas {
+		delta_start_new := delta.start + added_so_far
+		copy(new_data[last_end_new:delta.start], fn.output.data[last_end:delta.start])
+		last_end = delta.start + sizes[delta.n.gvn]
+		last_end_new = delta.start + sizes[delta.n.gvn] + delta.bytes_to_add
+		added_so_far += delta.bytes_to_add
+	}
 
 	// 3. Patch the local displacements with the relative locations where possible (function calls/symbols get ignored and will have to be handled by a final link)
+	/*
+	for relo in fn.output.relos {
+		if !relo.is_local do continue
+		impl.patch_local_relo(fn, n)
+	}
+	*/
 
 	return true
 }
