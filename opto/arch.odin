@@ -21,6 +21,7 @@ ArchImpl :: struct {
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
 	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
 	encoding_size: #type proc(n: ^Node, delta_from_start_to_target: int) -> int,
+	patch_local_relo: #type proc(fn: ^Function, n: ^Node, start: int),
 	get_callee_save_regmask: #type proc(ctx: ^RegAllocContext) -> RegisterMask,
 	get_src_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask,
 	get_dst_regmask: #type proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask,
