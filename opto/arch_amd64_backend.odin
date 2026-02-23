@@ -146,7 +146,15 @@ amd64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
 	return 0
 }
 
-amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int) {
+amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_start_to_target: int) {
+	out := &fn.output.data
+	uop := Amd64Insr(n.uop)
+	#partial switch uop {
+	case .Jmp:
+	case .Call:
+	case:
+		panic("invalid patch insr")
+	}
 }
 
 // because amd64 is just cool like that

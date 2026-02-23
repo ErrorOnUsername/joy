@@ -709,10 +709,31 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 			continue
 		}
 		local_relo_count += 1
-		impl.patch_local_relo(fn, relo.n, starts[relo.n.gvn])
+		start := starts[relo.n.gvn]
+		delta_from_starts := starts[relo.target.gvn] - start
+		impl.patch_local_relo(fn, relo.n, start, delta_from_starts)
 	}
 
 	log(fn, "Successfully encoded {} instructions (patched {} local relocations, {} non-local unpatched relocations)", encode_count, local_relo_count, non_local_relo_count)
 
 	return true
 }
+
+add_local_relo :: proc(fn: ^Function, n: ^Node, target: ^Node) {
+	relo := LinkRelo {
+		is_local = true,
+		n = n,
+		target = target
+	}
+	append(&fn.output.relos, relo)
+}
+
+add_global_relo :: proc(fn: ^Function, n: ^Node, target: ^Node) {
+	relo := LinkRelo {
+		is_local = false,
+		n = n,
+		target = target
+	}
+	append(&fn.output.relos, relo)
+}
+
