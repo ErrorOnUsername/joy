@@ -618,6 +618,8 @@ register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^Bloc
 }
 
 emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
+	log(fn, "-- Begin Instruction Encode --")
+	defer log(fn, "-- End Instruction Encode --")
 	impl := arch_impl(.Amd64)
 	// TODO: we should do some basic bb reordering for fallthroughs to reduce the number of branches we emit but we can do that shit later :P
 
@@ -630,12 +632,14 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 
 	// Writing the function body:
 	// 1. Write out the rough encoding (assuming short RIP/PC-relative jumps where necessary)
+	encode_count := 0
 	for block in blocks {
 		for n in block.nodes {
 			if n.uop != 0 {
 				starts[n.gvn] = len(fn.output.data)
 				impl.encode(fn, n)
 				sizes[n.gvn] = len(fn.output.data) - starts[n.gvn] // the initial encoding size, since we're about to resize some of them where we need to
+				encode_count += 1
 			}
 		}
 	}
@@ -683,6 +687,7 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	new_data := make([dynamic]u8, len(fn.output.data) + total_add)
 	old_end := len(fn.output.data)
 	#reverse for relo in fn.output.relos {
+		if !relo.is_local do continue
 		old_start := old_starts[relo.n.gvn]
 		new_start := starts[relo.n.gvn]
 		size_delta := sizes[relo.n.gvn] - old_sizes[relo.n.gvn]
@@ -695,10 +700,19 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	fn.output.data = new_data
 
 	// 3. Patch the local displacements with the relative locations where possible (function calls/symbols get ignored and will have to be handled by a final link)
+	local_relo_count := 0
+	non_local_relo_count := 0
+
 	for relo in fn.output.relos {
-		if !relo.is_local do continue
+		if !relo.is_local { // We need a final link order before we can patch function calls and shit
+			non_local_relo_count += 1
+			continue
+		}
+		local_relo_count += 1
 		impl.patch_local_relo(fn, relo.n, starts[relo.n.gvn])
 	}
+
+	log(fn, "Successfully encoded {} instructions (patched {} local relocations, {} non-local unpatched relocations)", encode_count, local_relo_count, non_local_relo_count)
 
 	return true
 }
