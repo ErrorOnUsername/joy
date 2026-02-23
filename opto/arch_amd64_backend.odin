@@ -95,6 +95,9 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
 		append(out, 0xC3)
 	case .Call:
+		append(out, 0xE8)
+		append(out, 0, 0, 0, 0)
+		add_global_relo(fn, n)
 	case .Jmp:
 	case .Load:
 	case .Store:
