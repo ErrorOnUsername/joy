@@ -97,7 +97,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .Call:
 		append(out, 0xE8)
 		append(out, 0, 0, 0, 0)
-		add_global_relo(fn, n)
+		add_global_relo(fn, n, nil)
 	case .Jmp:
 	case .Load:
 	case .Store:
