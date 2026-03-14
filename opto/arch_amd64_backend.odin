@@ -117,7 +117,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .AddImm:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		rex := rex_prefix(0, dst_reg, 0, true)
-		modrm := modrm_byte(.Direct, 0, dst_reg, true)
+		modrm := modrm_byte(.Direct, 0, dst_reg)
 		append(out, rex, 0x81, modrm)
 	case .AddMem:
 	case .Sub:
@@ -158,27 +158,27 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
-amd64_get_br_jump_op :: proc(n: ^Node, rel_size: int) -> u8 {
+amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> u8 {
 	assert(rel_size == 8 || rel_size == 32)
 	assert(n.kind == .Branch)
 	cond := n.inputs[1]
-	op := 0xFF
+	op: u8 = 0xFF
 	#partial switch cond.kind {
-	case CmpEq:
+	case .CmpEq:
 		op = 0x84 // 0F 84 cd JE rel32
-	case CmpNeq:
+	case .CmpNeq:
 		op = 0x85 // 0F 85 cd JNE rel32
-	case CmpULt:
+	case .CmpULt:
 		op = 0x82 // 0F 82 cd JB rel32
-	case CmpULe:
+	case .CmpULe:
 		op = 0x86 // 0F 86 cd JBE rel32
-	case CmpSLt:
+	case .CmpSLt:
 		op = 0x8c // 0F 8C cd JL rel32
-	case CmpSLe:
+	case .CmpSLe:
 		op = 0x8e // 0F 8E cd JLE rel32
-	case CmpFLt: // float cmps apparantly set the unsigned "below" and "above" flags at least according to llvm output
+	case .CmpFLt: // float cmps apparantly set the unsigned "below" and "above" flags at least according to llvm output
 		op = 0x82 // 0F 82 cd JB rel32
-	case CmpFLe:
+	case .CmpFLe:
 		op = 0x86 // 0F 86 cd JBE rel32
 	}
 
@@ -200,8 +200,8 @@ rex_prefix :: proc(dst: int, src: int, idx: int, is_wide: bool) -> u8 {
 
 MODAddressingMode :: enum(u8) {
 	Indirect, // (%reg)
-	IndirectDisp8 // 0x12(%reg)
-	IndirectDisp32 // 0x12345678(%reg)
+	IndirectDisp8, // 0x12(%reg)
+	IndirectDisp32, // 0x12345678(%reg)
 	Direct // %reg
 }
 
@@ -209,8 +209,8 @@ modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
 	assert(dst >= 0 && dst < 16)
 	assert(src >= 0 && src < 16)
 	mod_field := (u8(mod) & 0x03) << 6
-	reg := (dst & 0x07) << 3
-	rm := src & 0x07
+	reg := (u8(dst) & 0x07) << 3
+	rm := u8(src) & 0x07
 	return mod_field | reg | rm
 }
 

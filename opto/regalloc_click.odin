@@ -53,11 +53,11 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^B
 
 	MAX_REGALLOC_ATTEMPTS :: 7
 
-	insert_callee_saved_values(&ctx)
+	insert_callee_saved_values(ctx)
 
 	attempt := 1
-	for !color_graph(&ctx, attempt, blocks, block_map) {
-		split_conflicting_live_ranges(&ctx)
+	for !color_graph(ctx, attempt, blocks, block_map) {
+		split_conflicting_live_ranges(ctx)
 		attempt += 1
 		assert(attempt <= MAX_REGALLOC_ATTEMPTS)
 		log(fn, "Starting Allocation Attempt {}...", attempt)
