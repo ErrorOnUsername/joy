@@ -4,7 +4,7 @@ import "core:fmt"
 
 
 Amd64Reg :: enum(RegisterID) {
-	RAX, RBX, RCX, RDX, RSI, RDI, RSP, RBP, R8, R9, R10, R11, R12, R13, R14, R15,
+	RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15,
 	XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7, XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15,
 	RFLAGS,
 }
@@ -99,10 +99,26 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		append(out, 0, 0, 0, 0)
 		add_global_relo(fn, n, nil)
 	case .Jmp:
+		if n.kind == .Branch {
+			jump_op := amd64_get_br_jump_op(n, 8)
+			append(out, jump_op, 0)
+		} else {
+			assert(n.kind == .Goto)
+			append(out, 0xEB, 0) // this gets patched to the other forms for larger disps
+		}
 	case .Load:
 	case .Store:
 	case .Add:
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		src_reg := get_reg(fn, n.inputs[2])
+		rex := rex_prefix(dst_reg, src_reg, 0, true)
+		modrm := modrm_byte(.Direct, dst_reg, src_reg)
+		append(out, rex, 0x03, modrm)
 	case .AddImm:
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		rex := rex_prefix(0, dst_reg, 0, true)
+		modrm := modrm_byte(.Direct, 0, dst_reg, true)
+		append(out, rex, 0x81, modrm)
 	case .AddMem:
 	case .Sub:
 	case .SubImm:
@@ -140,6 +156,62 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .CmpMem:
 	}
 	return true
+}
+
+amd64_get_br_jump_op :: proc(n: ^Node, rel_size: int) -> u8 {
+	assert(rel_size == 8 || rel_size == 32)
+	assert(n.kind == .Branch)
+	cond := n.inputs[1]
+	op := 0xFF
+	#partial switch cond.kind {
+	case CmpEq:
+		op = 0x84 // 0F 84 cd JE rel32
+	case CmpNeq:
+		op = 0x85 // 0F 85 cd JNE rel32
+	case CmpULt:
+		op = 0x82 // 0F 82 cd JB rel32
+	case CmpULe:
+		op = 0x86 // 0F 86 cd JBE rel32
+	case CmpSLt:
+		op = 0x8c // 0F 8C cd JL rel32
+	case CmpSLe:
+		op = 0x8e // 0F 8E cd JLE rel32
+	case CmpFLt: // float cmps apparantly set the unsigned "below" and "above" flags at least according to llvm output
+		op = 0x82 // 0F 82 cd JB rel32
+	case CmpFLe:
+		op = 0x86 // 0F 86 cd JBE rel32
+	}
+
+	return op if rel_size == 32 else op - 16
+}
+
+rex_prefix :: proc(dst: int, src: int, idx: int, is_wide: bool) -> u8 {
+	assert(dst > 0 && dst < 16)
+	assert(src > 0 && src < 16)
+	assert(idx > 0 && idx < 16)
+
+	rex: u8 = 0x40
+	if is_wide do rex |= 0x08 // REX.W: enables 64-bit registers
+	if dst >= 8 do rex |= 0x04 // REX.R adds an extra bit to the reg field in the modrm byte
+	if idx >= 8 do rex |= 0x02 // REX.X adds an extra bit to the index field in the modrm byte
+	if src >= 8 do rex |= 0x01 // REX.B adds an extra bit to the r/m field in the modrm byte or in the sib base field
+	return rex
+}
+
+MODAddressingMode :: enum(u8) {
+	Indirect, // (%reg)
+	IndirectDisp8 // 0x12(%reg)
+	IndirectDisp32 // 0x12345678(%reg)
+	Direct // %reg
+}
+
+modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
+	assert(dst >= 0 && dst < 16)
+	assert(src >= 0 && src < 16)
+	mod_field := (u8(mod) & 0x03) << 6
+	reg := (dst & 0x07) << 3
+	rm := src & 0x07
+	return mod_field | reg | rm
 }
 
 amd64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {

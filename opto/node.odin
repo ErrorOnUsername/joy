@@ -43,6 +43,7 @@ Function :: struct {
 }
 
 FunctionOutput :: struct {
+	reg_alloc: RegAllocContext,
 	// These are in serialize order so that we don't have to iterate through all the nodes in the bbs just to fixup the relos
 	relos: [dynamic]LinkRelo,
 	data: [dynamic]u8,

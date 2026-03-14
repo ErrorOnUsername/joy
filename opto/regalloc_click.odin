@@ -45,11 +45,11 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^B
 	log(fn, "-- Click/Briggs/Chaitin RegAlloc Begin --")
 	defer log(fn, "-- Click/Briggs/Chaitin RegAlloc End --")
 
-	ctx: RegAllocContext
+	ctx := &fn.output.reg_alloc
+
 	ctx.fn = fn
 	ctx.lrg_map = make(map[^Node]LiveRangeID)
 	ctx.arch = .Amd64
-	defer delete(ctx.lrg_map)
 
 	MAX_REGALLOC_ATTEMPTS :: 7
 
