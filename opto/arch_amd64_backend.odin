@@ -107,7 +107,9 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			append(out, 0xEB, 0) // this gets patched to the other forms for larger disps
 		}
 	case .Load:
+		panic("load")
 	case .Store:
+		panic("store")
 	case .Add:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		src_reg := get_reg(fn, n.inputs[2])
@@ -120,40 +122,86 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		modrm := modrm_byte(.Direct, 0, dst_reg)
 		append(out, rex, 0x81, modrm)
 	case .AddMem:
+		panic("addmem")
 	case .Sub:
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		src_reg := get_reg(fn, n.inputs[2])
+		rex := rex_prefix(dst_reg, src_reg, 0, true)
+		modrm := modrm_byte(.Direct, dst_reg, src_reg)
+		append(out, rex, 0x2B, modrm)
 	case .SubImm:
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		rex := rex_prefix(0, dst_reg, 0, true)
+		modrm := modrm_byte(.Direct, 0, dst_reg)
+		append(out, rex, 0x81, modrm)
 	case .SubMem:
+		panic("sub mem")
 	case .Mul:
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		src_reg := get_reg(fn, n.inputs[2])
+		rex := rex_prefix(dst_reg, src_reg, 0, true)
+		modrm := modrm_byte(.Direct, dst_reg, src_reg)
+		append(out, rex, 0x0F, 0xAF, modrm)
 	case .MulImm:
+		panic("mul imm")
 	case .MulMem:
+		panic("mul mem")
 	case .Div:
+		panic("div")
 	case .DivImm:
+		panic("div imm")
 	case .DivMem:
+		panic("div mem")
 	case .AddF:
+		panic("addf")
 	case .AddFMem:
+		panic("addf mem")
 	case .SubF:
+		panic("subf")
 	case .SubFMem:
+		panic("subf mem")
 	case .MulF:
+		panic("mulf")
 	case .MulFMem:
+		panic("mulf mem")
 	case .DivF:
+		panic("divf")
 	case .DivFMem:
+		panic("divf mem")
 	case .Sal:
+		panic("sal")
 	case .SalImm:
+		panic("sal imm")
 	case .Sar:
+		panic("sar")
 	case .SarImm:
+		panic("sar imm")
 	case .Shl:
+		panic("shl")
 	case .ShlImm:
+		panic("shl imm")
 	case .Shr:
+		panic("shr")
 	case .ShrImm:
+		panic("shr imm")
 	case .And:
+		panic("and")
 	case .AndImm:
+		panic("and imm")
 	case .Or:
+		panic("or")
 	case .OrImm:
+		panic("or imm")
 	case .XOr:
+		panic("xor")
 	case .XOrImm:
+		panic("xor imm")
 	case .Cmp:
+		panic("cmp")
 	case .CmpImm:
+		panic("cmp imm")
 	case .CmpMem:
+		panic("cmp mem")
 	}
 	return true
 }
