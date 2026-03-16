@@ -132,7 +132,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .SubImm:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		rex := rex_prefix(0, dst_reg, 0, true)
-		modrm := modrm_byte(.Direct, 0, dst_reg)
+		modrm := modrm_byte(.Direct, 5, dst_reg)
 		append(out, rex, 0x81, modrm)
 	case .SubMem:
 		panic("sub mem")
@@ -143,7 +143,10 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		modrm := modrm_byte(.Direct, dst_reg, src_reg)
 		append(out, rex, 0x0F, 0xAF, modrm)
 	case .MulImm:
-		panic("mul imm")
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		rex := rex_prefix(dst_reg, dst_reg, 0, true)
+		modrm := modrm_byte(.Direct, dst_reg, dst_reg)
+		append(out, rex, 0x69, modrm)
 	case .MulMem:
 		panic("mul mem")
 	case .Div:
