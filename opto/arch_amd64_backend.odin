@@ -107,7 +107,46 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			append(out, 0xEB, 0) // this gets patched to the other forms for larger disps
 		}
 	case .Load:
-		panic("load")
+		bw := 0
+		is_fp := false
+		#partial switch n.type {
+			case .Int:
+				bw = n.type.bitwidth
+			case .Ptr:
+				bw = 64
+			case .Float:
+				is_fp = true
+				bw = n.type.bitwidth
+			case:
+				panic("bad load type")
+		}
+
+		dst_reg := get_reg(fn, n)
+		ptr_reg := get_reg(fn, n.inputs[2])
+
+		if !is_fp {
+			if bw <= 8 {
+				append(out, 0x8A) // 8A /r MOV r8, r/m8
+			} else if bw <= 16 {
+				append(out, 0x66, 0x8B) // 8B /r MOV r16, r/m16
+			} else if bw <= 32 {
+				append(out, 0x8B) // 8B /r MOV r32, r/m32
+			} else {
+				assert(bw <= 64)
+				idx := 0
+				rex := rex_prefix(dst_reg, ptr_reg, idx, true)
+				append(out, rex, 0x8B) // REX.W + 8B /r MOV r64, r/m64
+			}
+		} else {
+			if bw == 32 {
+				append(out, 0xF3, 0x0F, 0x10) // F3 0F 10 /r MOVSS xmm1, m32
+			} else {
+				assert(bw == 64)
+				append(out, 0xF2, 0x0F, 0x10) // F2 0F 10 /r MOVSD xmm1, m64
+			}
+		}
+
+		amd64_indirect_load(output, dst_reg, src_reg)
 	case .Store:
 		panic("store")
 	case .Add:
@@ -207,6 +246,41 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		panic("cmp mem")
 	}
 	return true
+}
+
+amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, src_reg: int, offset: int) {
+	mod := MODAddressingMode.Indirect
+	if offset != 0 {
+		mod = .IndirectDisp8 if offset <= 0xff else .IndirectDisp32
+	}
+
+	if index_reg == -1 {
+		append(out, modrm_byte(mod, dst_reg, src_reg))
+	} else {
+		append(out, modrm_byte(mod, dst_reg, int(Amd64Reg.RSP)))
+		append(out, sib_byte())
+	}
+
+	if mod == .IndirectDisp8 {
+		amd64_imm8(out, offset)
+	} else if mod == .IndirectDisp32 {
+		amd64_imm32(out, offset)
+	}
+}
+
+amd64_imm8 :: proc(out: ^[dynamic]u8, imm: int) {
+	data := transmute(uint)imm
+	assert((data & 0xFF) == data) // make sure its in the imm range
+	append(out, u8(data))
+}
+
+amd64_imm32 :: proc(out: ^[dynamic]u8, imm: int) {
+	data := transmute(uint)imm
+	assert((data & 0xFFFF_FFFF) == data) // make sure its in the imm range
+	append(out, u8(data >> 0) & 0xFF)
+	append(out, u8(data >> 8) & 0xFF)
+	append(out, u8(data >> 16) & 0xFF)
+	append(out, u8(data >> 32) & 0xFF)
 }
 
 amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> u8 {
