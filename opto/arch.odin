@@ -72,3 +72,19 @@ arch_get_register_mask_str :: proc(arch: Arch, mask: RegisterMask) -> string {
 	}
 	return strings.to_string(sb)
 }
+
+enc_out8 :: proc(out: ^[dynamic]u8, imm: int) {
+	data := transmute(uint)imm
+	assert((data & 0xFF) == data) // make sure its in the imm range
+	append(out, u8(data))
+}
+
+enc_out32 :: proc(out: ^[dynamic]u8, imm: int) {
+	data := transmute(uint)imm
+	assert((data & 0xFFFF_FFFF) == data) // make sure its in the imm range
+	append(out, u8(data >> 0) & 0xFF)
+	append(out, u8(data >> 8) & 0xFF)
+	append(out, u8(data >> 16) & 0xFF)
+	append(out, u8(data >> 32) & 0xFF)
+}
+

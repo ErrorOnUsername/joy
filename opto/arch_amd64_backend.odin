@@ -109,14 +109,14 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .Load:
 		bw := 0
 		is_fp := false
-		#partial switch n.type {
+		#partial switch n.type.kind {
 			case .Int:
-				bw = n.type.bitwidth
+				bw = int(n.type.bitwidth)
 			case .Ptr:
 				bw = 64
 			case .Float:
 				is_fp = true
-				bw = n.type.bitwidth
+				bw = int(n.type.bitwidth)
 			case:
 				panic("bad load type")
 		}
@@ -146,7 +146,10 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			}
 		}
 
-		amd64_indirect_load(output, dst_reg, src_reg)
+		index_reg := -1
+		offset := 0
+		scale := 0
+		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
 	case .Store:
 		panic("store")
 	case .Add:
@@ -248,39 +251,24 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
-amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, src_reg: int, offset: int) {
+amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, ptr_reg: int, index_reg: int, offset: int, scale: int) {
 	mod := MODAddressingMode.Indirect
 	if offset != 0 {
 		mod = .IndirectDisp8 if offset <= 0xff else .IndirectDisp32
 	}
 
 	if index_reg == -1 {
-		append(out, modrm_byte(mod, dst_reg, src_reg))
+		append(out, modrm_byte(mod, dst_reg, ptr_reg))
 	} else {
 		append(out, modrm_byte(mod, dst_reg, int(Amd64Reg.RSP)))
-		append(out, sib_byte())
+		append(out, sib_byte(scale, index_reg, ptr_reg))
 	}
 
 	if mod == .IndirectDisp8 {
-		amd64_imm8(out, offset)
+		enc_out8(out, offset)
 	} else if mod == .IndirectDisp32 {
-		amd64_imm32(out, offset)
+		enc_out32(out, offset)
 	}
-}
-
-amd64_imm8 :: proc(out: ^[dynamic]u8, imm: int) {
-	data := transmute(uint)imm
-	assert((data & 0xFF) == data) // make sure its in the imm range
-	append(out, u8(data))
-}
-
-amd64_imm32 :: proc(out: ^[dynamic]u8, imm: int) {
-	data := transmute(uint)imm
-	assert((data & 0xFFFF_FFFF) == data) // make sure its in the imm range
-	append(out, u8(data >> 0) & 0xFF)
-	append(out, u8(data >> 8) & 0xFF)
-	append(out, u8(data >> 16) & 0xFF)
-	append(out, u8(data >> 32) & 0xFF)
 }
 
 amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> u8 {
@@ -338,6 +326,15 @@ modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
 	rm := u8(src) & 0x07
 	return mod_field | reg | rm
 }
+
+
+sib_byte :: proc(scale: int, index: int, base: int) -> u8 {
+	assert(scale >= 0 && scale <= 4)
+	assert(index >= 0 && index < 16)
+	assert(base >= 0 && base < 16)
+	return u8(scale << 6) | u8((index & 0x07) << 3) | u8(base & 0x07)
+}
+
 
 amd64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
 	return 0
