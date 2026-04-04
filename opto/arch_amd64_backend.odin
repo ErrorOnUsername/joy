@@ -156,8 +156,35 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		src_reg := get_reg(fn, n.inputs[2])
 		rex := rex_prefix(dst_reg, src_reg, 0, true)
+
+		prefix := 0xFF
+		opcode := 0xFF
+		assert(n.type.kind == .Int || n.type.kind == .Ptr)
+		if n.type.kind == .Int {
+			if n.type.bitwidth <= 8 {
+				opcode = 0x02
+			} else if n.type.bitwidth <= 16 {
+				prefix = 0x66
+				opcode = 0x03
+			} else if n.type.bitwidth <= 32 {
+				opcode = 0x03
+			} else if n.type.bitwidth <= 64 {
+				prefix = rex
+				opcode = 0x03
+			}
+		} else if n.type.kind == .Ptr {
+			prefix = rex
+			opcode = 0x03 // just a 64-bit add
+		} else {
+			panic("bad type on reg add")
+		}
+		assert(opcode != 0xFF)
 		modrm := modrm_byte(.Direct, dst_reg, src_reg)
-		append(out, rex, 0x03, modrm)
+		if prefix != 0xFF {
+			append(out, prefix, opcode, modrm)
+		} else {
+			append(out, opcode, modrm)
+		}
 	case .AddImm:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		rex := rex_prefix(0, dst_reg, 0, true)
