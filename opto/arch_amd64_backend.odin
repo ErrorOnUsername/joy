@@ -157,8 +157,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		src_reg := get_reg(fn, n.inputs[2])
 		rex := rex_prefix(dst_reg, src_reg, 0, true)
 
-		prefix := 0xFF
-		opcode := 0xFF
+		prefix: u8 = 0xFF
+		opcode: u8 = 0xFF
 		assert(n.type.kind == .Int || n.type.kind == .Ptr)
 		if n.type.kind == .Int {
 			if n.type.bitwidth <= 8 {
