@@ -413,6 +413,14 @@ amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> Reg
 			assert(regmask != 0)
 		case .Ret:
 			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs // TODO: There's register splitting on SysV so just make sure all that bullshit works, idk...
+		case .Load:
+			assert(from == 2) // the slot
+			return transmute(RegisterMask)GPR_READ_MASK | SPILL_MASK
+		case .Store:
+			assert(from == 2 || from == 3)
+			if from == 2 { // the slot
+				return transmute(RegisterMask)GPR_READ_MASK | SPILL_MASK
+			} // others take default
 	}
 	assert(regmask != 0)
 	return regmask
