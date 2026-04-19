@@ -65,7 +65,11 @@ arch_get_register_mask_str :: proc(arch: Arch, mask: RegisterMask) -> string {
 		for i in 0..<(size_of(RegisterMask) * 8) {
 			if mask & (1 << uint(i)) != 0 {
 				if bit_count > 0 do fmt.sbprint(&sb, ", ")
-				fmt.sbprintf(&sb, "{}", impl.reg_names[i])
+				if i < len(impl.reg_names) {
+					fmt.sbprintf(&sb, "{}", impl.reg_names[i])
+				} else {
+					fmt.sbprintf(&sb, "@{}", i - len(impl.reg_names))
+				}
 				bit_count += 1
 			}
 		}
