@@ -66,7 +66,7 @@ insr_select :: proc(fn: ^Function) -> bool {
 
 is_selectable_node :: proc(n: ^Node) -> bool {
 	#partial switch n.kind {
-		case .Start, .End, .Region, .Proj, .IntConst, .F32Const, .F64Const, .Local, .Symbol, .Phi, .GetMemberPtr:
+		case .Start, .End, .Region, .Proj, .IntConst, .F32Const, .F64Const, .Symbol, .Phi, .GetMemberPtr:
 			return false
 	}
 	return true

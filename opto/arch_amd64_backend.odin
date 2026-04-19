@@ -7,6 +7,7 @@ Amd64Reg :: enum(RegisterID) {
 	RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15,
 	XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7, XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15,
 	RFLAGS,
+	MAX_REG,
 }
 
 Amd64RegMask :: bit_set[Amd64Reg]
@@ -19,6 +20,8 @@ GPR_WRITE_MASK := Amd64RegMask { .RAX, .RBX, .RCX, .RDX, .RSI, .RDI, .RBP, .R8, 
 XMM_MASK := Amd64RegMask { .XMM0, .XMM1, .XMM2, .XMM3, .XMM4, .XMM5, .XMM6, .XMM7, .XMM8, .XMM9, .XMM10, .XMM11, .XMM12, .XMM13, .XMM14, .XMM15 }
 @(private = "file")
 FLAGS_MASK := Amd64RegMask { .RFLAGS }
+@(private = "file")
+SPILL_MASK := RegisterMask(-int(1 << uint(Amd64Reg.MAX_REG)))
 
 Amd64ABI :: enum {
 	Win64,
@@ -90,6 +93,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	switch uop {
 	case .Invalid:
 		panic("invalid amd64 instruction")
+	case .Local:
 	case .Ret:
 		// we just always use near returns
 		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
@@ -491,7 +495,7 @@ match_table := [NodeKind]InsrMatch {
 	.IntConst = {},
 	.F32Const = {},
 	.F64Const = {},
-	.Local = {},
+	.Local = { { { insr = .Local } } },
 	.Symbol = {},
 	.CalleeSave = {},
 	.Return = { { { insr = .Ret, pred = amd64_reg_format } } },
@@ -548,6 +552,7 @@ InsrTableEntry :: struct {
 
 insr_table := [Amd64Insr]InsrTableEntry {
 	.Invalid = { },
+	.Local = { in_regmask = {}, out_regmask = transmute(Amd64RegMask)SPILL_MASK },
 	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
@@ -594,6 +599,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 
 Amd64Insr :: enum {
 	Invalid,
+	Local,
 	Ret,
 	Call,
 	Jmp,
