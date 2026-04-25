@@ -228,7 +228,35 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		modrm := modrm_byte(.Direct, dst_reg, dst_reg)
 		append(out, rex, 0x69, modrm)
 	case .MulMem:
-		panic("mul mem")
+		dst_reg := get_reg(fn, n.inputs[1])
+		assert(dst_reg < int(Amd64Reg.MAX_REG))
+		src_reg := get_reg(fn, n.inputs[2])
+		if src_reg >= int(Amd64Reg.MAX_REG) {
+			src_reg = int(Amd64Reg.RSP)
+		}
+
+		bw := n.type.bitwidth
+		if n.type.kind == .Ptr {
+			bw = 64
+		}
+
+		if bw <= 8 {
+			panic("byte multiply idk fix it")
+		} else if bw <= 16 {
+			append(out, 0x66, 0x0F, 0xAF) // 0F AF /r IMUL r16, r/m16
+		} else if bw <= 32 {
+			append(out, 0x0F, 0xAF) // 0F AF /r IMUL r32, r/m32
+		} else if bw <= 64 {
+			rex := rex_prefix(dst_reg, src_reg, 0, true)
+			append(out, rex, 0x0F, 0xAF) // REX.W + 0F AF /r IMUL r32, r/m32
+		}
+
+		scale := 0
+		offset := 0
+		if n.inputs[2].kind == .Local {
+			offset = get_local_slot_offset(fn, n.inputs[2])
+		}
+		amd64_indirect_load(out, dst_reg, src_reg, -1, offset, scale)
 	case .Div:
 		panic("div")
 	case .DivImm:
