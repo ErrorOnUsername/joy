@@ -34,6 +34,7 @@ Function :: struct {
 	pool: mem.Dynamic_Pool,
 	allocator: mem.Allocator,
 	node_count: int,
+	stack_size: int,
 	proto: ^FunctionProto,
 	params: []^Node,
 	start: ^Node,
@@ -755,6 +756,7 @@ LocalExtra :: struct {
 	using extra: NodeExtra,
 	size: int,
 	align: int,
+	stack_pos: int,
 }
 
 SymbolExtra :: struct {

@@ -126,7 +126,18 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		}
 
 		dst_reg := get_reg(fn, n)
+		assert(dst_reg < int(Amd64Reg.MAX_REG))
+
+
+		index_reg := -1
+		offset := 0
+		scale := 0
+
 		ptr_reg := get_reg(fn, n.inputs[2])
+		if ptr_reg >= int(Amd64Reg.MAX_REG) {
+			offset = get_local_slot_offset(fn, n.inputs[2])
+			ptr_reg = int(Amd64Reg.RSP)
+		}
 
 		if !is_fp {
 			if bw <= 8 {
@@ -137,8 +148,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				append(out, 0x8B) // 8B /r MOV r32, r/m32
 			} else {
 				assert(bw <= 64)
-				idx := 0
-				rex := rex_prefix(dst_reg, ptr_reg, idx, true)
+				rex := rex_prefix(dst_reg, ptr_reg, index_reg, true)
 				append(out, rex, 0x8B) // REX.W + 8B /r MOV r64, r/m64
 			}
 		} else {
@@ -150,9 +160,6 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			}
 		}
 
-		index_reg := -1
-		offset := 0
-		scale := 0
 		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
 	case .Store:
 		panic("store")
@@ -282,6 +289,11 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	return true
 }
 
+get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
+	extra := local.extra.derived.(^LocalExtra)
+	return extra.stack_pos - fn.stack_size
+}
+
 amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, ptr_reg: int, index_reg: int, offset: int, scale: int) {
 	mod := MODAddressingMode.Indirect
 	if offset != 0 {
@@ -330,9 +342,9 @@ amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> u8 {
 }
 
 rex_prefix :: proc(dst: int, src: int, idx: int, is_wide: bool) -> u8 {
-	assert(dst > 0 && dst < 16)
-	assert(src > 0 && src < 16)
-	assert(idx > 0 && idx < 16)
+	assert(dst >= -1 && dst < 16)
+	assert(src >= -1 && src < 16)
+	assert(idx >= -1 && idx < 16)
 
 	rex: u8 = 0x40
 	if is_wide do rex |= 0x08 // REX.W: enables 64-bit registers
