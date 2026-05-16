@@ -299,6 +299,24 @@ ty_is_prim :: proc(ty: ^Type, kind: PrimitiveKind) -> bool {
 	return false
 }
 
+ty_is_integral :: proc(ty: ^Type) -> bool {
+	switch t in ty.derived {
+		case ^PointerType:
+		case ^ArrayType: return false
+		case ^SliceType: return false
+		case ^PrimitiveType:
+			#partial switch t.kind {
+				case .String, .CString, .Range, .UntypedString:
+					return false
+			}
+		case ^StructType: return false
+		case ^EnumType:
+		case ^UnionType: return false
+		case ^FnType: unreachable()
+	}
+	return true
+}
+
 ty_is_number :: proc(ty: ^Type) -> bool {
 	#partial switch t in ty.derived {
 		case ^PrimitiveType:

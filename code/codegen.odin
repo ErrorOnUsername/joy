@@ -46,11 +46,9 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			if s.default_value != nil {
 				v := cg_emit_expr(ctx, s.default_value) or_return
 				is_volatile := false // TODO(rd): Hook this into the type system once this is expressable (necessary for embedded devices)
-				opto.insr_store(fn, var, v, is_volatile)
+				cg_emit_store(ctx, var, s.default_value, is_volatile) or_return
 			} else {
-				v := opto.new_int_const(fn, opto.TY_I8, u64(0))
-				sz := opto.new_int_const(fn, opto.TY_I64, i64(s.type.size))
-				opto.insr_memset(fn, var, v, sz)
+				cg_emit_default_init(ctx, s)
 			}
 		case ^EnumVariantDecl:
 			log_spanned_error(&s.span, "Internal Compiler Error: Got unexpected enum variant in cg_emit_expr (this should only be read in cg_get_debug_type)")
@@ -235,6 +233,40 @@ cg_get_debug_type :: proc(mod: ^opto.Module, t: ^Type, span: ^Span) -> (dbg: ^op
 	return dbg, true
 }
 
+cg_emit_store :: proc(ctx: ^CheckerContext, dst: ^opto.Node, val: ^Expr, is_volatile: bool) -> bool {
+	fn := ctx.cg_fn
+	v := val.cg_val
+
+	if !ty_is_integral(val.type) {
+		byte_count := opto.new_int_const(fn, opto.TY_PTR, u64(val.type.size))
+		opto.insr_memcpy(fn, dst, v, byte_count)
+	} else {
+		if opto.ty_is_ptr(v.type) {
+			debug_type := cg_get_debug_type(ctx.checker.cg_module, val.type, &val.span) or_return
+			dbg_ty_reg := opto.get_debug_type_register_class(debug_type)
+			v_ty := opto.get_type_with_register_class(dbg_ty_reg, debug_type)
+			v = opto.insr_load(fn, v_ty, v, is_volatile)
+		}
+		opto.insr_store(fn, dst, v, is_volatile)
+	}
+
+	return true
+}
+
+cg_emit_default_init :: proc(ctx: ^CheckerContext, var: ^VarDecl) -> bool {
+	fn := ctx.cg_fn
+	is_volatile := false // FIXME: hook this shit into the type system
+	dst := var.cg_val
+	zero_val := opto.new_int_const(fn, opto.TY_PTR, u64(0))
+	if ty_is_integral(var.type) {
+		opto.insr_store(fn, dst, zero_val, is_volatile)
+	} else {
+		byte_count := opto.new_int_const(fn, opto.TY_PTR, u64(var.type.size))
+		opto.insr_memset(fn, dst, zero_val, byte_count)
+	}
+	return true
+}
+
 cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok: bool) {
 	switch e in expr.derived_expr {
 		case ^ProcProto:
@@ -364,7 +396,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 					val := cg_emit_expr(ctx, v) or_return
 
 					mem_ptr := opto.insr_getmemberptr(fn, lit_slot, dbg_type, member_name)
-					opto.insr_store(fn, mem_ptr, val, false)
+					cg_emit_store(ctx, mem_ptr, v, false)
 				}
 			} else if ty_is_union(e.type) {
 				cg_union_ty, is_cg_union := dbg_type.extra.(^opto.DebugTypeUnion)
@@ -508,7 +540,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 					val := cg_emit_expr(ctx, v) or_return
 
 					mem_ptr := opto.insr_getmemberptr(fn, variant_base, cg_variant_struct_ty, member_name)
-					opto.insr_store(fn, mem_ptr, val, false)
+					cg_emit_store(ctx, mem_ptr, v, false)
 				}
 
 				e.cg_val = val_slot
@@ -789,10 +821,10 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			lit_slot := opto.add_local(fn, "range", e.lhs.type.size, e.lhs.type.alignment)
 
 			start_ptr := opto.insr_getmemberptr(fn, lit_slot, dbg_ty, "start")
-			opto.insr_store(fn, start_ptr, lhs, false)
+			cg_emit_store(ctx, start_ptr, e.lhs, false)
 
 			end_ptr := opto.insr_getmemberptr(fn, lit_slot, dbg_ty, "end")
-			opto.insr_store(fn, end_ptr, rhs, false)
+			cg_emit_store(ctx, end_ptr, e.rhs, false)
 
 			return lit_slot, true
 		case ^UnaryOpExpr:
@@ -1028,7 +1060,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 			assert(!opto.ty_is_ptr(rhs.type))
 			// TODO(RD): Volatile bullshit for embedded cringelords (me)
 			is_volatile := false
-			opto.insr_store(fn, lhs, rhs, is_volatile)
+			cg_emit_store(ctx, lhs, binop.rhs, is_volatile)
 			binop.cg_val = nil
 		case .PlusAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1041,7 +1073,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .MinusAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1054,7 +1086,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .StarAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1067,7 +1099,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .SlashAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1080,7 +1112,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .PercentAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1093,7 +1125,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .AmpersandAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1106,7 +1138,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .PipeAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1119,7 +1151,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case .CaretAssign:
 			assert(opto.ty_is_ptr(lhs.type))
@@ -1132,7 +1164,7 @@ cg_emit_binop_number :: proc(ctx: ^CheckerContext, binop: ^BinOpExpr) -> (res: ^
 
 			// TODO(RD): Volatile fuck shit
 			is_volatile := false
-			opto.insr_store(fn, lhs, sum_v, is_volatile)
+			cg_emit_store(ctx, lhs, binop, is_volatile)
 			binop.cg_val = nil
 		case:
 			log_spanned_error(&binop.op.span, "Internal Compiler Error: codegen for binary op is unimplemented")
