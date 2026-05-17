@@ -200,9 +200,9 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 					rex := rex_prefix(-1, ptr_reg, index_reg, true)
 					append(out, rex, 0xC7) // REX.W + C7 /0 id	MOV r/m64, imm32
 				}
-				amd64_indirect_load(out, ptr_reg, -1, index_reg, offset, scale)
+				amd64_indirect_load(out, -1, ptr_reg, index_reg, offset, scale)
 				imm: int
-				extra := n.extra.derived.(^IntConst)
+				extra := val.extra.derived.(^IntConst)
 				switch e in extra.val {
 					case u64: imm = int(e)
 					case i64: imm = int(e)
@@ -238,8 +238,6 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			}
 			amd64_indirect_load(out, ptr_reg, val_reg, index_reg, offset, scale)
 		}
-
-		panic("store")
 	case .Add:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		src_reg := get_reg(fn, n.inputs[2])
@@ -467,10 +465,10 @@ MODAddressingMode :: enum(u8) {
 }
 
 modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
-	assert(dst >= 0 && dst < 16)
+	dst2 := 0 if dst == -1 else dst
 	assert(src >= 0 && src < 16)
 	mod_field := (u8(mod) & 0x03) << 6
-	reg := (u8(dst) & 0x07) << 3
+	reg := (u8(dst2) & 0x07) << 3
 	rm := u8(src) & 0x07
 	return mod_field | reg | rm
 }
