@@ -162,6 +162,52 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
 	case .Store:
+		bw := 0
+		is_fp := false
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case .Float:
+				is_fp = true
+				bw = int(n.type.bitwidth)
+			case:
+				panic("bad load type")
+		}
+
+		dst_reg := get_reg(fn, n)
+		assert(dst_reg < int(Amd64Reg.MAX_REG))
+
+		index_reg := -1
+		offset := 0
+		scale := 0
+
+		ptr_reg := get_reg(fn, n.inputs[2])
+		if ptr_reg >= int(Amd64Reg.MAX_REG) {
+			offset = get_local_slot_offset(fn, n.inputs[2])
+			ptr_reg = int(Amd64Reg.RSP)
+		}
+		val_reg := get_reg(fn, n.inputs[3])
+		assert(val_reg < int(Amd64Reg.MAX_REG))
+
+		if !is_fp {
+			if bw <= 8 {
+				append(out, 0x88) // 8A /r MOV r/m8, r8
+			} else if bw <= 16 {
+				append(out, 0x66, 0x89) // 8B /r MOV r/m16, r16
+			} else if bw <= 32 {
+				append(out, 0x89) // 8B /r MOV r/m32, r32
+			} else {
+				assert(bw <= 64)
+				rex := rex_prefix(val_reg, ptr_reg, index_reg, true)
+				append(out, rex, 0x89) // REX.W + 8B /r MOV r/m64, r64
+			}
+		} else {
+			panic("float store")
+		}
+		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
+
 		panic("store")
 	case .Add:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
