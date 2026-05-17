@@ -201,6 +201,17 @@ is_const_node :: proc(n: ^Node) -> bool {
 	return n.kind == .IntConst || n.kind == .F32Const || n.kind == .F64Const
 }
 
+get_imm_int :: proc(n: ^Node) -> int {
+	assert(n.kind == .IntConst)
+	imm: int
+	extra := n.extra.derived.(^IntConst)
+	switch e in extra.val {
+		case u64: imm = int(e)
+		case i64: imm = int(e)
+	}
+	return imm
+}
+
 new_int_const :: proc(fn: ^Function, type: Type, val: IntConstVal) -> ^Node {
 	n := new_node(fn, .IntConst, type, 1)
 	set_input(n, 0, fn.start)

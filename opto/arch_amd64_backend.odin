@@ -201,12 +201,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 					append(out, rex, 0xC7) // REX.W + C7 /0 id	MOV r/m64, imm32
 				}
 				amd64_indirect_load(out, -1, ptr_reg, index_reg, offset, scale)
-				imm: int
-				extra := val.extra.derived.(^IntConst)
-				switch e in extra.val {
-					case u64: imm = int(e)
-					case i64: imm = int(e)
-				}
+				imm := get_imm_int(val)
 				if bw <= 8 {
 					enc_out8(out, imm)
 				} else if bw <= 16 {
@@ -272,36 +267,194 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			append(out, opcode, modrm)
 		}
 	case .AddImm:
+		bw := 0
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
-		rex := rex_prefix(0, dst_reg, 0, true)
+		imm := get_imm_int(n.inputs[2])
+
 		modrm := modrm_byte(.Direct, 0, dst_reg)
-		append(out, rex, 0x81, modrm)
+		if bw <= 8 {
+			append(out, 0x80, modrm)
+			enc_out8(out, imm)
+		} else if bw <= 16 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x66, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x66, 0x81, modrm)
+				enc_out16(out, imm)
+			}
+		} else if bw <= 32 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x81, modrm)
+				enc_out16(out, imm)
+			}
+		} else {
+			assert(bw <= 64)
+			rex := rex_prefix(0, dst_reg, 0, true)
+			if amd64_is_imm8(imm) {
+				append(out, rex, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, rex, 0x81, modrm)
+				enc_out16(out, imm)
+			}
+		}
 	case .AddMem:
 		panic("addmem")
 	case .Sub:
+		bw := 0
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		src_reg := get_reg(fn, n.inputs[2])
-		rex := rex_prefix(dst_reg, src_reg, 0, true)
+
 		modrm := modrm_byte(.Direct, dst_reg, src_reg)
-		append(out, rex, 0x2B, modrm)
+		if bw <= 8 {
+			append(out, 0x2A, modrm)
+		} else if bw <= 16 {
+			append(out, 0x66, 0x2B, modrm)
+		} else if bw <= 32 {
+			append(out, 0x2B, modrm)
+		} else {
+			assert(bw <= 64)
+			rex := rex_prefix(dst_reg, src_reg, 0, true)
+			append(out, rex, 0x2B, modrm)
+		}
 	case .SubImm:
+		bw := 0
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
-		rex := rex_prefix(0, dst_reg, 0, true)
+		imm := get_imm_int(n.inputs[2])
 		modrm := modrm_byte(.Direct, 5, dst_reg)
-		append(out, rex, 0x81, modrm)
+
+		if bw <= 8 {
+			append(out, 0x80, modrm)
+			enc_out8(out, imm)
+		} else if bw <= 16 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x81, modrm)
+				enc_out16(out, imm)
+			}
+		} else if bw <= 32 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x81, modrm)
+				enc_out32(out, imm)
+			}
+		} else {
+			rex := rex_prefix(0, dst_reg, 0, true)
+			if amd64_is_imm8(imm) {
+				append(out, rex, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, rex, 0x81, modrm)
+				enc_out32(out, imm)
+			}
+		}
 	case .SubMem:
 		panic("sub mem")
 	case .Mul:
+		bw := 0
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		src_reg := get_reg(fn, n.inputs[2])
-		rex := rex_prefix(dst_reg, src_reg, 0, true)
 		modrm := modrm_byte(.Direct, dst_reg, src_reg)
-		append(out, rex, 0x0F, 0xAF, modrm)
+
+		if bw <= 8 {
+			panic("this can only target %al, so we gotta fix that shit")
+		} else if bw <= 16 {
+			append(out, 0x66, 0x0F, 0xAF, modrm)
+		} else if bw <= 32 {
+			append(out, 0x0F, 0xAF, modrm)
+		} else {
+			assert(bw <= 64)
+			rex := rex_prefix(dst_reg, src_reg, 0, true)
+			append(out, rex, 0x0F, 0xAF, modrm)
+		}
 	case .MulImm:
+		bw := 0
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
-		rex := rex_prefix(dst_reg, dst_reg, 0, true)
+		imm := get_imm_int(n.inputs[2])
 		modrm := modrm_byte(.Direct, dst_reg, dst_reg)
-		append(out, rex, 0x69, modrm)
+
+		if bw <= 8 {
+			panic("mulimm on single byte")
+		} else if bw <= 16 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x66, 0x69, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x66, 0x6B, modrm)
+				enc_out16(out, imm)
+			}
+		} else if bw <= 32 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x69, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x6B, modrm)
+				enc_out32(out, imm)
+			}
+		} else {
+			assert(bw <= 64)
+			rex := rex_prefix(dst_reg, dst_reg, 0, true)
+			if amd64_is_imm8(imm) {
+				append(out, rex, 0x69, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, rex, 0x6B, modrm)
+				enc_out32(out, imm)
+			}
+		}
 	case .MulMem:
 		dst_reg := get_reg(fn, n.inputs[1])
 		assert(dst_reg < int(Amd64Reg.MAX_REG))
@@ -397,10 +550,15 @@ get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
 	return extra.stack_pos - fn.stack_size
 }
 
+amd64_is_imm8 :: proc(imm: int) -> bool {
+	data := transmute(uint)imm
+	return data <= 0xFF
+}
+
 amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, ptr_reg: int, index_reg: int, offset: int, scale: int) {
 	mod := MODAddressingMode.Indirect
 	if offset != 0 {
-		mod = .IndirectDisp8 if offset <= 0xff else .IndirectDisp32
+		mod = .IndirectDisp8 if amd64_is_imm8(offset) else .IndirectDisp32
 	}
 
 	if index_reg == -1 {
