@@ -538,7 +538,49 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .Cmp:
 		panic("cmp")
 	case .CmpImm:
-		panic("cmp imm")
+		bw := 0
+		#partial switch n.type.kind {
+			case .Int:
+				bw = int(n.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
+		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		imm := get_imm_int(n.inputs[2])
+		modrm := modrm_byte(.Direct, 7, dst_reg)
+
+		if bw <= 8 {
+			append(out, 0x80, modrm)
+			enc_out8(out, imm)
+		} else if bw <= 16 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x81, modrm)
+				enc_out16(out, imm)
+			}
+		} else if bw <= 32 {
+			if amd64_is_imm8(imm) {
+				append(out, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, 0x81, modrm)
+				enc_out32(out, imm)
+			}
+		} else {
+			rex := rex_prefix(0, dst_reg, 0, true)
+			if amd64_is_imm8(imm) {
+				append(out, rex, 0x83, modrm)
+				enc_out8(out, imm)
+			} else {
+				append(out, rex, 0x81, modrm)
+				enc_out32(out, imm)
+			}
+		}
 	case .CmpMem:
 		panic("cmp mem")
 	}

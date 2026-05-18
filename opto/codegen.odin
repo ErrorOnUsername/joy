@@ -613,7 +613,10 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 }
 
 get_reg :: proc(fn: ^Function, n: ^Node) -> int {
-	return fn.output.reg_alloc.lrg_store[find_live_range(&fn.output.reg_alloc, n)].reg
+	regalloc := &fn.output.reg_alloc
+	lrg_id := find_live_range(regalloc, n)
+	lrg := regalloc.lrg_store[lrg_id]
+	return lrg.reg
 }
 
 register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
