@@ -475,6 +475,10 @@ ifg_merge_live_out :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, pred_idx: int
 	assert(pred_bb != nil)
 	pred_start := pred_bb.nodes[0]
 
+	if !(pred_bb in ctx.bb_out) {
+		ctx.bb_out[pred_bb] = {}
+	}
+
 	out_map := &ctx.bb_out[pred_bb]
 
 	for lrg, live in ctx.block_live {
