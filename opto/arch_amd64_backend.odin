@@ -161,6 +161,27 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		}
 
 		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
+	case .GetMemberPtr:
+		dst_reg := get_reg(fn, n)
+		assert(dst_reg < int(Amd64Reg.MAX_REG))
+
+		index_reg := -1
+		offset := 0
+		scale := 0
+
+		src_reg := get_reg(fn, n.inputs[1])
+		if src_reg >= int(Amd64Reg.MAX_REG) {
+			offset = get_local_slot_offset(fn, n.inputs[1])
+			src_reg = int(Amd64Reg.RSP)
+		}
+
+		member_off := get_imm_int(n.inputs[2])
+		offset += member_off
+
+		rex := rex_prefix(dst_reg, src_reg, index_reg, true)
+		append(out, rex, 0x8D)
+
+		amd64_indirect_load(out, dst_reg, src_reg, index_reg, offset, scale)
 	case .Store:
 		bw := 0
 		is_fp := false
@@ -832,7 +853,7 @@ match_table := [NodeKind]InsrMatch {
 	.MemSet = {},
 	.VolatileRead = { { { insr = .Load } } },
 	.VolatileWrite = { { { insr = .Store } } },
-	.GetMemberPtr = {},
+	.GetMemberPtr = { { { insr = .GetMemberPtr } } },
 	.And = { { { insr = .And, pred = amd64_reg_format }, { insr = .AndImm, pred = amd64_imm_format } } },
 	.Or = { { { insr = .Or, pred = amd64_reg_format }, { insr = .OrImm, pred = amd64_imm_format } } },
 	.XOr = { { { insr = .XOr, pred = amd64_reg_format }, { insr = .XOrImm, pred = amd64_imm_format } } },
@@ -880,6 +901,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
 	.Load = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
+	.GetMemberPtr = { in_regmask = GPR_READ_MASK | transmute(Amd64RegMask)SPILL_MASK, out_regmask = GPR_WRITE_MASK },
 	.Store = { in_regmask = GPR_READ_MASK, out_regmask = {} },
 	.Add = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.AddImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
@@ -927,6 +949,7 @@ Amd64Insr :: enum {
 	Call,
 	Jmp,
 	Load,
+	GetMemberPtr,
 	Store,
 	Add,
 	AddImm,
