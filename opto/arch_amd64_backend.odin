@@ -560,16 +560,17 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		panic("cmp")
 	case .CmpImm:
 		bw := 0
-		#partial switch n.type.kind {
+		in_val := n.inputs[1]
+		#partial switch in_val.type.kind {
 			case .Int:
-				bw = int(n.type.bitwidth)
+				bw = int(in_val.type.bitwidth)
 			case .Ptr:
 				bw = 64
 			case:
 				panic("bad load type")
 		}
 
-		dst_reg := get_reg(fn, n.inputs[1]) // two addr
+		dst_reg := get_reg(fn, in_val) // two addr
 		imm := get_imm_int(n.inputs[2])
 		modrm := modrm_byte(.Direct, 7, dst_reg)
 
@@ -603,7 +604,41 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			}
 		}
 	case .CmpMem:
-		panic("cmp mem")
+		bw := 0
+		in_val := n.inputs[1]
+		#partial switch in_val.type.kind {
+			case .Int:
+				bw = int(in_val.type.bitwidth)
+			case .Ptr:
+				bw = 64
+			case:
+				panic("bad load type")
+		}
+
+		index_reg := -1
+		offset := 0
+		scale := 0
+
+		val_reg := get_reg(fn, in_val)
+		assert(val_reg < int(Amd64Reg.MAX_REG))
+		ptr_reg := get_reg(fn, n.inputs[2])
+		if ptr_reg >= int(Amd64Reg.MAX_REG) {
+			offset = get_local_slot_offset(fn, n.inputs[2])
+			ptr_reg = int(Amd64Reg.RSP)
+		}
+
+		if bw <= 8 {
+			append(out, 0x38)
+		} else if bw <= 16 {
+			append(out, 0x66, 0x39)
+		} else if bw <= 32 {
+			append(out, 0x39)
+		} else {
+			assert(bw <= 64)
+			rex := rex_prefix(val_reg, ptr_reg, 0, true)
+			append(out, rex, 0x39)
+		}
+		amd64_indirect_load(out, val_reg, ptr_reg, index_reg, offset, scale)
 	}
 	return true
 }
