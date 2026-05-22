@@ -195,7 +195,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				is_fp = true
 				bw = int(val.type.bitwidth)
 			case:
-				panic("bad load type")
+				panic("bad store type")
 		}
 
 		index_reg := -1

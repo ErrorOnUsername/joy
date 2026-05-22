@@ -861,7 +861,11 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			}
 
 			call := opto.insr_call(fn, target_function, proto, param_vals[:])
-			e.cg_val = call
+			extra := call.extra.derived.(^opto.CallExtra)
+			if len(proto.returns) > 0 {
+				assert(len(proto.returns) == 1)
+				e.cg_val = extra.projs[2]
+			}
 
 			return call, true
 		case ^PrimitiveTypeExpr:
