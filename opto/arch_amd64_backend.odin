@@ -619,26 +619,58 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		offset := 0
 		scale := 0
 
-		val_reg := get_reg(fn, in_val)
-		assert(val_reg < int(Amd64Reg.MAX_REG))
 		ptr_reg := get_reg(fn, n.inputs[2])
 		if ptr_reg >= int(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[2])
 			ptr_reg = int(Amd64Reg.RSP)
 		}
 
-		if bw <= 8 {
-			append(out, 0x38)
-		} else if bw <= 16 {
-			append(out, 0x66, 0x39)
-		} else if bw <= 32 {
-			append(out, 0x39)
+		if is_const_node(in_val) {
+			imm := get_imm_int(in_val)
+			fits_in_single_byte := amd64_is_imm8(imm)
+			opcode_bump: u8 = 2 if fits_in_single_byte else 0
+
+			if bw <= 8 {
+				append(out, 0x80)
+			} else if bw <= 16 {
+				append(out, 0x66, 0x81 + opcode_bump)
+			} else if bw <= 32 {
+				append(out, 0x81 + opcode_bump)
+			} else {
+				assert(bw <= 64)
+				rex := rex_prefix(-1, ptr_reg, 0, true)
+				append(out, rex, 0x81 + opcode_bump)
+			}
+
+			amd64_indirect_load(out, 7, ptr_reg, index_reg, offset, scale)
+
+			if bw <= 8 || fits_in_single_byte {
+				enc_out8(out, imm)
+			} else if bw <= 16 {
+				enc_out16(out, imm)
+			} else if bw <= 32 {
+				enc_out32(out, imm)
+			} else {
+				assert(bw <= 64)
+				enc_out32(out, imm)
+			}
 		} else {
-			assert(bw <= 64)
-			rex := rex_prefix(val_reg, ptr_reg, 0, true)
-			append(out, rex, 0x39)
+			val_reg := get_reg(fn, in_val)
+			assert(val_reg < int(Amd64Reg.MAX_REG))
+
+			if bw <= 8 {
+				append(out, 0x38)
+			} else if bw <= 16 {
+				append(out, 0x66, 0x39)
+			} else if bw <= 32 {
+				append(out, 0x39)
+			} else {
+				assert(bw <= 64)
+				rex := rex_prefix(val_reg, ptr_reg, 0, true)
+				append(out, rex, 0x39)
+			}
+			amd64_indirect_load(out, val_reg, ptr_reg, index_reg, offset, scale)
 		}
-		amd64_indirect_load(out, val_reg, ptr_reg, index_reg, offset, scale)
 	}
 	return true
 }
