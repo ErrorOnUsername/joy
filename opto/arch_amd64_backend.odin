@@ -93,6 +93,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	switch uop {
 	case .Invalid:
 		panic("invalid amd64 instruction")
+	case .Proj:
 	case .Local:
 	case .Ret:
 		// we just always use near returns
@@ -840,6 +841,8 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	regmask := transmute(RegisterMask)table_ent.out_regmask
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
+		case .Proj:
+			regmask = amd64_get_dst_regmask(ctx, n.inputs[0])
 		case .Call:
 			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs
 	}
@@ -902,7 +905,7 @@ match_table := [NodeKind]InsrMatch {
 	.Start = {},
 	.End = {},
 	.Region = {},
-	.Proj = {},
+	.Proj = { { { insr = .Proj } } },
 	.IntConst = {},
 	.F32Const = {},
 	.F64Const = {},
@@ -963,6 +966,7 @@ InsrTableEntry :: struct {
 
 insr_table := [Amd64Insr]InsrTableEntry {
 	.Invalid = { },
+	.Proj = { in_regmask = {}, out_regmask = {} },
 	.Local = { in_regmask = {}, out_regmask = transmute(Amd64RegMask)SPILL_MASK },
 	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
@@ -1011,6 +1015,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 
 Amd64Insr :: enum {
 	Invalid,
+	Proj,
 	Local,
 	Ret,
 	Call,
