@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:strings"
 import "core:sync"
 
 import "../opto"
@@ -48,6 +49,9 @@ exec_phases :: proc(root_id: FileID) -> int {
 	}
 
 	c: Checker
+
+	strings.intern_init(&c.intern)
+	defer strings.intern_destroy(&c.intern)
 
 	host_target := get_host_target_desc()
 

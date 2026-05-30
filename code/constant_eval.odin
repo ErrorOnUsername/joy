@@ -22,11 +22,8 @@ get_string_literal_value :: proc(ctx: ^CheckerContext, lit: ^StringLiteralExpr) 
 		i += 1
 	}
 
-	mod := ctx.checker.cg_module
-
-	sync.lock(&mod.allocator_lock)
-	val := make([]u8, char_count + 1, ctx.checker.cg_module.allocator)
-	sync.unlock(&mod.allocator_lock)
+	val := make([]u8, char_count + 1)
+	defer delete(val)
 
 	i = 0
 	write_idx := 0
@@ -61,7 +58,14 @@ get_string_literal_value :: proc(ctx: ^CheckerContext, lit: ^StringLiteralExpr) 
 	}
 	val[char_count] = 0
 
-	lit.val = val
+	checker := ctx.checker
+
+	sync.lock(&checker.intern_lock)
+	intern, alloc_error := strings.intern_get(&checker.intern, string(val))
+	assert(alloc_error == nil)
+	sync.unlock(&checker.intern_lock)
+
+	lit.val = intern
 
 	return true
 }

@@ -93,6 +93,8 @@ ProcBodyWorkData :: struct {
 }
 
 Checker :: struct {
+	intern_lock:     sync.Mutex,
+	intern:          strings.Intern,
 	proc_work_mutex: sync.Mutex,
 	proc_bodies:     [dynamic]ProcBodyWorkData,
 	cg_module:       ^opto.Module,

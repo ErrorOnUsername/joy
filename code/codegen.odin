@@ -297,7 +297,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			return e.cg_val, true
 		case ^StringLiteralExpr:
 			mod := ctx.checker.cg_module
-			hash := hash.crc32(e.val)
+			hash := hash.crc32(transmute([]u8)e.val[:])
 
 			sync.lock(&mod.allocator_lock)
 			literal_name := fmt.aprintf("str${}", hash, allocator = mod.allocator)
@@ -305,7 +305,7 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 
 			// FIXME: Deduplicate these since otherwise we'll get duplicate symbol errors
 			g := opto.new_global(mod, literal_name, .Private)
-			opto.global_set_data(mod, g, e.val)
+			opto.global_set_data(mod, g, transmute([]u8)e.val[:])
 
 			n := opto.add_sym(ctx.cg_fn, g)
 			e.cg_val = n

@@ -109,7 +109,7 @@ Ident :: struct {
 StringLiteralExpr :: struct {
 	using expr: Expr,
 	str:        string,
-	val:        []u8,
+	val:        string,
 }
 
 NumberLiteralValue :: union {
