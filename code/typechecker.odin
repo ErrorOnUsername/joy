@@ -93,6 +93,8 @@ ProcBodyWorkData :: struct {
 }
 
 Checker :: struct {
+	string_literal_table_lock: sync.Mutex,
+	string_literal_syms: map[string]^opto.Global,
 	intern_lock:     sync.Mutex,
 	intern:          strings.Intern,
 	proc_work_mutex: sync.Mutex,

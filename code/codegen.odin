@@ -5,6 +5,7 @@ import "../opto"
 import "core:fmt"
 import "core:hash"
 import "core:math/big"
+import "core:slice"
 import "core:sync"
 
 
@@ -299,13 +300,22 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			mod := ctx.checker.cg_module
 			hash := hash.crc32(transmute([]u8)e.val[:])
 
+			// FIXME: This is all fucking terrible
 			sync.lock(&mod.allocator_lock)
 			literal_name := fmt.aprintf("str${}", hash, allocator = mod.allocator)
 			sync.unlock(&mod.allocator_lock)
 
-			// FIXME: Deduplicate these since otherwise we'll get duplicate symbol errors
-			g := opto.new_global(mod, literal_name, .Private)
-			opto.global_set_data(mod, g, transmute([]u8)e.val[:])
+			g: ^opto.Global
+			sync.lock(&ctx.checker.string_literal_table_lock)
+			if literal_name in ctx.checker.string_literal_syms {
+				g = ctx.checker.string_literal_syms[literal_name]
+				assert(slice.equal(g.data, transmute([]u8)e.val[:])) // No hash collisions pls
+			} else {
+				g = opto.new_global(mod, literal_name, .Private)
+				opto.global_set_data(mod, g, transmute([]u8)e.val[:])
+				ctx.checker.string_literal_syms[literal_name] = g
+			}
+			sync.unlock(&ctx.checker.string_literal_table_lock)
 
 			n := opto.add_sym(ctx.cg_fn, g)
 			e.cg_val = n
