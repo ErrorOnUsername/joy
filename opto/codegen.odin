@@ -710,7 +710,8 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	local_relo_count := 0
 	non_local_relo_count := 0
 
-	for relo in fn.output.relos {
+	for &relo in fn.output.relos {
+		relo.offset = starts[relo.n.gvn]
 		if !relo.is_local { // We need a final link order before we can patch function calls and shit
 			non_local_relo_count += 1
 			continue

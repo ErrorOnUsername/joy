@@ -52,6 +52,7 @@ FunctionOutput :: struct {
 
 LinkRelo :: struct {
 	is_local: bool,
+	offset: int,
 	n: ^Node,
 	target: ^Node,
 }
