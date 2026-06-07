@@ -236,8 +236,36 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		data_directories = { },
 	}
 
+	section_headers := make([]PESectionHeader, len(lc.sections))
+	defer delete(section_headers)
+
+	for section, i in &lc.sections {
+		section_names := [SectionType]u64 {
+			.Code   = 0x000000747865742E, // ".text\0"
+			.BSS    = 0x000000007373622E, // ".bss\0"
+			.Data   = 0x000000617461642E, // ".data\0"
+			.ROData = 0x00617461646F722E, // ".rodata\0"
+		}
+		shdr := &section_headers[i]
+		shdr.name = section_names[section.type]
+		/*
+		shdr.virtual_size: u32,
+		shdr.virtual_addr: u32,
+		shdr.size_of_raw_data: u32,
+		shdr.pointer_to_raw_data: u32,
+		shdr.pointer_to_relocations: u32,
+		shdr.pointer_to_linenumbers: u32,
+		shdr.number_of_relocations: u16,
+		shdr.number_of_linenumbers: u16,
+		shdr.characteristics: u32,
+		*/
+	}
+
 	obj_write_bytes(&file_data, &header)
 	obj_write_bytes(&file_data, &optional_header)
+	for &shdr in section_headers {
+		obj_write_bytes(&file_data, &shdr)
+	}
 
 	exe_write_err := os.write_entire_file("test.exe", file_data[:])
 	if exe_write_err != nil {
@@ -449,7 +477,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 pe_write_dos_stub :: proc(out: ^[dynamic]u8) -> bool {
 	dos_header := DOSHeader {
 		magic = 0x5A4D, // "MZ"
-		bytes_in_last_page = 90,
+		bytes_in_last_page = 0x90,
 		page_count = 3,
 		relo_count = 0,
 		header_size_in_paragraphs = 4,
