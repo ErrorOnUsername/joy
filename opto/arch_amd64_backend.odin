@@ -104,13 +104,17 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		append(out, 0, 0, 0, 0)
 		add_global_relo(fn, n, nil)
 	case .Jmp:
+		target: ^Node
 		if n.kind == .Branch {
 			jump_op := amd64_get_br_jump_op(n, 8)
 			append(out, jump_op, 0)
+			target = n.inputs[3] // conditions are flipped so we take the else branch
 		} else {
 			assert(n.kind == .Goto)
 			append(out, 0xEB, 0) // this gets patched to the other forms for larger disps
+			target = n.inputs[1]
 		}
+		add_local_relo(fn, n, target)
 	case .Load:
 		bw := 0
 		is_fp := false
