@@ -692,6 +692,7 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 
 	// copying all that into the new buffer
 	new_data := make([dynamic]u8, len(fn.output.data) + total_add)
+	last_new_start := len(new_data)
 	old_end := len(fn.output.data)
 	#reverse for relo in fn.output.relos {
 		if !relo.is_local do continue
@@ -700,8 +701,11 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 		size_delta := sizes[relo.n.gvn] - old_sizes[relo.n.gvn]
 		// we'll get a weird offset if the size did change, but we patch it anyways so who cares
 		copy(new_data[new_start+size_delta:], fn.output.data[old_start:old_end])
+		last_new_start = new_start
 		old_end = old_start
 	}
+
+	copy(new_data[:last_new_start], fn.output.data[:old_end]) // get whatever code is left over
 
 	delete(fn.output.data)
 	fn.output.data = new_data
@@ -744,4 +748,3 @@ add_global_relo :: proc(fn: ^Function, n: ^Node, target: ^Node) {
 	}
 	append(&fn.output.relos, relo)
 }
-

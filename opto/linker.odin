@@ -1,5 +1,6 @@
 package opto
 
+import rt "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:slice"
@@ -66,27 +67,6 @@ init_code :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 
 	lc.sections[.Code].data = make([]u8, code_size)
 
-	// actually do the copy
-	copy_pos := 0
-	mod_head = ctx.modules
-	for mod_head != nil {
-		mod := &mod_head.el
-		for sym in mod.symbols {
-			#partial switch s in sym.derived {
-				case ^Function:
-					fn_size := len(s.output.data)
-					copy_end := copy_pos + fn_size
-					set_slice := lc.sections[.Code].data[copy_pos:copy_end]
-					assert(len(set_slice) == fn_size)
-					copy(set_slice, s.output.data[:])
-					copy_pos += fn_size
-			}
-		}
-		mod_head = mod_head.next
-	}
-
-	assert(code_size == copy_pos)
-
 	return true
 }
 
@@ -149,11 +129,13 @@ link_non_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 link_internal_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 	arch := arch_impl(.Amd64)
 	mod_head := ctx.modules
+	section_data := lc.sections[.Code].data
 	for mod_head != nil {
 		mod := &mod_head.el
 		for sym in mod.symbols {
 			#partial switch s in sym.derived {
 				case ^Function:
+					fn_start := lc.symbol_offsets[s.name].offset
 					for relo in s.output.relos {
 						if relo.is_local do continue
 						n := relo.n
@@ -164,10 +146,13 @@ link_internal_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 						sym_name := sym_ex.sym.name
 						assert(sym_name in lc.symbol_offsets)
 						target_start := lc.symbol_offsets[sym_name].offset
-						fn_start := lc.symbol_offsets[s.name].offset
 						start := fn_start + relo.offset
 						arch.patch_local_relo(s, n, start, target_start)
 					}
+
+					fn_end := fn_start + len(s.output.data)
+
+					copy(section_data[fn_start:fn_end], s.output.data[:])
 			}
 		}
 		mod_head = mod_head.next
@@ -180,15 +165,45 @@ create_and_write_object_file :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> boo
 	return true
 }
 
-obj_write_bytes :: proc(out: ^[dynamic]u8, d: ^$T) {
-	append(out, ..slice.bytes_from_ptr(d, size_of(T)))
-}
-
 create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
-	file_data: [dynamic]u8
-	defer delete(file_data)
+	dos_stub_code := [64]u8 {
+		0x0E,             // push %cs
+		0x1F,             // pop %ds
+		0xBA, 0x0E, 0x00, // mov $0x0E, %dx
+		0xB4, 0x09,       // mov $9, %ah
+		0xCD, 0x21,       // int $0x21 ; DOS Serivce 9 (Display String)
+		0xB8, 0x01, 0x4C, // mov $0x4C01, %ax
+		0xCD, 0x21,       // int $0x21 ; DOS 2.0+ Serivce 4C (Terminate with Return Code 1)
+		// "This program cannot be run in DOS mode.\r\r\n$"
+		0x54, 0x68, 0x69, 0x73, 0x20, 0x70, 0x72, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x20, 0x63, 0x61, 0x6E, 0x6E,
+		0x6F, 0x74, 0x20, 0x62, 0x65, 0x20, 0x72, 0x75, 0x6E, 0x20, 0x69, 0x6E, 0x20, 0x44, 0x4F, 0x53, 0x20,
+		0x6D, 0x6F, 0x64, 0x65, 0x2E, 0x0D, 0x0D, 0x0A, 0x24,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // padding
+	}
 
-	pe_write_dos_stub(&file_data) or_return
+	dos_rich_header: [128]u8
+
+	dos_header := DOSHeader {
+		magic = 0x5A4D, // "MZ"
+		bytes_in_last_page = 0x90,
+		page_count = 3,
+		relo_count = 0,
+		header_size_in_paragraphs = 4,
+		min_extra_paragraphs = 0,
+		max_extra_paragraphs = 0xFFFF,
+		initial_rel_ss_val = 0,
+		initial_sp_val = 0xB8,
+		checksum = 0,
+		initial_ip_value = 0,
+		initial_rel_cs_value = 0,
+		relo_table_file_addr = 0x40, // Directly after this header (but its empty so there aint shit there)
+		overlay_number = 0,
+		reserved_0 = {},
+		oem_id = 0,
+		oem_info = 0,
+		reserved_1 = {},
+		file_addr_of_pe_header = 0x100, // header + code + rich header
+	}
 
 	low_date_time := u32(0xFFFFFFFF & time.time_to_unix(time.now()))
 
@@ -212,7 +227,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		size_of_uninitialized_data = 0,
 		address_of_entry_point = 0,
 		base_of_code = 0,
-		image_base = PE_EXE_IMAGE_BASE, // Default for .EXEs
+		image_base = PE64_EXE_IMAGE_BASE, // Default for .EXEs
 		section_alignment = 4096,
 		file_alignment = 512,
 		major_operating_system_version = 6, // LLVM sets this as the default. I think this is Windows Vista
@@ -239,6 +254,22 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	section_headers := make([]PESectionHeader, len(lc.sections))
 	defer delete(section_headers)
 
+	align_forward_u32 :: proc(a, b: u32) -> u32 {
+		return u32(rt.align_forward(uint(a), uint(b)))
+	}
+
+	size_of_dos_stub := size_of(DOSHeader) + len(dos_stub_code) + len(dos_rich_header)
+	size_of_headers := u32(size_of_dos_stub + size_of(PEHeader) + size_of(PE64OptionalHeader) + size_of(PESectionHeader) * len(section_headers))
+	size_of_headers = align_forward_u32(size_of_headers, optional_header.file_alignment)
+	file_size := size_of_headers
+
+	rva := align_forward_u32(size_of_headers, optional_header.section_alignment)
+
+	get_pe_section_characteristics :: proc(sec: LinkSection) -> u32 {
+		ret: u32
+		return ret
+	}
+
 	for section, i in &lc.sections {
 		section_names := [SectionType]u64 {
 			.Code   = 0x000000747865742E, // ".text\0"
@@ -248,26 +279,47 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		}
 		shdr := &section_headers[i]
 		shdr.name = section_names[section.type]
-		/*
-		shdr.virtual_size: u32,
-		shdr.virtual_addr: u32,
-		shdr.size_of_raw_data: u32,
-		shdr.pointer_to_raw_data: u32,
-		shdr.pointer_to_relocations: u32,
-		shdr.pointer_to_linenumbers: u32,
-		shdr.number_of_relocations: u16,
-		shdr.number_of_linenumbers: u16,
-		shdr.characteristics: u32,
-		*/
+		shdr.virtual_size = u32(len(section.data))
+		shdr.virtual_addr = rva
+		shdr.size_of_raw_data = align_forward_u32(shdr.virtual_size, optional_header.file_alignment)
+		shdr.pointer_to_raw_data = file_size
+		shdr.characteristics = get_pe_section_characteristics(section)
+
+		rva += align_forward_u32(rva, optional_header.section_alignment)
+		file_size += align_forward_u32(shdr.size_of_raw_data, optional_header.file_alignment)
 	}
 
-	obj_write_bytes(&file_data, &header)
-	obj_write_bytes(&file_data, &optional_header)
-	for &shdr in section_headers {
-		obj_write_bytes(&file_data, &shdr)
+	optional_header.size_of_code = section_headers[int(SectionType.Code)].virtual_size
+	optional_header.size_of_initialized_data = section_headers[int(SectionType.ROData)].virtual_size + section_headers[int(SectionType.Data)].virtual_size
+	optional_header.size_of_uninitialized_data = section_headers[int(SectionType.BSS)].virtual_size
+	optional_header.base_of_code = section_headers[int(SectionType.Code)].virtual_addr
+
+	assert("_start" in lc.symbol_offsets) // forced entry point
+
+	optional_header.address_of_entry_point = optional_header.base_of_code + u32(lc.symbol_offsets["_start"].offset)
+
+	file_data := make([]u8, file_size)
+	defer delete(file_data)
+
+	copy_obj_data :: proc(file_pos: u32, buf: []u8, src: []u8) -> u32 {
+		copy(buf[file_pos:file_pos+u32(len(src))], src)
+		return file_pos + u32(len(src))
 	}
 
-	exe_write_err := os.write_entire_file("test.exe", file_data[:])
+	file_pos: u32
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dos_header, size_of(DOSHeader)))
+	file_pos = copy_obj_data(file_pos, file_data, dos_stub_code[:])
+	file_pos = copy_obj_data(file_pos, file_data, dos_rich_header[:])
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(PEHeader)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&optional_header, size_of(PE64OptionalHeader)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(section_headers), size_of(PESectionHeader) * len(section_headers)))
+	for section, i in lc.sections {
+		shdr := &section_headers[i]
+		file_pos = shdr.pointer_to_raw_data
+		_ = copy_obj_data(file_pos, file_data, section.data)
+	}
+
+	exe_write_err := os.write_entire_file("test.exe", file_data)
 	if exe_write_err != nil {
 		fmt.eprintln("Failed to write the executable file 'test.exe': {}", exe_write_err)
 		return false
@@ -331,7 +383,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		Reserved0,
 	}
 
-	PE_EXE_IMAGE_BASE :: 0x400000
+	PE64_EXE_IMAGE_BASE :: 0x140000000
 	PE_OPTIONAL_HEADER32_MAGIC :: 0x10B
 	PE_OPTIONAL_HEADER64_MAGIC :: 0x20B
 	PE_OPTIONAL_ROM_HEADER_MAGIC :: 0x107
@@ -471,54 +523,6 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		Mem_Write                 = 0x80000000,
 	}
 
-	return true
-}
-
-pe_write_dos_stub :: proc(out: ^[dynamic]u8) -> bool {
-	dos_header := DOSHeader {
-		magic = 0x5A4D, // "MZ"
-		bytes_in_last_page = 0x90,
-		page_count = 3,
-		relo_count = 0,
-		header_size_in_paragraphs = 4,
-		min_extra_paragraphs = 0,
-		max_extra_paragraphs = 0xFFFF,
-		initial_rel_ss_val = 0,
-		initial_sp_val = 0xB8,
-		checksum = 0,
-		initial_ip_value = 0,
-		initial_rel_cs_value = 0,
-		relo_table_file_addr = 0x40, // Directly after this header (but its empty so there aint shit there)
-		overlay_number = 0,
-		reserved_0 = {},
-		oem_id = 0,
-		oem_info = 0,
-		reserved_1 = {},
-		file_addr_of_pe_header = 0x100, // header + code + rich header
-	}
-
-	stub_code := [64]u8 {
-		0x0E,             // push %cs
-		0x1F,             // pop %ds
-		0xBA, 0x0E, 0x00, // mov $0x0E, %dx
-		0xB4, 0x09,       // mov $9, %ah
-		0xCD, 0x21,       // int $0x21 ; DOS Serivce 9 (Display String)
-		0xB8, 0x01, 0x4C, // mov $0x4C01, %ax
-		0xCD, 0x21,       // int $0x21 ; DOS 2.0+ Serivce 4C (Terminate with Return Code 1)
-		// "This program cannot be run in DOS mode.\r\r\n$"
-		0x54, 0x68, 0x69, 0x73, 0x20, 0x70, 0x72, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x20, 0x63, 0x61, 0x6E, 0x6E,
-		0x6F, 0x74, 0x20, 0x62, 0x65, 0x20, 0x72, 0x75, 0x6E, 0x20, 0x69, 0x6E, 0x20, 0x44, 0x4F, 0x53, 0x20,
-		0x6D, 0x6F, 0x64, 0x65, 0x2E, 0x0D, 0x0D, 0x0A, 0x24,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // padding
-	}
-
-	// This is useless for us so its just zeros, but normally it would have tool metadata (versions and such) for the official MSFT toochain
-	rich_header: [128]u8
-
-	obj_write_bytes(out, &dos_header)
-	append(out, ..stub_code[:])
-	append(out, ..rich_header[:])
-
 	DOSHeader :: struct {
 		magic:                     u16,
 		bytes_in_last_page:        u16,
@@ -540,6 +544,6 @@ pe_write_dos_stub :: proc(out: ^[dynamic]u8) -> bool {
 		reserved_1:                [10]u16,
 		file_addr_of_pe_header:    u32,
 	}
+
 	return true
 }
-
