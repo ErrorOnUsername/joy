@@ -875,9 +875,10 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 			if len(proto.returns) > 0 {
 				assert(len(proto.returns) == 1)
 				e.cg_val = extra.projs[2]
+				return call, true
 			}
 
-			return call, true
+			return nil, true
 		case ^PrimitiveTypeExpr:
 			log_spanned_errorf(&e.span, "Internal Compiler Error: Got unexpected primitive type expression in cg_emit_expr")
 			return nil, false

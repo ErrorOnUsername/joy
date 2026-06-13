@@ -431,6 +431,15 @@ tc_check_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 
 				proc_ty := ctx.curr_proc.type.derived.(^FnType)
 
+				if ty_is_untyped_builtin(ty) {
+					ok := try_ellide_untyped_to_ty(s.expr, proc_ty.return_type)
+					if !ok {
+						log_spanned_errorf(&s.expr.span, "Could not ellide constant to type '{}'", proc_ty.return_type.name)
+						return false
+					}
+					ty = s.expr.type
+				}
+
 				if !ty_eq(ty, proc_ty.return_type) {
 					log_spanned_errorf(&s.span, "return expression's type does not match the return type of the function. Expected '{}' got '{}'", proc_ty.return_type.name, ty.name)
 					return false

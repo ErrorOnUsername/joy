@@ -17,6 +17,11 @@ const square = fn(n: int) -> int {
 	return n * n;
 };
 
+const _start = fn() -> int {
+	main();
+	return 1;
+};
+
 const main = fn() {
 	// Line comment.
 	let a: string = "haha";
