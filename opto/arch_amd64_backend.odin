@@ -772,7 +772,21 @@ sib_byte :: proc(scale: int, index: int, base: int) -> u8 {
 
 
 amd64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
-	return 0
+	uop := Amd64Insr(n.uop)
+	size := 0
+	#partial switch uop {
+	case .Jmp:
+		if n.kind == .Branch {
+			size = 2 if amd64_is_imm8(delta_from_start_to_target - 2) else 6
+		} else {
+			size = 2 if amd64_is_imm8(delta_from_start_to_target - 2) else 5
+		}
+	case .Call:
+		size = 5
+	case:
+		panic("invalid uop encoding_size call")
+	}
+	return size
 }
 
 amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_start_to_target: int) {
@@ -780,9 +794,39 @@ amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_s
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
 	case .Jmp:
+		if n.kind == .Branch {
+			is_imm8 := amd64_is_imm8(delta_from_start_to_target - 2)
+			op_size := 1 if is_imm8 else 2
+			encoding_size := 2 if is_imm8 else 6 // We have a prefix 0x0F on Jcc, so it's not 5
+			if !is_imm8 {
+				op := amd64_get_br_jump_op(n, 32)
+				fn.output.data[start] = 0x0F
+				fn.output.data[start + 1] = op
+			}
+			delta := delta_from_start_to_target - encoding_size
+			patch_into_output(&fn.output.data, start + op_size, start + encoding_size, delta)
+		} else {
+			op_size := 1
+			is_imm8 := amd64_is_imm8(delta_from_start_to_target - 2)
+			encoding_size := 2 if is_imm8 else 5
+			delta := delta_from_start_to_target - encoding_size
+			patch_into_output(&fn.output.data, start + op_size, start + encoding_size, delta)
+		}
 	case .Call:
+		op_size := 1
+		encoding_size := 5
+		delta := delta_from_start_to_target - encoding_size
+		patch_into_output(&fn.output.data, start + op_size, start + encoding_size, delta)
 	case:
 		panic("invalid patch insr")
+	}
+
+	patch_into_output :: proc(out: ^[dynamic]u8, start, end: int, delta: int) {
+		to_slice := out[start:end]
+		bytes := end - start
+		for i := bytes - 1; i >= 0; i -= 1 {
+			to_slice[i] = u8((delta >> 8 * i) & 0xFF)
+		}
 	}
 }
 

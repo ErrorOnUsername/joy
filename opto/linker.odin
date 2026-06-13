@@ -147,7 +147,7 @@ link_internal_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 						assert(sym_name in lc.symbol_offsets)
 						target_start := lc.symbol_offsets[sym_name].offset
 						start := fn_start + relo.offset
-						arch.patch_local_relo(s, n, start, target_start)
+						arch.patch_local_relo(s, n, relo.offset, target_start - start)
 					}
 
 					fn_end := fn_start + len(s.output.data)
