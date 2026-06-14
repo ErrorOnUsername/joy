@@ -9,6 +9,7 @@ import "core:time"
 
 LinkSection :: struct {
 	type: SectionType,
+	align: int,
 	data: []u8,
 }
 
@@ -241,7 +242,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		size_of_headers = 0,
 		checksum = 0,
 		subsystem = .WindowsCUI,
-		dll_characteristics = { },
+		dll_characteristics = { .DynamicBase, .NXCompat, .TerminalServerAware },
 		size_of_stack_reserve = 1024 * 1024,
 		size_of_stack_commit = 4096,
 		size_of_heap_reserve = 1024 * 1024,
@@ -263,10 +264,49 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	size_of_headers = align_forward_u32(size_of_headers, optional_header.file_alignment)
 	file_size := size_of_headers
 
+	optional_header.size_of_headers = size_of_headers
+
 	rva := align_forward_u32(size_of_headers, optional_header.section_alignment)
 
 	get_pe_section_characteristics :: proc(sec: LinkSection) -> u32 {
 		ret: u32
+		switch sec.type {
+			case .Code:
+				ret |= u32(PESectionCharacteristics.ContainsCode) | u32(PESectionCharacteristics.Mem_Execute) | u32(PESectionCharacteristics.Mem_Read)
+			case .BSS:
+				ret |= u32(PESectionCharacteristics.ContainsUninitializedData) | u32(PESectionCharacteristics.Mem_Read) | u32(PESectionCharacteristics.Mem_Write)
+			case .Data:
+				ret |= u32(PESectionCharacteristics.ContainsInitializedData) | u32(PESectionCharacteristics.Mem_Read) | u32(PESectionCharacteristics.Mem_Write)
+			case .ROData:
+				ret |= u32(PESectionCharacteristics.ContainsInitializedData) | u32(PESectionCharacteristics.Mem_Read) | u32(PESectionCharacteristics.Mem_Write)
+		}
+		switch sec.align {
+		case 0: // no align bits
+		case 8:
+			ret |= u32(PESectionCharacteristics.Align8Bytes)
+		case 16:
+			ret |= u32(PESectionCharacteristics.Align16Bytes)
+		case 32:
+			ret |= u32(PESectionCharacteristics.Align32Bytes)
+		case 64:
+			ret |= u32(PESectionCharacteristics.Align64Bytes)
+		case 128:
+			ret |= u32(PESectionCharacteristics.Align128Bytes)
+		case 256:
+			ret |= u32(PESectionCharacteristics.Align256Bytes)
+		case 512:
+			ret |= u32(PESectionCharacteristics.Align512Bytes)
+		case 1024:
+			ret |= u32(PESectionCharacteristics.Align1024Bytes)
+		case 2048:
+			ret |= u32(PESectionCharacteristics.Align2048Bytes)
+		case 4096:
+			ret |= u32(PESectionCharacteristics.Align4096Bytes)
+		case 8192:
+			ret |= u32(PESectionCharacteristics.Align8192Bytes)
+		case:
+			panic("invalid align")
+		}
 		return ret
 	}
 
@@ -288,6 +328,8 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		rva += align_forward_u32(rva, optional_header.section_alignment)
 		file_size += align_forward_u32(shdr.size_of_raw_data, optional_header.file_alignment)
 	}
+
+	optional_header.size_of_image = align_forward_u32(rva, optional_header.section_alignment)
 
 	optional_header.size_of_code = section_headers[int(SectionType.Code)].virtual_size
 	optional_header.size_of_initialized_data = section_headers[int(SectionType.ROData)].virtual_size + section_headers[int(SectionType.Data)].virtual_size
@@ -311,12 +353,30 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	file_pos = copy_obj_data(file_pos, file_data, dos_stub_code[:])
 	file_pos = copy_obj_data(file_pos, file_data, dos_rich_header[:])
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(PEHeader)))
+	optional_header_start := file_pos
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&optional_header, size_of(PE64OptionalHeader)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(section_headers), size_of(PESectionHeader) * len(section_headers)))
 	for section, i in lc.sections {
 		shdr := &section_headers[i]
 		file_pos = shdr.pointer_to_raw_data
 		_ = copy_obj_data(file_pos, file_data, section.data)
+	}
+
+	// checksum
+	{
+		sum: u64
+		sum_slice := slice.reinterpret([]u16, file_data)
+		for w in sum_slice {
+			sum += u64(w)
+		}
+		for b in file_data[len(sum_slice)*2:] { // pick up whatever's left over
+			sum += u64(b)
+		}
+		for sum >> 16 != 0 {
+			sum = (sum & 0xFFFF) + (sum >> 16)
+		}
+		opt_hdr := transmute(^PE64OptionalHeader)&file_data[optional_header_start]
+		opt_hdr.checksum = u32(sum)
 	}
 
 	exe_write_err := os.write_entire_file("test.exe", file_data)
