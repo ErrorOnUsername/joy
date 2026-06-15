@@ -182,8 +182,6 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // padding
 	}
 
-	dos_rich_header: [128]u8
-
 	dos_header := DOSHeader {
 		magic = 0x5A4D, // "MZ"
 		bytes_in_last_page = 0x90,
@@ -203,7 +201,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		oem_id = 0,
 		oem_info = 0,
 		reserved_1 = {},
-		file_addr_of_pe_header = 0x100, // header + code + rich header
+		file_addr_of_pe_header = size_of(DOSHeader) + size_of(dos_stub_code), // header + code + rich header
 	}
 
 	low_date_time := u32(0xFFFFFFFF & time.time_to_unix(time.now()))
@@ -259,7 +257,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		return u32(rt.align_forward(uint(a), uint(b)))
 	}
 
-	size_of_dos_stub := size_of(DOSHeader) + len(dos_stub_code) + len(dos_rich_header)
+	size_of_dos_stub := size_of(DOSHeader) + len(dos_stub_code)
 	size_of_headers := u32(size_of_dos_stub + size_of(PEHeader) + size_of(PE64OptionalHeader) + size_of(PESectionHeader) * len(section_headers))
 	size_of_headers = align_forward_u32(size_of_headers, optional_header.file_alignment)
 	file_size := size_of_headers
@@ -278,7 +276,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 			case .Data:
 				ret |= u32(PESectionCharacteristics.ContainsInitializedData) | u32(PESectionCharacteristics.Mem_Read) | u32(PESectionCharacteristics.Mem_Write)
 			case .ROData:
-				ret |= u32(PESectionCharacteristics.ContainsInitializedData) | u32(PESectionCharacteristics.Mem_Read) | u32(PESectionCharacteristics.Mem_Write)
+				ret |= u32(PESectionCharacteristics.ContainsInitializedData) | u32(PESectionCharacteristics.Mem_Read)
 		}
 		switch sec.align {
 		case 0: // no align bits
@@ -351,7 +349,6 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	file_pos: u32
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dos_header, size_of(DOSHeader)))
 	file_pos = copy_obj_data(file_pos, file_data, dos_stub_code[:])
-	file_pos = copy_obj_data(file_pos, file_data, dos_rich_header[:])
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(PEHeader)))
 	optional_header_start := file_pos
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&optional_header, size_of(PE64OptionalHeader)))
@@ -362,6 +359,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		_ = copy_obj_data(file_pos, file_data, section.data)
 	}
 
+	/*
 	// checksum
 	{
 		sum: u64
@@ -378,6 +376,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		opt_hdr := transmute(^PE64OptionalHeader)&file_data[optional_header_start]
 		opt_hdr.checksum = u32(sum)
 	}
+	*/
 
 	exe_write_err := os.write_entire_file("test.exe", file_data)
 	if exe_write_err != nil {
