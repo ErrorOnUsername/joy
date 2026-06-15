@@ -209,7 +209,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	header := PEHeader {
 		magic = 0x0000_4550, // literally "PE\0\0"
 		machine = .Amd64,
-		section_count = len(lc.sections),
+		section_count = 0,
 		time_date_stamp = low_date_time,
 		symbol_table_pointer = 0,
 		symbol_count = 0,
@@ -250,8 +250,11 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		data_directories = { },
 	}
 
+	shdr_count := 0
 	section_headers := make([]PESectionHeader, len(lc.sections))
 	defer delete(section_headers)
+	shdr_data := make([][]u8, len(lc.sections))
+	defer delete(shdr_data)
 
 	align_forward_u32 :: proc(a, b: u32) -> u32 {
 		return u32(rt.align_forward(uint(a), uint(b)))
@@ -309,13 +312,15 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	}
 
 	for section, i in &lc.sections {
+		if len(section.data) == 0 do continue
+
 		section_names := [SectionType]u64 {
 			.Code   = 0x000000747865742E, // ".text\0"
 			.BSS    = 0x000000007373622E, // ".bss\0"
 			.Data   = 0x000000617461642E, // ".data\0"
 			.ROData = 0x00617461646F722E, // ".rodata\0"
 		}
-		shdr := &section_headers[i]
+		shdr := &section_headers[shdr_count]
 		shdr.name = section_names[section.type]
 		shdr.virtual_size = u32(len(section.data))
 		shdr.virtual_addr = rva
@@ -323,9 +328,15 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		shdr.pointer_to_raw_data = file_size
 		shdr.characteristics = get_pe_section_characteristics(section)
 
+		shdr_data[shdr_count] = section.data[:]
+
+		shdr_count += 1
+
 		rva += align_forward_u32(rva, optional_header.section_alignment)
 		file_size += align_forward_u32(shdr.size_of_raw_data, optional_header.file_alignment)
 	}
+
+	header.section_count = u16(shdr_count)
 
 	optional_header.size_of_image = align_forward_u32(rva, optional_header.section_alignment)
 
@@ -352,14 +363,12 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(PEHeader)))
 	optional_header_start := file_pos
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&optional_header, size_of(PE64OptionalHeader)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(section_headers), size_of(PESectionHeader) * len(section_headers)))
-	for section, i in lc.sections {
-		shdr := &section_headers[i]
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(section_headers), size_of(PESectionHeader) * shdr_count))
+	for shdr, i in section_headers[:shdr_count] {
 		file_pos = shdr.pointer_to_raw_data
-		_ = copy_obj_data(file_pos, file_data, section.data)
+		_ = copy_obj_data(file_pos, file_data, shdr_data[i])
 	}
 
-	/*
 	// checksum
 	{
 		sum: u64
@@ -376,7 +385,6 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 		opt_hdr := transmute(^PE64OptionalHeader)&file_data[optional_header_start]
 		opt_hdr.checksum = u32(sum)
 	}
-	*/
 
 	exe_write_err := os.write_entire_file("test.exe", file_data)
 	if exe_write_err != nil {
