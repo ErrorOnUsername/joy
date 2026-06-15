@@ -76,6 +76,11 @@ MachineNode :: struct {
 }
 
 amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
+	if n.kind == .Return {
+		k := 0
+		_ = k
+	}
+
 	match := match_table[n.kind]
 	for pred in match.predicates {
 		if pred.pred == nil || pred.pred(n) {
@@ -931,7 +936,7 @@ InsrMatch :: struct {
 }
 
 amd64_reg_format :: proc(n: ^Node) -> bool {
-	for input in n.inputs[1:] {
+	for input in n.inputs[node_get_data_start(n):] {
 		if !(ty_is_int(input.type) || ty_is_float(input.type)) {
 			return false
 		}

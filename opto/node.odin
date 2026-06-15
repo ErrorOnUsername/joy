@@ -867,3 +867,62 @@ NodeKind :: enum {
 	Not,
 	Negate,
 }
+
+node_get_data_start :: proc(n: ^Node) -> int {
+	switch n.kind {
+	case .Start:         return 0
+	case .End:           return 0
+	case .Region:        return 0
+	case .Proj:          return 0
+	case .IntConst:      return 0
+	case .F32Const:      return 0
+	case .F64Const:      return 0
+	case .Local:         return 0
+	case .Symbol:        return 0
+	case .CalleeSave:    return 0
+	case .Return:        return 2
+	case .Call:          return 3
+	case .Branch:        return 1
+	case .Goto:          return 1
+	case .Phi:           return 0
+	case .Load:          return 2
+	case .Store:         return 2
+	case .MemCpy:        return 2
+	case .MemSet:        return 2
+	case .VolatileRead:  return 2
+	case .VolatileWrite: return 2
+	case .GetMemberPtr:  return 1
+	case .And:           return 1
+	case .Or:            return 1
+	case .XOr:           return 1
+	case .Add:           return 1
+	case .Sub:           return 1
+	case .Mul:           return 1
+	case .Shl:           return 1
+	case .Shr:           return 1
+	case .Sar:           return 1
+	case .Rol:           return 1
+	case .Ror:           return 1
+	case .UDiv:          return 1
+	case .SDiv:          return 1
+	case .UMod:          return 1
+	case .SMod:          return 1
+	case .FAdd:          return 1
+	case .FSub:          return 1
+	case .FMul:          return 1
+	case .FDiv:          return 1
+	case .FMax:          return 1
+	case .FMin:          return 1
+	case .CmpEq:         return 1
+	case .CmpNeq:        return 1
+	case .CmpULt:        return 1
+	case .CmpULe:        return 1
+	case .CmpSLt:        return 1
+	case .CmpSLe:        return 1
+	case .CmpFLt:        return 1
+	case .CmpFLe:        return 1
+	case .Not:           return 1
+	case .Negate:        return 1
+	}
+	return 0
+}

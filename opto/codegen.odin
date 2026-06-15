@@ -54,8 +54,17 @@ insr_select :: proc(fn: ^Function) -> bool {
 		}
 		if unhandled_input do continue
 
+		if x.kind == .Return {
+			k := 0
+			_ = k
+		}
+
 		if is_selectable_node(x) {
 			x.uop = impl.select(fn, x)
+			if x.uop == INVALID_OP {
+				log(fn, "Error: Couldn't select uop for node '{}{}'", x.kind, x.gvn)
+				return false
+			}
 		}
 
 		pop(&stack)
@@ -68,8 +77,10 @@ is_selectable_node :: proc(n: ^Node) -> bool {
 	#partial switch n.kind {
 		case .Start, .End, .Region, .IntConst, .F32Const, .F64Const, .Symbol, .Phi:
 			return false
+		case .Proj:
+			return !(ty_is_ctrl(n.type) || ty_is_mem(n.type))
 	}
-	return !(ty_is_ctrl(n.type) || ty_is_mem(n.type))
+	return !ty_is_mem(n.type)
 }
 
 build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: []^BasicBlock, ok: bool) {
