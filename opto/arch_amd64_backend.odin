@@ -76,11 +76,6 @@ MachineNode :: struct {
 }
 
 amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
-	if n.kind == .Return {
-		k := 0
-		_ = k
-	}
-
 	match := match_table[n.kind]
 	for pred in match.predicates {
 		if pred.pred == nil || pred.pred(n) {
@@ -95,6 +90,9 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	out := &fn.output.data
 	uop := Amd64Insr(n.uop)
+
+	log(fn, "        amd64.{}", uop)
+
 	switch uop {
 	case .Invalid:
 		panic("invalid amd64 instruction")
@@ -834,7 +832,7 @@ amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_s
 		to_slice := out[start:end]
 		bytes := end - start
 		for i := bytes - 1; i >= 0; i -= 1 {
-			to_slice[i] = u8((delta >> 8 * i) & 0xFF)
+			to_slice[i] = u8((delta >> u8(8 * i)) & 0xFF)
 		}
 	}
 }
@@ -935,9 +933,13 @@ InsrMatch :: struct {
 	predicates: []InsrMatchPred,
 }
 
+amd64_is_reg_type :: proc(n: ^Node) -> bool {
+	return ty_is_int(n.type) || ty_is_float(n.type) || ty_is_ptr(n.type)
+}
+
 amd64_reg_format :: proc(n: ^Node) -> bool {
 	for input in n.inputs[node_get_data_start(n):] {
-		if !(ty_is_int(input.type) || ty_is_float(input.type)) {
+		if !amd64_is_reg_type(input) {
 			return false
 		}
 	}
@@ -946,12 +948,12 @@ amd64_reg_format :: proc(n: ^Node) -> bool {
 
 amd64_imm_format :: proc(n: ^Node) -> bool {
 	assert(len(n.inputs) == 3) // this only works for binops
-	return (ty_is_int(n.inputs[1].type) || ty_is_float(n.inputs[1].type)) && is_const_node(n.inputs[2])
+	return amd64_is_reg_type(n.inputs[1]) && is_const_node(n.inputs[2])
 }
 
 amd64_mem_format :: proc(n: ^Node) -> bool {
 	assert(len(n.inputs) == 3) // this is only for binops
-	return (ty_is_int(n.inputs[1].type) || ty_is_float(n.inputs[1].type)) && n.inputs[2].kind == .Load
+	return amd64_is_reg_type(n.inputs[1]) && n.inputs[2].kind == .Load
 }
 
 match_table := [NodeKind]InsrMatch {

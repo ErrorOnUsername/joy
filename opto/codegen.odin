@@ -54,11 +54,6 @@ insr_select :: proc(fn: ^Function) -> bool {
 		}
 		if unhandled_input do continue
 
-		if x.kind == .Return {
-			k := 0
-			_ = k
-		}
-
 		if is_selectable_node(x) {
 			x.uop = impl.select(fn, x)
 			if x.uop == INVALID_OP {
@@ -652,6 +647,7 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	// 1. Write out the rough encoding (assuming short RIP/PC-relative jumps where necessary)
 	encode_count := 0
 	for block in blocks {
+		log(fn, "%%{}:", block.name)
 		for n in block.nodes {
 			if n.uop != 0 {
 				starts[n.gvn] = len(fn.output.data)
