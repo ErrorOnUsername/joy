@@ -30,7 +30,7 @@ Amd64ABI :: enum {
 
 impl_amd64 := ArchImpl {
 	reg_names = {
-		"rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rsp", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+		"rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
 		"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7", "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
 		"rflags",
 	},
@@ -87,11 +87,26 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	return INVALID_OP
 }
 
+amd64_bw_type_suffix :: proc(bw: int) -> string {
+	if bw <= 8 {
+		return "b"
+	} else if bw <= 16 {
+		return "w"
+	} else if bw <= 32 {
+		return ""
+	} else {
+		assert(bw <= 64)
+		return "q"
+	}
+}
+
+amd64_regname :: proc(reg: int) -> string {
+	return impl_amd64.reg_names[reg]
+}
+
 amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	out := &fn.output.data
 	uop := Amd64Insr(n.uop)
-
-	log(fn, "        amd64.{}", uop)
 
 	switch uop {
 	case .Invalid:
@@ -101,21 +116,27 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .Ret:
 		// we just always use near returns
 		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
+		log(fn, "        ret")
 		append(out, 0xC3)
 	case .Call:
 		append(out, 0xE8)
 		append(out, 0, 0, 0, 0)
 		add_global_relo(fn, n, nil)
+		target := n.inputs[2]
+		target_name := target.extra.derived.(^SymbolExtra).sym.name
+		log(fn, "        call %%{}", target_name)
 	case .Jmp:
 		target: ^Node
 		if n.kind == .Branch {
 			jump_op := amd64_get_br_jump_op(n, 8)
 			append(out, jump_op, 0)
 			target = n.inputs[3] // conditions are flipped so we take the else branch
+			log(fn, "        jcc")
 		} else {
 			assert(n.kind == .Goto)
 			append(out, 0xEB, 0) // this gets patched to the other forms for larger disps
 			target = n.inputs[1]
+			log(fn, "        jmp")
 		}
 		add_local_relo(fn, n, target)
 	case .Load:
@@ -135,7 +156,6 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 		dst_reg := get_reg(fn, n)
 		assert(dst_reg < int(Amd64Reg.MAX_REG))
-
 
 		index_reg := -1
 		offset := 0
@@ -168,6 +188,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			}
 		}
 
+		log(fn, "        mov{} {}(%%{}), %%{}", amd64_bw_type_suffix(bw), offset, amd64_regname(ptr_reg), amd64_regname(dst_reg))
+
 		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
 	case .GetMemberPtr:
 		dst_reg := get_reg(fn, n)
@@ -188,6 +210,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 		rex := rex_prefix(dst_reg, src_reg, index_reg, true)
 		append(out, rex, 0x8D)
+
+		log(fn, "        lea {}(%%{}), %%{}", offset, amd64_regname(src_reg), amd64_regname(dst_reg))
 
 		amd64_indirect_load(out, dst_reg, src_reg, index_reg, offset, scale)
 	case .Store:
@@ -238,6 +262,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				} else {
 					enc_out32(out, imm)
 				}
+
+				log(fn, "        mov{} ${}, {}(%%{})", amd64_bw_type_suffix(bw), imm, offset, amd64_regname(ptr_reg))
 			} else {
 				panic("float imm store")
 			}
@@ -261,6 +287,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				panic("float store")
 			}
 			amd64_indirect_load(out, ptr_reg, val_reg, index_reg, offset, scale)
+
+			log(fn, "        mov{} %%{}, {}(%%{})", amd64_bw_type_suffix(bw), amd64_regname(val_reg), offset, amd64_regname(ptr_reg))
 		}
 	case .Add:
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
@@ -295,6 +323,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		} else {
 			append(out, opcode, modrm)
 		}
+
+		log(fn, "        add{} %%{}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), amd64_regname(src_reg), amd64_regname(dst_reg))
 	case .AddImm:
 		bw := 0
 		#partial switch n.type.kind {
@@ -340,6 +370,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				enc_out16(out, imm)
 			}
 		}
+		log(fn, "        add{} ${}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), imm, amd64_regname(dst_reg))
 	case .AddMem:
 		panic("addmem")
 	case .Sub:
@@ -368,6 +399,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			rex := rex_prefix(dst_reg, src_reg, 0, true)
 			append(out, rex, 0x2B, modrm)
 		}
+		log(fn, "        sub{} %%{}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), amd64_regname(src_reg), amd64_regname(dst_reg))
 	case .SubImm:
 		bw := 0
 		#partial switch n.type.kind {
@@ -412,6 +444,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				enc_out32(out, imm)
 			}
 		}
+		log(fn, "        sub{} ${}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), imm, amd64_regname(dst_reg))
 	case .SubMem:
 		panic("sub mem")
 	case .Mul:
@@ -440,6 +473,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			rex := rex_prefix(dst_reg, src_reg, 0, true)
 			append(out, rex, 0x0F, 0xAF, modrm)
 		}
+		log(fn, "        mul{} %%{}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), amd64_regname(src_reg), amd64_regname(dst_reg))
 	case .MulImm:
 		bw := 0
 		#partial switch n.type.kind {
@@ -484,6 +518,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				enc_out32(out, imm)
 			}
 		}
+		log(fn, "        mul{} ${}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), imm, amd64_regname(dst_reg))
 	case .MulMem:
 		dst_reg := get_reg(fn, n.inputs[1])
 		assert(dst_reg < int(Amd64Reg.MAX_REG))
@@ -514,6 +549,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			offset = get_local_slot_offset(fn, n.inputs[2])
 		}
 		amd64_indirect_load(out, dst_reg, src_reg, -1, offset, scale)
+		log(fn, "        mul{} {}(%%{}), %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), offset, amd64_regname(src_reg), amd64_regname(dst_reg))
 	case .Div:
 		panic("div")
 	case .DivImm:
@@ -611,6 +647,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				enc_out32(out, imm)
 			}
 		}
+
+		log(fn, "        test{} ${}, %%{}", amd64_bw_type_suffix(bw), imm, dst_reg)
 	case .CmpMem:
 		bw := 0
 		in_val := n.inputs[1]
@@ -662,6 +700,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				assert(bw <= 64)
 				enc_out32(out, imm)
 			}
+			log(fn, "        test{} ${}, {}(%%{})", amd64_bw_type_suffix(bw), imm, offset, amd64_regname(ptr_reg))
 		} else {
 			val_reg := get_reg(fn, in_val)
 			assert(val_reg < int(Amd64Reg.MAX_REG))
@@ -678,6 +717,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				append(out, rex, 0x39)
 			}
 			amd64_indirect_load(out, val_reg, ptr_reg, index_reg, offset, scale)
+			log(fn, "        test{} %%{}, {}(%%{})", amd64_bw_type_suffix(bw), amd64_regname(val_reg), offset, amd64_regname(ptr_reg))
 		}
 	}
 	return true
