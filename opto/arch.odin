@@ -1,6 +1,7 @@
 package opto
 
 import "core:fmt"
+import "core:math/bits"
 import "core:strings"
 
 
@@ -11,15 +12,20 @@ Arch :: enum {
 // Opaque definitions that are specified in the architecture implementation
 MachineOp :: u32
 INVALID_OP :: MachineOp(0) // all archs should define this as INVALID since it's a sentinel state. Could also just use a Maybe but maybe you should sugma
+DEPENDENCY_OP :: MachineOp(0xFFFFFFFF)
 RegisterID :: int
 INVALID_REG :: RegisterID(-1)
 RegisterMask :: int
+
+arch_is_valid_op :: proc(op: MachineOp) -> bool {
+	return op > INVALID_OP && op < DEPENDENCY_OP
+}
 
 ArchImpl :: struct {
 	reg_names: []string,
 	abi: []PlatformABI,
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
-	encode: #type proc(fn: ^Function, n: ^Node) -> bool,
+	encode: #type proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool,
 	encoding_size: #type proc(n: ^Node, delta_from_start_to_target: int) -> int,
 	patch_local_relo: #type proc(fn: ^Function, n: ^Node, start: int, delta_from_start_to_target: int),
 	get_callee_save_regmask: #type proc(ctx: ^RegAllocContext) -> RegisterMask,
@@ -78,24 +84,23 @@ arch_get_register_mask_str :: proc(arch: Arch, mask: RegisterMask) -> string {
 }
 
 enc_out8 :: proc(out: ^[dynamic]u8, imm: int) {
+	assert(bits.I8_MIN <= imm && imm <= bits.I8_MAX) // make sure its in the imm range
 	data := transmute(uint)imm
-	assert((data & 0xFF) == data) // make sure its in the imm range
-	append(out, u8(data))
+	append(out, u8(data & 0xFF))
 }
 
 enc_out16 :: proc(out: ^[dynamic]u8, imm: int) {
+	assert(bits.I16_MIN <= imm && imm <= bits.I16_MAX) // make sure its in the imm range
 	data := transmute(uint)imm
-	assert((data & 0xFFFF) == data) // make sure its in the imm range
 	append(out, u8(data >> 0) & 0xFF)
 	append(out, u8(data >> 8) & 0xFF)
 }
 
 enc_out32 :: proc(out: ^[dynamic]u8, imm: int) {
+	assert(bits.I32_MIN <= imm && imm <= bits.I32_MAX) // make sure its in the imm range
 	data := transmute(uint)imm
-	assert((data & 0xFFFF_FFFF) == data) // make sure its in the imm range
 	append(out, u8(data >> 0) & 0xFF)
 	append(out, u8(data >> 8) & 0xFF)
 	append(out, u8(data >> 16) & 0xFF)
 	append(out, u8(data >> 32) & 0xFF)
 }
-

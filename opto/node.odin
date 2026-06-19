@@ -1,5 +1,6 @@
 package opto
 
+import "base:runtime"
 import "core:mem"
 import "core:sync"
 
@@ -245,6 +246,11 @@ add_local :: proc(fn: ^Function, name: string, size: int, align: int) -> ^Node {
 	local.tag = name
 	local.size = size
 	local.align = align
+
+	fn.stack_size = runtime.align_forward(fn.stack_size, local.align)
+	fn.stack_size += local.size
+
+	local.stack_pos = -fn.stack_size
 
 	n.extra = local
 	return n

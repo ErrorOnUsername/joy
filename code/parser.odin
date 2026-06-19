@@ -972,6 +972,7 @@ parse_operand_prefix :: proc(file_data: ^FileData, struct_literal_allowed: bool)
 		case .Number:
 			file_data.tk_idx += 1
 			n_lit := new_node(NumberLiteralExpr, start_tk.span)
+			n_lit.str = start_tk.str
 			return n_lit
 		case:
 			log_spanned_errorf(&start_tk.span, "Invalid token in operand: {}", start_tk.kind)

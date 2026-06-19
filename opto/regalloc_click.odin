@@ -125,14 +125,14 @@ split_self_conflicts :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange) {
 			insert_split_before(ctx, def, 1, lrg)
 		}
 
-		if def.uop != 0 && arch.is_two_address_op(ctx, def) {
+		if arch_is_valid_op(def.uop) && arch.is_two_address_op(ctx, def) {
 			insert_split_before(ctx, def, arch.get_two_address_index(ctx, def), lrg)
 		}
 
 		for use in def.users {
 			use_node := use.n
 			is_not_loop_bound_phi := use_node.kind == .Phi // FIXME: theres a check if we're in a loop that stops this
-			is_two_address_split_point := use_node.uop != 0 && arch.is_two_address_op(ctx, use_node) && use_node.inputs[arch.get_two_address_index(ctx, use_node)] == def
+			is_two_address_split_point := arch_is_valid_op(use_node.uop) && arch.is_two_address_op(ctx, use_node) && use_node.inputs[arch.get_two_address_index(ctx, use_node)] == def
 			if is_not_loop_bound_phi || is_two_address_split_point {
 				idx, found := slice.linear_search(use_node.inputs, def)
 				assert(found)
@@ -192,7 +192,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					log(fn, "Exhausted available registers on merge at {}{}", n.kind, n.gvn)
 					record_regalloc_failure(ctx, lrg)
 				}
-			} else if n.uop != 0 {
+			} else if arch_is_valid_op(n.uop) {
 				def_live_range(ctx, n)
 
 				// looking up to inputs to check for self-conflicts
@@ -231,7 +231,7 @@ record_regalloc_failure :: proc(ctx: ^RegAllocContext, range: LiveRangeID) {
 
 def_live_range :: proc(ctx: ^RegAllocContext, n: ^Node) {
 	arch := arch_impl(ctx.arch)
-	assert(n.uop != 0)
+	assert(arch_is_valid_op(n.uop))
 	dst_regmask := arch.get_dst_regmask(ctx, n)
 	if dst_regmask == 0 do return // stores and shit shouldn't produce a live range
 	lrg := make_live_range(ctx, n)
@@ -340,7 +340,7 @@ ifg_build_block :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, block_map: ^Bloc
 	bb_start := bb.nodes[0]
 
 	#reverse for n in bb.nodes {
-		if n.uop != 0 {
+		if arch_is_valid_op(n.uop) {
 			ifg_build_node(ctx, bb, n)
 		}
 	}
@@ -371,7 +371,7 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 	}
 
 	if lrg != INVALID_LRG {
-		if n.uop != 0 {
+		if arch_is_valid_op(n.uop) {
 			ifg_prop_arch_killmap(ctx, n)
 		}
 
@@ -404,7 +404,7 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 		// we need to make sure the value uses don't conflict as well
 		check_for_self_conflict(ctx, def, def_lrg)
 
-		if n.uop != 0 {
+		if arch_is_valid_op(n.uop) {
 			arch := arch_impl(ctx.arch)
 			n_input_mask := arch.get_src_regmask(ctx, n, i)
 			single_reg := n_input_mask & -n_input_mask == n_input_mask
@@ -414,7 +414,7 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 					assert(other_live_range.leader == INVALID_LRG)
 					live_out_mask := arch.get_dst_regmask(ctx, live)
 					ranges_overlap := n_input_mask & live_out_mask != 0
-					if live != def && live.uop != 0 && ranges_overlap {
+					if live != def && arch_is_valid_op(live.uop) && ranges_overlap {
 						other_live_range.available_mask &= ~n_input_mask
 						if other_live_range.available_mask == 0 {
 							n_regs := arch_get_register_mask_str(ctx.arch, n_input_mask)
@@ -446,7 +446,7 @@ ifg_add :: proc(ctx: ^RegAllocContext, a: LiveRangeID, b: LiveRangeID) {
 }
 
 ifg_prop_arch_killmap :: proc(ctx: ^RegAllocContext, n: ^Node) {
-	assert(n.uop != 0)
+	assert(arch_is_valid_op(n.uop))
 	lrg := find_live_range(ctx, n)
 	arch := arch_impl(ctx.arch)
 	kill_mask := arch.get_kill_regmask(ctx, n)
@@ -674,4 +674,3 @@ is_better_lrg :: proc(curr: ^LiveRange, test: ^LiveRange) -> bool {
 bias_color :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange, reg: int, mask: RegisterMask) -> int {
 	return reg
 }
-

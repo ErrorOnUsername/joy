@@ -76,6 +76,7 @@ MachineNode :: struct {
 }
 
 amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
+	assert(n.uop == 0)
 	match := match_table[n.kind]
 	for pred in match.predicates {
 		if pred.pred == nil || pred.pred(n) {
@@ -104,7 +105,7 @@ amd64_regname :: proc(reg: int) -> string {
 	return impl_amd64.reg_names[reg]
 }
 
-amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
+amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	out := &fn.output.data
 	uop := Amd64Insr(n.uop)
 
@@ -128,15 +129,17 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .Jmp:
 		target: ^Node
 		if n.kind == .Branch {
-			jump_op := amd64_get_br_jump_op(n, 8)
+			jump_op, jump_op_mnemonic := amd64_get_br_jump_op(n, 8)
 			append(out, jump_op, 0)
 			target = n.inputs[3] // conditions are flipped so we take the else branch
-			log(fn, "        jcc")
+			bb := block_map_get_node_block(bm, target)
+			log(fn, "        {} %%{}", jump_op_mnemonic, bb.name)
 		} else {
 			assert(n.kind == .Goto)
 			append(out, 0xEB, 0) // this gets patched to the other forms for larger disps
 			target = n.inputs[1]
-			log(fn, "        jmp")
+			bb := block_map_get_node_block(bm, target)
+			log(fn, "        jmp %%{}", bb.name)
 		}
 		add_local_relo(fn, n, target)
 	case .Load:
@@ -164,7 +167,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		ptr_reg := get_reg(fn, n.inputs[2])
 		if ptr_reg >= int(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[2])
-			ptr_reg = int(Amd64Reg.RSP)
+			ptr_reg = int(Amd64Reg.RBP)
 		}
 
 		if !is_fp {
@@ -202,7 +205,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		src_reg := get_reg(fn, n.inputs[1])
 		if src_reg >= int(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[1])
-			src_reg = int(Amd64Reg.RSP)
+			src_reg = int(Amd64Reg.RBP)
 		}
 
 		member_off := get_imm_int(n.inputs[2])
@@ -237,7 +240,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		ptr_reg := get_reg(fn, n.inputs[2])
 		if ptr_reg >= int(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[2])
-			ptr_reg = int(Amd64Reg.RSP)
+			ptr_reg = int(Amd64Reg.RBP)
 		}
 
 		if is_const_node(val) {
@@ -286,7 +289,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			} else {
 				panic("float store")
 			}
-			amd64_indirect_load(out, ptr_reg, val_reg, index_reg, offset, scale)
+			amd64_indirect_load(out, val_reg, ptr_reg, index_reg, offset, scale)
 
 			log(fn, "        mov{} %%{}, {}(%%{})", amd64_bw_type_suffix(bw), amd64_regname(val_reg), offset, amd64_regname(ptr_reg))
 		}
@@ -487,34 +490,34 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 		dst_reg := get_reg(fn, n.inputs[1]) // two addr
 		imm := get_imm_int(n.inputs[2])
-		modrm := modrm_byte(.Direct, dst_reg, dst_reg)
+		modrm := modrm_byte(.Direct, dst_reg, 0)
 
 		if bw <= 8 {
 			panic("mulimm on single byte")
 		} else if bw <= 16 {
 			if amd64_is_imm8(imm) {
-				append(out, 0x66, 0x69, modrm)
+				append(out, 0x66, 0x6B, modrm)
 				enc_out8(out, imm)
 			} else {
-				append(out, 0x66, 0x6B, modrm)
+				append(out, 0x66, 0x69, modrm)
 				enc_out16(out, imm)
 			}
 		} else if bw <= 32 {
 			if amd64_is_imm8(imm) {
-				append(out, 0x69, modrm)
+				append(out, 0x6B, modrm)
 				enc_out8(out, imm)
 			} else {
-				append(out, 0x6B, modrm)
+				append(out, 0x69, modrm)
 				enc_out32(out, imm)
 			}
 		} else {
 			assert(bw <= 64)
-			rex := rex_prefix(dst_reg, dst_reg, 0, true)
+			rex := rex_prefix(dst_reg, 0, 0, true)
 			if amd64_is_imm8(imm) {
-				append(out, rex, 0x69, modrm)
+				append(out, rex, 0x6B, modrm)
 				enc_out8(out, imm)
 			} else {
-				append(out, rex, 0x6B, modrm)
+				append(out, rex, 0x69, modrm)
 				enc_out32(out, imm)
 			}
 		}
@@ -522,9 +525,12 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 	case .MulMem:
 		dst_reg := get_reg(fn, n.inputs[1])
 		assert(dst_reg < int(Amd64Reg.MAX_REG))
-		src_reg := get_reg(fn, n.inputs[2])
+		load := n.inputs[2]
+		assert(load.kind == .Load)
+		ptr := load.inputs[2]
+		src_reg := get_reg(fn, ptr)
 		if src_reg >= int(Amd64Reg.MAX_REG) {
-			src_reg = int(Amd64Reg.RSP)
+			src_reg = int(Amd64Reg.RBP)
 		}
 
 		bw := n.type.bitwidth
@@ -545,8 +551,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 		scale := 0
 		offset := 0
-		if n.inputs[2].kind == .Local {
-			offset = get_local_slot_offset(fn, n.inputs[2])
+		if ptr.kind == .Local {
+			offset = get_local_slot_offset(fn, ptr)
 		}
 		amd64_indirect_load(out, dst_reg, src_reg, -1, offset, scale)
 		log(fn, "        mul{} {}(%%{}), %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), offset, amd64_regname(src_reg), amd64_regname(dst_reg))
@@ -648,7 +654,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 			}
 		}
 
-		log(fn, "        test{} ${}, %%{}", amd64_bw_type_suffix(bw), imm, dst_reg)
+		log(fn, "        cmp{} ${}, %%{}", amd64_bw_type_suffix(bw), imm, amd64_regname(dst_reg))
 	case .CmpMem:
 		bw := 0
 		in_val := n.inputs[1]
@@ -665,10 +671,13 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 		offset := 0
 		scale := 0
 
-		ptr_reg := get_reg(fn, n.inputs[2])
+		load := n.inputs[2]
+		assert(load.kind == .Load)
+		ptr := load.inputs[2]
+		ptr_reg := get_reg(fn, ptr)
 		if ptr_reg >= int(Amd64Reg.MAX_REG) {
-			offset = get_local_slot_offset(fn, n.inputs[2])
-			ptr_reg = int(Amd64Reg.RSP)
+			offset = get_local_slot_offset(fn, ptr)
+			ptr_reg = int(Amd64Reg.RBP)
 		}
 
 		if is_const_node(in_val) {
@@ -700,7 +709,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				assert(bw <= 64)
 				enc_out32(out, imm)
 			}
-			log(fn, "        test{} ${}, {}(%%{})", amd64_bw_type_suffix(bw), imm, offset, amd64_regname(ptr_reg))
+			log(fn, "        cmp{} ${}, {}(%%{})", amd64_bw_type_suffix(bw), imm, offset, amd64_regname(ptr_reg))
 		} else {
 			val_reg := get_reg(fn, in_val)
 			assert(val_reg < int(Amd64Reg.MAX_REG))
@@ -717,7 +726,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 				append(out, rex, 0x39)
 			}
 			amd64_indirect_load(out, val_reg, ptr_reg, index_reg, offset, scale)
-			log(fn, "        test{} %%{}, {}(%%{})", amd64_bw_type_suffix(bw), amd64_regname(val_reg), offset, amd64_regname(ptr_reg))
+			log(fn, "        cmp{} %%{}, {}(%%{})", amd64_bw_type_suffix(bw), amd64_regname(val_reg), offset, amd64_regname(ptr_reg))
 		}
 	}
 	return true
@@ -725,18 +734,21 @@ amd64_encode :: proc(fn: ^Function, n: ^Node) -> bool {
 
 get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
 	extra := local.extra.derived.(^LocalExtra)
-	return extra.stack_pos - fn.stack_size
+	return extra.stack_pos
 }
 
 amd64_is_imm8 :: proc(imm: int) -> bool {
-	data := transmute(uint)imm
-	return data <= 0xFF
+	return -128 <= imm && imm <= 127
 }
 
 amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, ptr_reg: int, index_reg: int, offset: int, scale: int) {
 	mod := MODAddressingMode.Indirect
 	if offset != 0 {
 		mod = .IndirectDisp8 if amd64_is_imm8(offset) else .IndirectDisp32
+	}
+
+	if mod == .Indirect && ptr_reg == int(Amd64Reg.RBP) {
+		mod = .IndirectDisp8
 	}
 
 	if index_reg == -1 {
@@ -753,31 +765,40 @@ amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, ptr_reg: int, index
 	}
 }
 
-amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> u8 {
+amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> (u8, string) {
 	assert(rel_size == 8 || rel_size == 32)
 	assert(n.kind == .Branch)
 	cond := n.inputs[1]
 	op: u8 = 0xFF
+	str: string
 	#partial switch cond.kind {
 	case .CmpEq:
 		op = 0x84 // 0F 84 cd JE rel32
+		str = "je"
 	case .CmpNeq:
 		op = 0x85 // 0F 85 cd JNE rel32
+		str = "jne"
 	case .CmpULt:
 		op = 0x82 // 0F 82 cd JB rel32
+		str = "jb"
 	case .CmpULe:
 		op = 0x86 // 0F 86 cd JBE rel32
+		str = "jbe"
 	case .CmpSLt:
 		op = 0x8c // 0F 8C cd JL rel32
+		str = "jl"
 	case .CmpSLe:
 		op = 0x8e // 0F 8E cd JLE rel32
+		str = "jle"
 	case .CmpFLt: // float cmps apparantly set the unsigned "below" and "above" flags at least according to llvm output
 		op = 0x82 // 0F 82 cd JB rel32
+		str = "fjb"
 	case .CmpFLe:
 		op = 0x86 // 0F 86 cd JBE rel32
+		str = "fjbe"
 	}
 
-	return op if rel_size == 32 else op - 16
+	return op if rel_size == 32 else op - 16, str
 }
 
 rex_prefix :: proc(dst: int, src: int, idx: int, is_wide: bool) -> u8 {
@@ -806,7 +827,8 @@ modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
 	mod_field := (u8(mod) & 0x03) << 6
 	reg := (u8(dst2) & 0x07) << 3
 	rm := u8(src) & 0x07
-	return mod_field | reg | rm
+	modrm := mod_field | reg | rm
+	return modrm
 }
 
 
@@ -846,7 +868,7 @@ amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_s
 			op_size := 1 if is_imm8 else 2
 			encoding_size := 2 if is_imm8 else 6 // We have a prefix 0x0F on Jcc, so it's not 5
 			if !is_imm8 {
-				op := amd64_get_br_jump_op(n, 32)
+				op, _ := amd64_get_br_jump_op(n, 32)
 				fn.output.data[start] = 0x0F
 				fn.output.data[start + 1] = op
 			}
@@ -942,7 +964,7 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 
 amd64_get_kill_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	assert(n != nil)
-	assert(n.uop != 0)
+	assert(arch_is_valid_op(n.uop))
 	uop := Amd64Insr(n.uop)
 	regmask := transmute(RegisterMask)insr_table[uop].killmap
 	#partial switch uop {
@@ -954,13 +976,13 @@ amd64_get_kill_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask 
 
 amd64_is_two_address_op :: proc(ctx: ^RegAllocContext, n: ^Node) -> bool {
 	assert(n != nil)
-	assert(n.uop != 0)
+	assert(arch_is_valid_op(n.uop))
 	return insr_table[Amd64Insr(n.uop)].two_address_index != 0
 }
 
 amd64_get_two_address_index :: proc(ctx: ^RegAllocContext, n: ^Node) -> int {
 	assert(n != nil)
-	assert(n.uop != 0)
+	assert(arch_is_valid_op(n.uop))
 	return insr_table[Amd64Insr(n.uop)].two_address_index
 }
 
@@ -993,7 +1015,11 @@ amd64_imm_format :: proc(n: ^Node) -> bool {
 
 amd64_mem_format :: proc(n: ^Node) -> bool {
 	assert(len(n.inputs) == 3) // this is only for binops
-	return amd64_is_reg_type(n.inputs[1]) && n.inputs[2].kind == .Load
+	matches := amd64_is_reg_type(n.inputs[1]) && n.inputs[2].kind == .Load
+	if matches {
+		n.inputs[2].uop = DEPENDENCY_OP // we're going to inline this load
+	}
+	return matches
 }
 
 match_table := [NodeKind]InsrMatch {

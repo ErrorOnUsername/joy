@@ -19,7 +19,7 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 
 	register_allocate(fn, blocks, &block_map) or_return
 
-	emit(fn, blocks) or_return
+	emit(fn, blocks, &block_map) or_return
 
 	return true
 }
@@ -75,7 +75,7 @@ is_selectable_node :: proc(n: ^Node) -> bool {
 		case .Proj:
 			return !(ty_is_ctrl(n.type) || ty_is_mem(n.type))
 	}
-	return !ty_is_mem(n.type)
+	return (!ty_is_mem(n.type) || n.kind == .Store)
 }
 
 build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: []^BasicBlock, ok: bool) {
@@ -630,7 +630,7 @@ register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^Bloc
 	return true
 }
 
-emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
+emit :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
 	log(fn, "-- Begin Instruction Encode --")
 	defer log(fn, "-- End Instruction Encode --")
 	impl := arch_impl(.Amd64)
@@ -649,9 +649,9 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 	for block in blocks {
 		log(fn, "%%{}:", block.name)
 		for n in block.nodes {
-			if n.uop != 0 {
-				starts[n.gvn] = len(fn.output.data)
-				impl.encode(fn, n)
+			starts[n.gvn] = len(fn.output.data)
+			if arch_is_valid_op(n.uop) {
+				impl.encode(fn, n, bm)
 				sizes[n.gvn] = len(fn.output.data) - starts[n.gvn] // the initial encoding size, since we're about to resize some of them where we need to
 				encode_count += 1
 			}
@@ -729,7 +729,8 @@ emit :: proc(fn: ^Function, blocks: []^BasicBlock) -> bool {
 		}
 		local_relo_count += 1
 		start := starts[relo.n.gvn]
-		delta_from_starts := starts[relo.target.gvn] - start
+		target_start := starts[relo.target.gvn]
+		delta_from_starts := target_start - start
 		impl.patch_local_relo(fn, relo.n, start, delta_from_starts)
 	}
 
