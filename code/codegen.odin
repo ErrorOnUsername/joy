@@ -44,7 +44,10 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			s.cg_val = var
 
 			// FIXME(RD): Params are just zeroed out by default. that's dumb as shit
-			if s.default_value != nil {
+			if s.is_param {
+				is_volatile := false
+				opto.insr_store(fn, var, fn.params[2 + s.param_idx], is_volatile)
+			} else if s.default_value != nil {
 				v := cg_emit_expr(ctx, s.default_value) or_return
 				is_volatile := false // TODO(rd): Hook this into the type system once this is expressable (necessary for embedded devices)
 				cg_emit_store(ctx, var, s.default_value, is_volatile) or_return

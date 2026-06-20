@@ -410,6 +410,8 @@ parse_operand_prefix :: proc(file_data: ^FileData, struct_literal_allowed: bool)
 
 				param := parse_var_decl(file_data, "procedure parameter")
 				if param == nil do return nil
+				param.is_param = true
+				param.param_idx = len(proto.params)
 
 				append(&proto.params, param)
 

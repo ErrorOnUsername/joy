@@ -921,7 +921,7 @@ amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> Reg
 					param_mask_offset -= 1
 				}
 			}
-			param_mask_offset -= 2 // transform to 0..n space to index the register mask out of the 2..n space for the parmeters
+			param_mask_offset -= 3 // transform to 0..n space to index the register mask out of the 3..n space for the parmeters
 			if ty_is_int(param_node.type) {
 				regmask = impl_amd64.abi[int(DEBUG_ABI)].int_param_regs[param_mask_offset]
 			} else if ty_is_float(param_node.type) {

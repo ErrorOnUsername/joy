@@ -133,7 +133,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	fn.end.inputs[0] = fn.meta.curr_ctrl
 
 	for i in 0..<len(proto.params) {
-		fn.params[i + 2] = new_proj(fn, proto.params[i].type, fn.start, i + 1)
+		fn.params[i + 2] = new_proj(fn, proto.params[i].type, fn.start, i + 2)
 	}
 
 	return fn

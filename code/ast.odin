@@ -56,6 +56,8 @@ VarDecl :: struct {
 	is_mut:        bool,
 	type_hint:     ^Expr,
 	default_value: ^Expr,
+	is_param:      bool,
+	param_idx:     int,
 }
 
 EnumVariantDecl :: struct {
