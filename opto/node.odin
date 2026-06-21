@@ -133,7 +133,7 @@ new_function :: proc(m: ^Module, name: string, proto: ^FunctionProto) -> ^Functi
 	fn.end.inputs[0] = fn.meta.curr_ctrl
 
 	for i in 0..<len(proto.params) {
-		fn.params[i + 2] = new_proj(fn, proto.params[i].type, fn.start, i + 2)
+		fn.params[i + 2] = new_param(fn, fn.start, proto.params[i].type, i + 2)
 	}
 
 	return fn
@@ -184,6 +184,20 @@ new_proj :: proc(fn: ^Function, type: Type, src_node: ^Node, proj_idx: int) -> ^
 	proj.extra = extra
 
 	return proj
+}
+
+new_param :: proc(fn: ^Function, start: ^Node, ty: Type, idx: int) -> ^Node {
+	n := new_node(fn, .Param, ty, 1)
+
+	assert(start.kind == .Start)
+	set_input(n, 0, start)
+
+	extra := new_extra(ProjExtra, fn)
+	extra.idx = idx
+
+	n.extra = extra
+
+	return n
 }
 
 new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) -> ^Node {
@@ -821,6 +835,7 @@ NodeKind :: enum {
 	Local,
 	Symbol,
 
+	Param,
 	CalleeSave,
 	Return,
 	Call,
@@ -879,6 +894,7 @@ node_get_data_start :: proc(n: ^Node) -> int {
 	case .Start:         return 0
 	case .End:           return 0
 	case .Region:        return 0
+	case .Param:         return 0
 	case .Proj:          return 0
 	case .IntConst:      return 0
 	case .F32Const:      return 0

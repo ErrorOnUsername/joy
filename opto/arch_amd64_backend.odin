@@ -112,6 +112,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	switch uop {
 	case .Invalid:
 		panic("invalid amd64 instruction")
+	case .Param:
 	case .Proj:
 	case .Local:
 	case .Ret:
@@ -906,6 +907,24 @@ amd64_get_callee_save_regmask :: proc(ctx: ^RegAllocContext) -> RegisterMask {
 	return impl_amd64.abi[int(DEBUG_ABI)].callee_saved_regs
 }
 
+amd64_get_param_regmask :: proc(proto: ^FunctionProto, type: Type, idx: int) -> RegisterMask {
+	regmask: RegisterMask
+	lead_params_of_same_type := 0
+	for i in 0..<idx {
+		if ty_equal(proto.params[i].type, type) {
+			lead_params_of_same_type += 1
+		}
+	}
+	if ty_is_int(type) {
+		regmask = impl_amd64.abi[int(DEBUG_ABI)].int_param_regs[lead_params_of_same_type]
+	} else if ty_is_int(type) {
+		regmask = impl_amd64.abi[int(DEBUG_ABI)].float_param_regs[lead_params_of_same_type]
+	} else {
+		panic("unknown param type")
+	}
+	return regmask
+}
+
 amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask {
 	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
 	uop := Amd64Insr(n.uop)
@@ -914,19 +933,9 @@ amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> Reg
 			// FIXME: If you have too many integer arguments into the function the codegen backend for the lanuage might make some assumptions about the ABI instead of naively just spitting out types...
 			// Double check on this because it would fuck up the counts maybe idk. the stack is the stack but still just check.
 			param_node := n.inputs[from]
-			param_mask_offset := from
-			// There might be a better way to do this but it would require allocating memory or some shit i think, so come back and fix it if it matters at all ig...
-			for i := from - 1; i > 2; i -= 1 {
-				if !ty_equal(param_node.type, n.inputs[i].type) {
-					param_mask_offset -= 1
-				}
-			}
-			param_mask_offset -= 3 // transform to 0..n space to index the register mask out of the 3..n space for the parmeters
-			if ty_is_int(param_node.type) {
-				regmask = impl_amd64.abi[int(DEBUG_ABI)].int_param_regs[param_mask_offset]
-			} else if ty_is_float(param_node.type) {
-				regmask = impl_amd64.abi[int(DEBUG_ABI)].float_param_regs[param_mask_offset]
-			}
+			param_offset := from - 3 // transform to 0..n space to index the register mask out of the 3..n space for the parmeters (see insr_call)
+			proto := n.extra.derived.(^CallExtra).proto
+			regmask = amd64_get_param_regmask(proto, param_node.type, param_offset)
 			assert(regmask != 0)
 		case .Ret:
 			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs // TODO: There's register splitting on SysV so just make sure all that bullshit works, idk...
@@ -954,6 +963,10 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	regmask := transmute(RegisterMask)table_ent.out_regmask
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
+		case .Param:
+			start_proj_idx := n.extra.derived.(^ProjExtra).idx
+			param_idx := start_proj_idx - 2 // going from the 2..n space to 0..n for the params (see new_function)
+			regmask = amd64_get_param_regmask(ctx.fn.proto, n.type, param_idx)
 		case .Proj:
 			regmask = amd64_get_dst_regmask(ctx, n.inputs[0])
 		case .Call:
@@ -1026,6 +1039,7 @@ match_table := [NodeKind]InsrMatch {
 	.Start = {},
 	.End = {},
 	.Region = {},
+	.Param = { { { insr = .Param } } },
 	.Proj = { { { insr = .Proj } } },
 	.IntConst = {},
 	.F32Const = {},
@@ -1087,6 +1101,7 @@ InsrTableEntry :: struct {
 
 insr_table := [Amd64Insr]InsrTableEntry {
 	.Invalid = { },
+	.Param = { in_regmask = {}, out_regmask = {} },
 	.Proj = { in_regmask = {}, out_regmask = {} },
 	.Local = { in_regmask = {}, out_regmask = transmute(Amd64RegMask)SPILL_MASK },
 	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
@@ -1136,6 +1151,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 
 Amd64Insr :: enum {
 	Invalid,
+	Param,
 	Proj,
 	Local,
 	Ret,
