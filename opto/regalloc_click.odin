@@ -203,8 +203,10 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					src_regmask := arch.get_src_regmask(ctx, n, idx + input_slice_start) // the for loop uses a different index for the slice interator since its a whole new slice, not just a sub-iter
 					in_lrg := find_live_range(ctx, input)
 					if in_lrg == INVALID_LRG do continue
-					in_avail := ctx.lrg_store[in_lrg].available_mask
-					if in_avail & src_regmask == 0 {
+					in_lrg_ptr := &ctx.lrg_store[in_lrg]
+					in_avail := in_lrg_ptr.available_mask
+					in_lrg_ptr.available_mask &= src_regmask
+					if in_lrg_ptr.available_mask == 0 {
 						src_mask_str := arch_get_register_mask_str(ctx.arch, src_regmask)
 						defer delete(src_mask_str)
 						in_mask_str := arch_get_register_mask_str(ctx.arch, in_avail)
