@@ -110,6 +110,31 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	uop := Amd64Insr(n.uop)
 
 	switch uop {
+	case .Start:
+		stack_size := fn.stack_size
+		append(out, 0x55) // 50+rd PUSH r64
+		{ // set current frame pointer
+			rbp := int(Amd64Reg.RBP)
+			rsp := int(Amd64Reg.RSP)
+			rex := rex_prefix(rsp, rbp, 0, true)
+			modrm := modrm_byte(.Direct, rsp, rbp)
+			append(out, rex, 0x89, modrm)
+		}
+		{ // stack sizing
+			rsp := int(Amd64Reg.RSP)
+			rex := rex_prefix(0, rsp, 0, true)
+			modrm := modrm_byte(.Direct, 5, rsp)
+			if amd64_is_imm8(stack_size) {
+				append(out, rex, 0x83, modrm)
+				enc_out8(out, stack_size)
+			} else {
+				append(out, rex, 0x81, modrm)
+				enc_out32(out, stack_size)
+			}
+		}
+		log(fn, "        push %%rbp")
+		log(fn, "        mov %%rsp, %%rbp")
+		log(fn, "        sub ${}, %%rsp", stack_size)
 	case .Invalid:
 		panic("invalid amd64 instruction")
 	case .Param:
@@ -118,8 +143,24 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	case .Ret:
 		// we just always use near returns
 		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
+		stack_size := fn.stack_size
+		{ // stack sizing
+			rsp := int(Amd64Reg.RSP)
+			rex := rex_prefix(0, rsp, 0, true)
+			modrm := modrm_byte(.Direct, 0, rsp)
+			if amd64_is_imm8(stack_size) {
+				append(out, rex, 0x83, modrm)
+				enc_out8(out, stack_size)
+			} else {
+				append(out, rex, 0x81, modrm)
+				enc_out32(out, stack_size)
+			}
+		}
+		append(out, 0x5D) // 58+rd POP r64
+		append(out, 0xC3) // C3 RET
+		log(fn, "        add ${}, %%rsp", stack_size)
+		log(fn, "        pop %%rbp")
 		log(fn, "        ret")
-		append(out, 0xC3)
 	case .Call:
 		append(out, 0xE8)
 		append(out, 0, 0, 0, 0)
@@ -772,31 +813,31 @@ amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> (u8, string) {
 	cond := n.inputs[1]
 	op: u8 = 0xFF
 	str: string
-	#partial switch cond.kind {
+	#partial switch cond.kind { // We need to flip the checks since we branch to the else and fallthrough on the true case
 	case .CmpEq:
-		op = 0x84 // 0F 84 cd JE rel32
-		str = "je"
-	case .CmpNeq:
 		op = 0x85 // 0F 85 cd JNE rel32
 		str = "jne"
+	case .CmpNeq:
+		op = 0x84 // 0F 84 cd JE rel32
+		str = "je"
 	case .CmpULt:
-		op = 0x82 // 0F 82 cd JB rel32
-		str = "jb"
+		op = 0x83 // 0F 83 cd JAE rel32
+		str = "jae"
 	case .CmpULe:
-		op = 0x86 // 0F 86 cd JBE rel32
-		str = "jbe"
+		op = 0x87 // 0F 87 cd JA rel32
+		str = "ja"
 	case .CmpSLt:
-		op = 0x8c // 0F 8C cd JL rel32
-		str = "jl"
+		op = 0x8D // 0F 8C cd JGE rel32
+		str = "jge"
 	case .CmpSLe:
-		op = 0x8e // 0F 8E cd JLE rel32
-		str = "jle"
+		op = 0x8F // 0F 8E cd JG rel32
+		str = "jg"
 	case .CmpFLt: // float cmps apparantly set the unsigned "below" and "above" flags at least according to llvm output
-		op = 0x82 // 0F 82 cd JB rel32
-		str = "fjb"
+		op = 0x83 // 0F 82 cd JAE rel32
+		str = "fjae"
 	case .CmpFLe:
-		op = 0x86 // 0F 86 cd JBE rel32
-		str = "fjbe"
+		op = 0x87 // 0F 86 cd JA rel32
+		str = "fja"
 	}
 
 	return op if rel_size == 32 else op - 16, str
@@ -1036,7 +1077,7 @@ amd64_mem_format :: proc(n: ^Node) -> bool {
 }
 
 match_table := [NodeKind]InsrMatch {
-	.Start = {},
+	.Start = { { { insr = .Start } } },
 	.End = {},
 	.Region = {},
 	.Param = { { { insr = .Param } } },
@@ -1101,6 +1142,7 @@ InsrTableEntry :: struct {
 
 insr_table := [Amd64Insr]InsrTableEntry {
 	.Invalid = { },
+	.Start = { in_regmask = {}, out_regmask = {} },
 	.Param = { in_regmask = {}, out_regmask = {} },
 	.Proj = { in_regmask = {}, out_regmask = {} },
 	.Local = { in_regmask = {}, out_regmask = transmute(Amd64RegMask)SPILL_MASK },
@@ -1151,6 +1193,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 
 Amd64Insr :: enum {
 	Invalid,
+	Start,
 	Param,
 	Proj,
 	Local,

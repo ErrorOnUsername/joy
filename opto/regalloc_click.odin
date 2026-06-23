@@ -192,7 +192,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 					log(fn, "Exhausted available registers on merge at {}{}", n.kind, n.gvn)
 					record_regalloc_failure(ctx, lrg)
 				}
-			} else if arch_is_valid_op(n.uop) {
+			} else if arch_is_valid_op(n.uop) && n.kind != .Start {
 				def_live_range(ctx, n)
 
 				// looking up to inputs to check for self-conflicts
