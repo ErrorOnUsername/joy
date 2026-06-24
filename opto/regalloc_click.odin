@@ -384,14 +384,19 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 		for other_lrg, live in ctx.block_live {
 			other_live_range := &ctx.lrg_store[other_lrg]
 			assert(other_live_range.leader == INVALID_LRG)
-			if other_lrg != lrg && other_live_range.available_mask & live_range.available_mask != 0 {
+			ranges_overlap := live_range.available_mask & other_live_range.available_mask != 0
+			if other_lrg != lrg && ranges_overlap {
 				if lrg_is_single_reg {
-					n_reg := arch_get_register_mask_str(ctx.arch, live_range.available_mask)
-					defer delete(n_reg)
-					live_regs := arch_get_register_mask_str(ctx.arch, other_live_range.available_mask)
-					defer delete(live_regs)
-					log(ctx.fn, "value {}{} requires single register '{}', but that interferes with live value {}{}({})", n.kind, n.gvn, n_reg, live.kind, live.gvn, live_regs)
-					record_regalloc_failure(ctx, other_lrg)
+					old_other_available := other_live_range.available_mask
+					other_live_range.available_mask &= ~live_range.available_mask
+					if other_live_range.available_mask == 0 {
+						n_reg := arch_get_register_mask_str(ctx.arch, live_range.available_mask)
+						defer delete(n_reg)
+						live_regs := arch_get_register_mask_str(ctx.arch, old_other_available)
+						defer delete(live_regs)
+						log(ctx.fn, "value {}{} requires single register '{}', but that interferes with live value {}{} ({})", n.kind, n.gvn, n_reg, live.kind, live.gvn, live_regs)
+						record_regalloc_failure(ctx, other_lrg)
+					}
 				} else {
 					ifg_add(ctx, lrg, other_lrg)
 				}
@@ -419,11 +424,12 @@ ifg_build_node :: proc(ctx: ^RegAllocContext, bb: ^BasicBlock, n: ^Node) {
 					live_out_mask := arch.get_dst_regmask(ctx, live)
 					ranges_overlap := n_input_mask & live_out_mask != 0
 					if live != def && arch_is_valid_op(live.uop) && ranges_overlap {
+						old_available_mask := other_live_range.available_mask
 						other_live_range.available_mask &= ~n_input_mask
 						if other_live_range.available_mask == 0 {
 							n_regs := arch_get_register_mask_str(ctx.arch, n_input_mask)
 							defer delete(n_regs)
-							live_regs := arch_get_register_mask_str(ctx.arch, other_live_range.available_mask)
+							live_regs := arch_get_register_mask_str(ctx.arch, old_available_mask)
 							defer delete(live_regs)
 							log(ctx.fn, "ifg-build: single-register input of {}{}({}) doesn't conform to output of value {}{}({})", n.kind, n.gvn, n_regs, live.kind, live.gvn, live_regs)
 							record_regalloc_failure(ctx, other_lrg)
