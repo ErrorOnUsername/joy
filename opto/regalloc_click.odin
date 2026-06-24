@@ -29,6 +29,7 @@ LiveRangeMap :: map[LiveRangeID]^Node
 RegAllocContext :: struct {
 	fn: ^Function,
 	arch: Arch,
+	plat: Platform,
 	failures: [dynamic]LiveRangeID,
 	live_range_count: int,
 	lrg_store: [dynamic]LiveRange,
@@ -41,7 +42,7 @@ RegAllocContext :: struct {
 	block_live: LiveRangeMap,
 }
 
-click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
+click_briggs_chaitin :: proc(plat: Platform, arch: Arch, fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
 	log(fn, "-- Click/Briggs/Chaitin RegAlloc Begin --")
 	defer log(fn, "-- Click/Briggs/Chaitin RegAlloc End --")
 
@@ -49,7 +50,8 @@ click_briggs_chaitin :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^B
 
 	ctx.fn = fn
 	ctx.lrg_map = make(map[^Node]LiveRangeID)
-	ctx.arch = .Amd64
+	ctx.arch = arch
+	ctx.plat = plat
 
 	MAX_REGALLOC_ATTEMPTS :: 7
 

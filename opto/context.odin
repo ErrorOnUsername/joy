@@ -17,16 +17,30 @@ Module :: struct {
 	symbols: [dynamic]^Symbol,
 }
 
+Arch :: enum {
+	Amd64,
+}
+
+Platform :: enum {
+	Windows,
+	Darwin,
+	Linux,
+}
+
 OptoContext :: struct {
+	platform: Platform,
+	arch: Arch,
 	global_alloc_lock: sync.Mutex,
 	pool: mem.Dynamic_Pool,
 	global_allocator: mem.Allocator,
 	modules: ^ListEntry(Module),
 }
 
-context_init :: proc(ctx: ^OptoContext) {
+context_init :: proc(ctx: ^OptoContext, platform: Platform, arch: Arch) {
 	mem.dynamic_pool_init(&ctx.pool)
 	ctx.global_allocator = mem.dynamic_pool_allocator(&ctx.pool)
+	ctx.platform = platform
+	ctx.arch = arch
 
 	init_builtin_types(ctx)
 }

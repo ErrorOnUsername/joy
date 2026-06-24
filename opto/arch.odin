@@ -5,10 +5,6 @@ import "core:math/bits"
 import "core:strings"
 
 
-Arch :: enum {
-	Amd64,
-}
-
 // Opaque definitions that are specified in the architecture implementation
 MachineOp :: u32
 INVALID_OP :: MachineOp(0) // all archs should define this as INVALID since it's a sentinel state. Could also just use a Maybe but maybe you should sugma

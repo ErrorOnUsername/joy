@@ -57,8 +57,11 @@ exec_phases :: proc(root_id: FileID) -> int {
 
 	init_builtin_types(host_target)
 
+	plat := to_opto_platform(host_target.platform)
+	arch := to_opto_arch(host_target.arch)
+
 	cg_ctx: opto.OptoContext
-	opto.context_init(&cg_ctx)
+	opto.context_init(&cg_ctx, plat, arch)
 	cg_module := opto.create_module(&cg_ctx, "code")
 	c.cg_module = cg_module
 

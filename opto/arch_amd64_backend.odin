@@ -942,13 +942,20 @@ amd64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_s
 }
 
 // because amd64 is just cool like that
-DEBUG_ABI :: Amd64ABI.SysV64
-
-amd64_get_callee_save_regmask :: proc(ctx: ^RegAllocContext) -> RegisterMask {
-	return impl_amd64.abi[int(DEBUG_ABI)].callee_saved_regs
+amd64_get_abi :: proc(plat: Platform) -> Amd64ABI {
+	switch plat {
+	case .Windows: return .Win64
+	case .Darwin, .Linux: return .SysV64
+	}
+	panic("unsupported platform")
 }
 
-amd64_get_param_regmask :: proc(proto: ^FunctionProto, type: Type, idx: int) -> RegisterMask {
+amd64_get_callee_save_regmask :: proc(ctx: ^RegAllocContext) -> RegisterMask {
+	abi := int(amd64_get_abi(ctx.plat))
+	return impl_amd64.abi[abi].callee_saved_regs
+}
+
+amd64_get_param_regmask :: proc(ctx: ^RegAllocContext, proto: ^FunctionProto, type: Type, idx: int) -> RegisterMask {
 	regmask: RegisterMask
 	lead_params_of_same_type := 0
 	for i in 0..<idx {
@@ -956,10 +963,11 @@ amd64_get_param_regmask :: proc(proto: ^FunctionProto, type: Type, idx: int) -> 
 			lead_params_of_same_type += 1
 		}
 	}
+	abi := int(amd64_get_abi(ctx.plat))
 	if ty_is_int(type) {
-		regmask = impl_amd64.abi[int(DEBUG_ABI)].int_param_regs[lead_params_of_same_type]
+		regmask = impl_amd64.abi[abi].int_param_regs[lead_params_of_same_type]
 	} else if ty_is_int(type) {
-		regmask = impl_amd64.abi[int(DEBUG_ABI)].float_param_regs[lead_params_of_same_type]
+		regmask = impl_amd64.abi[abi].float_param_regs[lead_params_of_same_type]
 	} else {
 		panic("unknown param type")
 	}
@@ -968,6 +976,7 @@ amd64_get_param_regmask :: proc(proto: ^FunctionProto, type: Type, idx: int) -> 
 
 amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask {
 	regmask := transmute(RegisterMask)insr_table[Amd64Insr(n.uop)].in_regmask
+	abi := int(amd64_get_abi(ctx.plat))
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
 		case .Call:
@@ -976,10 +985,10 @@ amd64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> Reg
 			param_node := n.inputs[from]
 			param_offset := from - 3 // transform to 0..n space to index the register mask out of the 3..n space for the parmeters (see insr_call)
 			proto := n.extra.derived.(^CallExtra).proto
-			regmask = amd64_get_param_regmask(proto, param_node.type, param_offset)
+			regmask = amd64_get_param_regmask(ctx, proto, param_node.type, param_offset)
 			assert(regmask != 0)
 		case .Ret:
-			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs // TODO: There's register splitting on SysV so just make sure all that bullshit works, idk...
+			regmask = impl_amd64.abi[abi].return_regs // TODO: There's register splitting on SysV so just make sure all that bullshit works, idk...
 		case .Load:
 			assert(from == 2) // the slot
 			return transmute(RegisterMask)GPR_READ_MASK | SPILL_MASK
@@ -1001,17 +1010,18 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 		return ctx.lrg_store[merge_live_range(ctx, two_addr_lrg, n)].available_mask
 	}
 
+	abi := int(amd64_get_abi(ctx.plat))
 	regmask := transmute(RegisterMask)table_ent.out_regmask
 	uop := Amd64Insr(n.uop)
 	#partial switch uop {
 		case .Param:
 			start_proj_idx := n.extra.derived.(^ProjExtra).idx
 			param_idx := start_proj_idx - 2 // going from the 2..n space to 0..n for the params (see new_function)
-			regmask = amd64_get_param_regmask(ctx.fn.proto, n.type, param_idx)
+			regmask = amd64_get_param_regmask(ctx, ctx.fn.proto, n.type, param_idx)
 		case .Proj:
 			regmask = amd64_get_dst_regmask(ctx, n.inputs[0])
 		case .Call:
-			regmask = impl_amd64.abi[int(DEBUG_ABI)].return_regs
+			regmask = impl_amd64.abi[abi].return_regs
 	}
 	return regmask // some insrs are allowed to not produce any regs (Stores for example)
 }
@@ -1019,11 +1029,12 @@ amd64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 amd64_get_kill_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask {
 	assert(n != nil)
 	assert(arch_is_valid_op(n.uop))
+	abi := int(amd64_get_abi(ctx.plat))
 	uop := Amd64Insr(n.uop)
 	regmask := transmute(RegisterMask)insr_table[uop].killmap
 	#partial switch uop {
 		case .Call:
-			regmask = impl_amd64.abi[int(DEBUG_ABI)].caller_saved_regs
+			regmask = impl_amd64.abi[abi].caller_saved_regs
 	}
 	return regmask // some insrs are allowed to not produce any regs (Stores for example)
 }

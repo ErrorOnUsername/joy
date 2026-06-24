@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:sys/info"
+import "../opto"
 
 Architecture :: enum {
 	Invalid,
@@ -44,4 +45,25 @@ target_get_word_size :: proc(target: TargetDesc) -> int {
 	}
 
 	unreachable()
+}
+
+to_opto_arch :: proc(arch: Architecture) -> opto.Arch {
+	switch arch {
+	case .Amd64: return .Amd64
+	case .Invalid:
+	}
+	panic("unknown arch")
+}
+
+to_opto_platform :: proc(plat: Platform) -> opto.Platform {
+	switch plat {
+	case .Invalid:
+	case .Windows:
+		return .Windows
+	case .MacOS:
+		return .Darwin
+	case .Linux:
+		return .Linux
+	}
+	panic("unknown platform")
 }

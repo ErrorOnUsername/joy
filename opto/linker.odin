@@ -162,7 +162,11 @@ link_internal_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 }
 
 create_and_write_object_file :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
-	create_and_write_pe_object(ctx, lc) or_return
+	switch ctx.platform {
+	case .Windows: create_and_write_pe_object(ctx, lc) or_return
+	case .Darwin:  create_and_write_macho_object(ctx, lc) or_return
+	case .Linux:   create_and_write_elf_object(ctx, lc) or_return
+	}
 	return true
 }
 
@@ -614,3 +618,12 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 
 	return true
 }
+
+create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
+	panic("implement macho support")
+}
+
+create_and_write_elf_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
+	panic("implement elf support")
+}
+

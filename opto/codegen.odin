@@ -17,7 +17,7 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 
 	perform_code_motion(ctx, fn, blocks, &block_map) or_return
 
-	register_allocate(fn, blocks, &block_map) or_return
+	register_allocate(ctx.platform, ctx.arch, fn, blocks, &block_map) or_return
 
 	emit(fn, blocks, &block_map) or_return
 
@@ -625,8 +625,8 @@ get_reg :: proc(fn: ^Function, n: ^Node) -> int {
 	return lrg.reg
 }
 
-register_allocate :: proc(fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
-	click_briggs_chaitin(fn, blocks, block_map) or_return
+register_allocate :: proc(plat: Platform, arch: Arch, fn: ^Function, blocks: []^BasicBlock, block_map: ^BlockMap) -> bool {
+	click_briggs_chaitin(plat, arch, fn, blocks, block_map) or_return
 	return true
 }
 
