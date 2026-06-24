@@ -174,8 +174,8 @@ cg_get_debug_type :: proc(mod: ^opto.Module, t: ^Type, span: ^Span) -> (dbg: ^op
 				case .Range:
 					d := opto.new_debug_type_struct(mod, "range", 2, ty.size, ty.alignment)
 					range_bound_dbg := cg_get_debug_type(mod, ty_builtin_isize, span) or_return
-					d.fields[0] = opto.new_debug_type_field(mod, "start", range_bound_dbg, ty_builtin_isize.size)
-					d.fields[1] = opto.new_debug_type_field(mod, "end", range_bound_dbg, ty_builtin_isize.size * 2)
+					d.fields[0] = opto.new_debug_type_field(mod, "start", range_bound_dbg, 0)
+					d.fields[1] = opto.new_debug_type_field(mod, "end", range_bound_dbg, ty_builtin_isize.size)
 					dbg = d
 				case .UntypedInt, .UntypedFloat, .UntypedString:
 					log_spanned_errorf(span, "Internal Compiler Error: got unexpected '{}' expression after typechecking is complete", ty.name )

@@ -696,11 +696,11 @@ insr_cmp_ule :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 }
 
 insr_cmp_ugt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_cmp(fn, .CmpULt, rhs, lhs)
+	return insr_cmp(fn, .CmpULe, rhs, lhs)
 }
 
 insr_cmp_uge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_cmp(fn, .CmpULe, rhs, lhs)
+	return insr_cmp(fn, .CmpULt, rhs, lhs)
 }
 
 insr_cmp_slt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
@@ -712,11 +712,11 @@ insr_cmp_sle :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 }
 
 insr_cmp_sgt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_cmp(fn, .CmpSLt, rhs, lhs)
+	return insr_cmp(fn, .CmpSLe, rhs, lhs)
 }
 
 insr_cmp_sge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_cmp(fn, .CmpSLe, rhs, lhs)
+	return insr_cmp(fn, .CmpSLt, rhs, lhs)
 }
 
 insr_cmp_flt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
@@ -728,11 +728,11 @@ insr_cmp_fle :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 }
 
 insr_cmp_fgt :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_cmp(fn, .CmpFLt, rhs, lhs)
+	return insr_cmp(fn, .CmpFLe, rhs, lhs)
 }
 
 insr_cmp_fge :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
-	return insr_cmp(fn, .CmpFLe, rhs, lhs)
+	return insr_cmp(fn, .CmpFLt, rhs, lhs)
 }
 
 @(private = "file")
