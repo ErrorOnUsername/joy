@@ -392,7 +392,7 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 
 	exe_write_err := os.write_entire_file("test.exe", file_data)
 	if exe_write_err != nil {
-		fmt.eprintln("Failed to write the executable file 'test.exe': {}", exe_write_err)
+		fmt.eprintfln("Failed to write the executable file 'test.exe': {}", exe_write_err)
 		return false
 	}
 
@@ -630,6 +630,26 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		flags          = {},
 		reserved       = 0,
 	}
+
+	file_size := size_of(header)
+
+	file_data := make([]u8, file_size)
+	defer delete(file_data)
+
+	copy_obj_data :: proc(file_pos: u32, buf: []u8, src: []u8) -> u32 {
+		copy(buf[file_pos:file_pos+u32(len(src))], src)
+		return file_pos + u32(len(src))
+	}
+
+	file_pos: u32
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(header)))
+
+	write_err := os.write_entire_file("test.bin", file_data)
+	if write_err != nil {
+		fmt.eprintfln("Failed to write the executable file 'test': {}", write_err)
+		return false
+	}
+
 	MACHO64_MAGIC :: u32(0xFEEDFACF)
 	MachOHeader64 :: struct {
 		magic:          u32,
@@ -669,9 +689,9 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		panic("unknown arch for macho")
 	}
 
-	MachOCPUSubtype :: union {
-		MachOCPUSubtype_ARM,
-		MachOCPUSubtype_x86,
+	MachOCPUSubtype :: struct #raw_union {
+		arm: MachOCPUSubtype_ARM,
+		x86: MachOCPUSubtype_x86,
 	}
 	MachOCPUSubtype_ARM :: enum(u32) {
 		All = 0,
@@ -682,7 +702,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	macho_get_cpu_subtype :: proc(arch: Arch) -> MachOCPUSubtype {
 		switch arch {
-		case .Amd64: return MachOCPUSubtype_x86.All
+		case .Amd64: return { x86 = MachOCPUSubtype_x86.All }
 		}
 		panic("unknown macho cpu subtype")
 	}
@@ -701,21 +721,165 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		Amd64KExts                = 11,
 	}
 	MachOHeaderFlag :: enum {
-		NoUndefinedRefs,
-		FromIncrementalLink,
-		DynamicLinkerInput,
-		BindUndefinedRefsOnLoad,
-		DynamicUndefinedRefsPreBound,
-		ReadOnlyAndReadWriteSegmentsSplit,
-		DyLibLazyInit,
-		TwoLevelNamespaceBindings,
-		ExeForceFlatNamespaceBindings,
-		NoDuplicateSymbolsInSubImages,
-		DyldDontNotifyPrebindingAgent,
+		NoUndefs,
+		IncrLink,
+		DyLdLink,
+		BindAtLoad,
+		PreBound,
+		SplitSegs,
+		LazyInit,
+		TwoLevel,
+		ForceFlat,
+		NoMultiDefs,
+		NoFixPreBinding,
+		PreBindable,
+		AllModsBound,
+		SubsectionsViaSymbols,
+		Canonical,
+		WeakDefines,
+		BindsToWeak,
+		AllowStackExecution,
+		RootSafe,
+		SetUIDSafe,
+		NoReexportedDyLibs,
+		PIE,
+		DeadStrippableDylib,
+		HasTLVDescriptors,
+		NoHeapExecution,
+		AppExtensionSafe,
+		NListOutOfSyncWithDYLDInfo,
+		SimSupport,
+		Reserved0,
+		Reserved1,
+		Reserved2,
+		DyLibInCache,
 	}
 	MachOHeaderFlags :: bit_set[MachOHeaderFlag; u32]
 
-	panic("implement macho support")
+	LoadCmd :: struct {
+		type: CommandType,
+		size: u32,
+	}
+
+	SegmentLoadCmd :: struct {
+		using cmd:    LoadCmd,
+		name:         [16]u8,
+		addr:         uint,
+		addr_size:    int,
+		file_offset:  uint,
+		file_size:    int,
+		max_perms:    MachOSegmentPermissionFlags,
+		init_perms:   MachOSegmentPermissionFlags,
+		num_sections: u32,
+		flags:        MachOSegmentFlags,
+	}
+
+	MachOSegmentPermissions :: enum {
+		Read,
+		Write,
+		Execute,
+	}
+	MachOSegmentPermissionFlags :: bit_set[MachOSegmentPermissions; u32]
+
+	MachOSegmentFlag :: enum {
+		HighVM,
+		FVMLib,
+		NoReloc,
+		ProtectedVersion1,
+		ReadOnly,
+	}
+	MachOSegmentFlags :: bit_set[MachOSegmentFlag; u32]
+
+	MachOSegmentSection :: struct {
+		section_name:        [16]u8,
+		segment_name:        [16]u8,
+		section_addr:        uint,
+		section_size:        int,
+		section_file_offset: u32,
+		alignment:           u32,
+		relos_file_offset:   u32,
+		relo_count:          u32,
+		flag_and_type:       u32,
+		reserved_0:          u32,
+		reserved_1:          u32,
+		reserved_2:          u32,
+	}
+
+	MachOSectionFlag :: enum(u32) {
+		PureInstructions  = 0x80000000,
+		NoTOC             = 0x40000000,
+		StripStaticSyms   = 0x20000000,
+		NoDeadStripping   = 0x10000000,
+		LiveSupport       = 0x08000000,
+		SelfModifyingCode = 0x04000000,
+		Debug             = 0x02000000,
+		SomeInstructions  = 0x00000400,
+		ExternalReloc     = 0x00000200,
+		LocalReloc        = 0x00000100,
+	}
+
+	MachOSectionType :: enum(u32) {
+		NonLazySymbolPointers   = 0x06,
+		LazySymbolPointers      = 0x07,
+		SymbolStubs             = 0x08,
+		ZeroFillOnDemand        = 0x0C,
+		LazyDyLibSymbolPointers = 0x10,
+	}
+
+	ApplicationUUIDLoadCmd :: struct {
+		using cmd: LoadCmd,
+		uuid:      [16]u8,
+	}
+
+	ApplicationMainEntryPointLoadCmd :: struct {
+		using cmd:         LoadCmd,
+		addr:              uint,
+		stack_memory_size: int,
+	}
+
+	MinimumOSVersionLoadCmd :: struct {
+		using cmd:          LoadCmd,
+		platform_type:      MachOPlatformType,
+		minimum_os_version: u32,
+		sdk_version:        u32,
+		num_tools_used:     u32,
+	}
+
+	MachOPlatformType :: enum(u32) {
+		macOS = 1,
+		iOS,
+		tvOS,
+		watchOS,
+		bridgeOS,
+		MacCatalyst,
+		iOSSimulator,
+		tvOSSimulator,
+		watchOSSimulator,
+		DriverKit,
+		visionOS,
+		visionOSSimulator,
+	}
+
+	MachOToolTypeInfo :: struct {
+		type:    MachOToolType,
+		version: u32,
+	}
+
+	MachOToolType :: enum(u32) {
+		Clang = 0x01,
+		Swift = 0x02,
+		LD    = 0x03,
+		Joy   = 0x2A, // :D
+	}
+
+	CommandType :: enum(u32) {
+		SegmentLoad64     = 0x19,
+		ApplicationUUID   = 0x1B,
+		AppMainEntryPoint = 0x28,
+		MinimumOSVersion  = 0x32,
+	}
+
+	return true
 }
 
 create_and_write_elf_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
