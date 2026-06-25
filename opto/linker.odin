@@ -620,10 +620,104 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 }
 
 create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
+	header := MachOHeader64 {
+		magic       = MACHO64_MAGIC,
+		cpu         = macho_get_cpu(ctx.arch),
+		cpu_subtype = macho_get_cpu_subtype(ctx.arch),
+		file_type   = .DemandPagedExecutable,
+		load_cmd_count = 0,
+		load_cmds_size = 0,
+		flags          = {},
+		reserved       = 0,
+	}
+	MACHO64_MAGIC :: u32(0xFEEDFACF)
+	MachOHeader64 :: struct {
+		magic:          u32,
+		cpu:            MachOCPU,
+		cpu_subtype:    MachOCPUSubtype,
+		file_type:      MachOFileType,
+		load_cmd_count: u32,
+		load_cmds_size: u32,
+		flags:          MachOHeaderFlags,
+		reserved:       u32,
+	}
+
+	MachOCPU :: enum(u32) {
+		VAX     = 0x01000001,
+		ROMP    = 0x01000002,
+		NS32032 = 0x01000004,
+		NS32332 = 0x01000005,
+		MC680x0 = 0x01000006,
+		x86     = 0x01000007,
+		MIPS    = 0x01000008,
+		NS32352 = 0x01000009,
+		HP_PA   = 0x0100000B,
+		ARM     = 0x0100000C,
+		MC88000 = 0x0100000D,
+		SPARC   = 0x0100000E,
+		i860BE  = 0x0100000F,
+		i860LE  = 0x01000010,
+		RS_6000 = 0x01000011,
+		PowerPC = 0x01000012,
+		RISCV   = 0x01000018,
+	}
+
+	macho_get_cpu :: proc(arch: Arch) -> MachOCPU {
+		switch arch {
+		case .Amd64: return .x86
+		}
+		panic("unknown arch for macho")
+	}
+
+	MachOCPUSubtype :: union {
+		MachOCPUSubtype_ARM,
+		MachOCPUSubtype_x86,
+	}
+	MachOCPUSubtype_ARM :: enum(u32) {
+		All = 0,
+	}
+	MachOCPUSubtype_x86 :: enum(u32) {
+		All = 3,
+	}
+
+	macho_get_cpu_subtype :: proc(arch: Arch) -> MachOCPUSubtype {
+		switch arch {
+		case .Amd64: return MachOCPUSubtype_x86.All
+		}
+		panic("unknown macho cpu subtype")
+	}
+
+	MachOFileType :: enum(u32) {
+		RelocatableObject         = 1,
+		DemandPagedExecutable     = 2,
+		FixedVMSharedLib          = 3,
+		Core                      = 4,
+		PreloadedExecutable       = 5,
+		DynamicallyBoundSharedLib = 6,
+		DynamicLinkEditor         = 7,
+		DynamicallyBoundBundle    = 8,
+		SharedLibStub             = 9,
+		DebugInfoCompanion        = 10,
+		Amd64KExts                = 11,
+	}
+	MachOHeaderFlag :: enum {
+		NoUndefinedRefs,
+		FromIncrementalLink,
+		DynamicLinkerInput,
+		BindUndefinedRefsOnLoad,
+		DynamicUndefinedRefsPreBound,
+		ReadOnlyAndReadWriteSegmentsSplit,
+		DyLibLazyInit,
+		TwoLevelNamespaceBindings,
+		ExeForceFlatNamespaceBindings,
+		NoDuplicateSymbolsInSubImages,
+		DyldDontNotifyPrebindingAgent,
+	}
+	MachOHeaderFlags :: bit_set[MachOHeaderFlag; u32]
+
 	panic("implement macho support")
 }
 
 create_and_write_elf_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 	panic("implement elf support")
 }
-
