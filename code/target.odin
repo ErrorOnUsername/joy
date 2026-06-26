@@ -7,6 +7,7 @@ import "../opto"
 Architecture :: enum {
 	Invalid,
 	Amd64,
+	AArch64,
 }
 
 Platform :: enum {
@@ -32,16 +33,22 @@ get_host_target_desc :: proc() -> TargetDesc {
 	}
 
 	arch: Architecture
-	arch = .Amd64
-	fmt.println("forcing to amd64 architecture")
+	#partial switch ODIN_ARCH {
+	case .amd64: arch = .Amd64
+	case .arm64: arch = .AArch64
+	case: panic("we don't support your host architecture :'(")
+	}
 
 	return { arch, platform }
 }
 
 target_get_word_size :: proc(target: TargetDesc) -> int {
-	#partial switch target.arch {
-		case .Amd64:
-			return 8
+	switch target.arch {
+	case .Invalid:
+	case .Amd64:
+		return 8
+	case .AArch64:
+		return 8
 	}
 
 	unreachable()
@@ -50,6 +57,7 @@ target_get_word_size :: proc(target: TargetDesc) -> int {
 to_opto_arch :: proc(arch: Architecture) -> opto.Arch {
 	switch arch {
 	case .Amd64: return .Amd64
+	case .AArch64: return .AArch64
 	case .Invalid:
 	}
 	panic("unknown arch")

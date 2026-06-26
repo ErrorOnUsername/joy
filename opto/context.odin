@@ -19,6 +19,7 @@ Module :: struct {
 
 Arch :: enum {
 	Amd64,
+	AArch64,
 }
 
 Platform :: enum {

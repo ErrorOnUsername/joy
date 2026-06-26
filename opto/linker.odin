@@ -128,7 +128,7 @@ link_non_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 }
 
 link_internal_text :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
-	arch := arch_impl(.Amd64)
+	arch := arch_impl(ctx.arch)
 	mod_head := ctx.modules
 	section_data := lc.sections[.Code].data
 	for mod_head != nil {
@@ -685,6 +685,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	macho_get_cpu :: proc(arch: Arch) -> MachOCPU {
 		switch arch {
 		case .Amd64: return .x86
+		case .AArch64: return .ARM
 		}
 		panic("unknown arch for macho")
 	}
@@ -703,6 +704,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	macho_get_cpu_subtype :: proc(arch: Arch) -> MachOCPUSubtype {
 		switch arch {
 		case .Amd64: return { x86 = MachOCPUSubtype_x86.All }
+		case .AArch64: return { arm = MachOCPUSubtype_ARM.All }
 		}
 		panic("unknown macho cpu subtype")
 	}

@@ -8,7 +8,7 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	log(fn, "-- Begin CodeGen --")
 	defer log(fn, "-- End CodeGen --")
 
-	insr_select(fn) or_return
+	insr_select(ctx, fn) or_return
 
 	block_map := block_map_create(fn)
 	defer block_map_destroy(&block_map)
@@ -19,16 +19,16 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 
 	register_allocate(ctx.platform, ctx.arch, fn, blocks, &block_map) or_return
 
-	emit(fn, blocks, &block_map) or_return
+	emit(ctx, fn, blocks, &block_map) or_return
 
 	return true
 }
 
-insr_select :: proc(fn: ^Function) -> bool {
+insr_select :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	log(fn, "-- Begin ISel --")
 	defer log(fn, "-- End ISel --")
 
-	impl := arch_impl(.Amd64)
+	impl := arch_impl(ctx.arch)
 
 	visited: Worklist
 	worklist_init(&visited, fn.node_count)
@@ -630,10 +630,10 @@ register_allocate :: proc(plat: Platform, arch: Arch, fn: ^Function, blocks: []^
 	return true
 }
 
-emit :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
+emit :: proc(ctx: ^OptoContext, fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap) -> bool {
 	log(fn, "-- Begin Instruction Encode --")
 	defer log(fn, "-- End Instruction Encode --")
-	impl := arch_impl(.Amd64)
+	impl := arch_impl(ctx.arch)
 	// TODO: we should do some basic bb reordering for fallthroughs to reduce the number of branches we emit but we can do that shit later :P
 
 	// we don't need to actually care about the non-jumps and shit, but having it be like this makes for easy indexing.

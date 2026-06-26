@@ -52,6 +52,8 @@ arch_impl :: proc(arch: Arch) -> ^ArchImpl {
 	switch arch {
 		case .Amd64:
 			return &impl_amd64
+		case .AArch64:
+			return &impl_aarch64
 	}
 	return nil
 }
