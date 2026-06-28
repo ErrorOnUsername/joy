@@ -21,7 +21,7 @@ XMM_MASK := Amd64RegMask { .XMM0, .XMM1, .XMM2, .XMM3, .XMM4, .XMM5, .XMM6, .XMM
 @(private = "file")
 FLAGS_MASK := Amd64RegMask { .RFLAGS }
 @(private = "file")
-SPILL_MASK := RegisterMask(-int(1 << uint(Amd64Reg.MAX_REG)))
+SPILL_MASK := RegisterMask(-i128(1 << uint(Amd64Reg.MAX_REG)))
 
 Amd64ABI :: enum {
 	Win64,
@@ -1148,6 +1148,7 @@ match_table := [NodeKind]InsrMatch {
 	.Negate = {},
 }
 
+@(private = "file")
 InsrTableEntry :: struct {
 	in_regmask:        Amd64RegMask,
 	out_regmask:       Amd64RegMask,
@@ -1155,6 +1156,7 @@ InsrTableEntry :: struct {
 	killmap:           Amd64RegMask,
 }
 
+@(private = "file")
 insr_table := [Amd64Insr]InsrTableEntry {
 	.Invalid = { },
 	.Start = { in_regmask = {}, out_regmask = {} },
