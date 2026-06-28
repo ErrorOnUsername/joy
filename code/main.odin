@@ -58,7 +58,7 @@ exec_phases :: proc(root_id: FileID) -> int {
 	init_builtin_types(host_target)
 
 	plat := to_opto_platform(host_target.platform)
-	arch := to_opto_arch(host_target.arch)
+	arch := opto.Arch.AArch64// to_opto_arch(host_target.arch)
 
 	cg_ctx: opto.OptoContext
 	opto.context_init(&cg_ctx, plat, arch)

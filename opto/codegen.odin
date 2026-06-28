@@ -618,7 +618,7 @@ build_dominator_tree :: proc(fn: ^Function, start: ^BasicBlock, bm: ^BlockMap) -
 	return true
 }
 
-get_reg :: proc(fn: ^Function, n: ^Node) -> int {
+get_reg :: proc(fn: ^Function, n: ^Node) -> i128 {
 	regalloc := &fn.output.reg_alloc
 	lrg_id := find_live_range(regalloc, n)
 	lrg := regalloc.lrg_store[lrg_id]

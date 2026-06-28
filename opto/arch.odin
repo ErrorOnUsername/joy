@@ -9,9 +9,9 @@ import "core:strings"
 MachineOp :: u32
 INVALID_OP :: MachineOp(0) // all archs should define this as INVALID since it's a sentinel state. Could also just use a Maybe but maybe you should sugma
 DEPENDENCY_OP :: MachineOp(0xFFFFFFFF)
-RegisterID :: int
+RegisterID :: i128
 INVALID_REG :: RegisterID(-1)
-RegisterMask :: int
+RegisterMask :: i128
 
 arch_is_valid_op :: proc(op: MachineOp) -> bool {
 	return op > INVALID_OP && op < DEPENDENCY_OP

@@ -3,14 +3,14 @@ package opto
 import "core:fmt"
 
 
-Amd64Reg :: enum(RegisterID) {
+Amd64Reg :: enum {
 	RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15,
 	XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7, XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15,
 	RFLAGS,
 	MAX_REG,
 }
 
-Amd64RegMask :: bit_set[Amd64Reg]
+Amd64RegMask :: bit_set[Amd64Reg; i128]
 
 @(private = "file")
 GPR_READ_MASK := Amd64RegMask { .RAX, .RBX, .RCX, .RDX, .RSI, .RDI, .RSP, .RBP, .R8, .R9, .R10, .R11, .R12, .R13, .R14, .R15 }
@@ -101,7 +101,7 @@ amd64_bw_type_suffix :: proc(bw: int) -> string {
 	}
 }
 
-amd64_regname :: proc(reg: int) -> string {
+amd64_regname :: proc(reg: i128) -> string {
 	return impl_amd64.reg_names[reg]
 }
 
@@ -114,14 +114,14 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		stack_size := fn.stack_size
 		append(out, 0x55) // 50+rd PUSH r64
 		{ // set current frame pointer
-			rbp := int(Amd64Reg.RBP)
-			rsp := int(Amd64Reg.RSP)
+			rbp := i128(Amd64Reg.RBP)
+			rsp := i128(Amd64Reg.RSP)
 			rex := rex_prefix(rsp, rbp, 0, true)
 			modrm := modrm_byte(.Direct, rsp, rbp)
 			append(out, rex, 0x89, modrm)
 		}
 		{ // stack sizing
-			rsp := int(Amd64Reg.RSP)
+			rsp := i128(Amd64Reg.RSP)
 			rex := rex_prefix(0, rsp, 0, true)
 			modrm := modrm_byte(.Direct, 5, rsp)
 			if amd64_is_imm8(stack_size) {
@@ -145,7 +145,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		// FIXME: are far returns even needed ever since segments aren't really used in long mode?
 		stack_size := fn.stack_size
 		{ // stack sizing
-			rsp := int(Amd64Reg.RSP)
+			rsp := i128(Amd64Reg.RSP)
 			rex := rex_prefix(0, rsp, 0, true)
 			modrm := modrm_byte(.Direct, 0, rsp)
 			if amd64_is_imm8(stack_size) {
@@ -200,16 +200,16 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		}
 
 		dst_reg := get_reg(fn, n)
-		assert(dst_reg < int(Amd64Reg.MAX_REG))
+		assert(dst_reg < i128(Amd64Reg.MAX_REG))
 
-		index_reg := -1
+		index_reg := i128(-1)
 		offset := 0
 		scale := 0
 
 		ptr_reg := get_reg(fn, n.inputs[2])
-		if ptr_reg >= int(Amd64Reg.MAX_REG) {
+		if ptr_reg >= i128(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[2])
-			ptr_reg = int(Amd64Reg.RBP)
+			ptr_reg = i128(Amd64Reg.RBP)
 		}
 
 		if !is_fp {
@@ -238,16 +238,16 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		amd64_indirect_load(out, dst_reg, ptr_reg, index_reg, offset, scale)
 	case .GetMemberPtr:
 		dst_reg := get_reg(fn, n)
-		assert(dst_reg < int(Amd64Reg.MAX_REG))
+		assert(dst_reg < i128(Amd64Reg.MAX_REG))
 
-		index_reg := -1
+		index_reg := i128(-1)
 		offset := 0
 		scale := 0
 
 		src_reg := get_reg(fn, n.inputs[1])
-		if src_reg >= int(Amd64Reg.MAX_REG) {
+		if src_reg >= i128(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[1])
-			src_reg = int(Amd64Reg.RBP)
+			src_reg = i128(Amd64Reg.RBP)
 		}
 
 		member_off := get_imm_int(n.inputs[2])
@@ -275,14 +275,14 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 				panic("bad store type")
 		}
 
-		index_reg := -1
+		index_reg := i128(-1)
 		offset := 0
 		scale := 0
 
 		ptr_reg := get_reg(fn, n.inputs[2])
-		if ptr_reg >= int(Amd64Reg.MAX_REG) {
+		if ptr_reg >= i128(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, n.inputs[2])
-			ptr_reg = int(Amd64Reg.RBP)
+			ptr_reg = i128(Amd64Reg.RBP)
 		}
 
 		if is_const_node(val) {
@@ -314,7 +314,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			}
 		} else {
 			val_reg := get_reg(fn, val)
-			assert(val_reg < int(Amd64Reg.MAX_REG))
+			assert(val_reg < i128(Amd64Reg.MAX_REG))
 
 			if !is_fp {
 				if bw <= 8 {
@@ -566,13 +566,13 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		log(fn, "        mul{} ${}, %%{}", amd64_bw_type_suffix(int(n.type.bitwidth)), imm, amd64_regname(dst_reg))
 	case .MulMem:
 		dst_reg := get_reg(fn, n.inputs[1])
-		assert(dst_reg < int(Amd64Reg.MAX_REG))
+		assert(dst_reg < i128(Amd64Reg.MAX_REG))
 		load := n.inputs[2]
 		assert(load.kind == .Load)
 		ptr := load.inputs[2]
 		src_reg := get_reg(fn, ptr)
-		if src_reg >= int(Amd64Reg.MAX_REG) {
-			src_reg = int(Amd64Reg.RBP)
+		if src_reg >= i128(Amd64Reg.MAX_REG) {
+			src_reg = i128(Amd64Reg.RBP)
 		}
 
 		bw := n.type.bitwidth
@@ -709,7 +709,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 				panic("bad load type")
 		}
 
-		index_reg := -1
+		index_reg := i128(-1)
 		offset := 0
 		scale := 0
 
@@ -717,9 +717,9 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		assert(load.kind == .Load)
 		ptr := load.inputs[2]
 		ptr_reg := get_reg(fn, ptr)
-		if ptr_reg >= int(Amd64Reg.MAX_REG) {
+		if ptr_reg >= i128(Amd64Reg.MAX_REG) {
 			offset = get_local_slot_offset(fn, ptr)
-			ptr_reg = int(Amd64Reg.RBP)
+			ptr_reg = i128(Amd64Reg.RBP)
 		}
 
 		if is_const_node(in_val) {
@@ -754,7 +754,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			log(fn, "        cmp{} ${}, {}(%%{})", amd64_bw_type_suffix(bw), imm, offset, amd64_regname(ptr_reg))
 		} else {
 			val_reg := get_reg(fn, in_val)
-			assert(val_reg < int(Amd64Reg.MAX_REG))
+			assert(val_reg < i128(Amd64Reg.MAX_REG))
 
 			if bw <= 8 {
 				append(out, 0x38)
@@ -783,20 +783,20 @@ amd64_is_imm8 :: proc(imm: int) -> bool {
 	return -128 <= imm && imm <= 127
 }
 
-amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: int, ptr_reg: int, index_reg: int, offset: int, scale: int) {
+amd64_indirect_load :: proc(out: ^[dynamic]u8, dst_reg: i128, ptr_reg: i128, index_reg: i128, offset: int, scale: int) {
 	mod := MODAddressingMode.Indirect
 	if offset != 0 {
 		mod = .IndirectDisp8 if amd64_is_imm8(offset) else .IndirectDisp32
 	}
 
-	if mod == .Indirect && ptr_reg == int(Amd64Reg.RBP) {
+	if mod == .Indirect && ptr_reg == i128(Amd64Reg.RBP) {
 		mod = .IndirectDisp8
 	}
 
 	if index_reg == -1 {
 		append(out, modrm_byte(mod, dst_reg, ptr_reg))
 	} else {
-		append(out, modrm_byte(mod, dst_reg, int(Amd64Reg.RSP)))
+		append(out, modrm_byte(mod, dst_reg, i128(Amd64Reg.RSP)))
 		append(out, sib_byte(scale, index_reg, ptr_reg))
 	}
 
@@ -843,7 +843,7 @@ amd64_get_br_jump_op :: proc(n: ^Node, rel_size: u8) -> (u8, string) {
 	return op if rel_size == 32 else op - 16, str
 }
 
-rex_prefix :: proc(dst: int, src: int, idx: int, is_wide: bool) -> u8 {
+rex_prefix :: proc(dst: i128, src: i128, idx: i128, is_wide: bool) -> u8 {
 	assert(dst >= -1 && dst < 16)
 	assert(src >= -1 && src < 16)
 	assert(idx >= -1 && idx < 16)
@@ -863,7 +863,7 @@ MODAddressingMode :: enum(u8) {
 	Direct // %reg
 }
 
-modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
+modrm_byte :: proc(mod: MODAddressingMode, dst: i128, src: i128) -> u8 {
 	dst2 := 0 if dst == -1 else dst
 	assert(src >= 0 && src < 16)
 	mod_field := (u8(mod) & 0x03) << 6
@@ -874,7 +874,7 @@ modrm_byte :: proc(mod: MODAddressingMode, dst: int, src: int) -> u8 {
 }
 
 
-sib_byte :: proc(scale: int, index: int, base: int) -> u8 {
+sib_byte :: proc(scale: int, index: i128, base: i128) -> u8 {
 	assert(scale >= 0 && scale <= 4)
 	assert(index >= 0 && index < 16)
 	assert(base >= 0 && base < 16)
@@ -1051,11 +1051,14 @@ amd64_get_two_address_index :: proc(ctx: ^RegAllocContext, n: ^Node) -> int {
 	return insr_table[Amd64Insr(n.uop)].two_address_index
 }
 
+@(private = "file")
 InsrMatchProc :: #type proc (n: ^Node) -> bool
+@(private = "file")
 InsrMatchPred :: struct {
 	insr: Amd64Insr,
 	pred: InsrMatchProc,
 }
+@(private = "file")
 InsrMatch :: struct {
 	predicates: []InsrMatchPred,
 }
@@ -1087,6 +1090,7 @@ amd64_mem_format :: proc(n: ^Node) -> bool {
 	return matches
 }
 
+@(private = "file")
 match_table := [NodeKind]InsrMatch {
 	.Start = { { { insr = .Start } } },
 	.End = {},

@@ -7,11 +7,11 @@ import "core:slice"
 // Check out Chapter 20 of Simple (thank you, Cliff): https://github.com/SeaOfNodes/Simple/blob/main/chapter20/README.md
 
 INVALID_LRG :: LiveRangeID(-1)
-LiveRangeID :: distinct int
+LiveRangeID :: distinct i128
 LiveRange :: struct {
 	id: LiveRangeID,
 	leader: LiveRangeID, // rep of the subset for the union-find of disjointed set
-	reg: int,
+	reg: i128,
 	available_mask: RegisterMask,
 	def: ^Node,
 	use: ^Node,
@@ -548,7 +548,7 @@ color_interference_graph :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks:
 		lrg := &ctx.lrg_store[i]
 		assert(lrg.id != INVALID_LRG)
 		color_stack[stack_len] = lrg
-		if len(lrg.adj) < bits.count_ones(lrg.available_mask) {
+		if i128(len(lrg.adj)) < bits.count_ones(lrg.available_mask) {
 			color_stack_swap(color_stack, work, stack_len)
 			work += 1
 		}
@@ -613,7 +613,7 @@ remove_check_made_low_risk :: proc(a: ^LiveRange, b: ^LiveRange) -> bool {
 		}
 	}
 	assert(idx != -1)
-	about_to_go_trivial := len(a.adj) == bits.count_ones(a.available_mask)
+	about_to_go_trivial := i128(len(a.adj)) == bits.count_ones(a.available_mask)
 	unordered_remove(&a.adj, idx)
 	return about_to_go_trivial
 }
@@ -681,6 +681,6 @@ is_better_lrg :: proc(curr: ^LiveRange, test: ^LiveRange) -> bool {
 	return bits.count_ones(curr.available_mask) < bits.count_ones(test.available_mask) // take the one with more available registers
 }
 
-bias_color :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange, reg: int, mask: RegisterMask) -> int {
+bias_color :: proc(ctx: ^RegAllocContext, lrg: ^LiveRange, reg: i128, mask: RegisterMask) -> i128 {
 	return reg
 }
