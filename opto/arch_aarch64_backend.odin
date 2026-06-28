@@ -100,7 +100,84 @@ aarch64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 }
 
 aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
-	panic("impl encode")
+	uop := AArch64Insr(n.uop)
+	switch uop {
+		case .Invalid:
+		case .Start:
+			panic("impl start")
+		case .Param:
+		case .Proj:
+		case .Local:
+		case .Ret:
+			panic("impl ret")
+		case .Call:
+			panic("impl call")
+		case .Jmp:
+			panic("impl jmp")
+		case .Load:
+			panic("impl load")
+		case .GetMemberPtr:
+			panic("impl getmemberptr")
+		case .Store:
+			panic("impl store")
+		case .Add:
+			panic("impl add")
+		case .AddImm:
+			panic("impl addi")
+		case .Sub:
+			panic("impl sub")
+		case .SubImm:
+			panic("impl subi")
+		case .Mul:
+			panic("impl mul")
+		case .MulImm:
+			panic("impl muli")
+		case .Div:
+			panic("impl div")
+		case .DivImm:
+			panic("impl divi")
+		case .AddF:
+			panic("impl addf")
+		case .SubF:
+			panic("impl subf")
+		case .MulF:
+			panic("impl mulf")
+		case .DivF:
+			panic("impl divf")
+		case .Sal:
+			panic("impl sal")
+		case .SalImm:
+			panic("impl sali")
+		case .Sar:
+			panic("impl sar")
+		case .SarImm:
+			panic("impl sari")
+		case .Shl:
+			panic("impl shl")
+		case .ShlImm:
+			panic("impl shli")
+		case .Shr:
+			panic("impl shr")
+		case .ShrImm:
+			panic("impl shri")
+		case .And:
+			panic("impl and")
+		case .AndImm:
+			panic("impl andi")
+		case .Or:
+			panic("impl or")
+		case .OrImm:
+			panic("impl ori")
+		case .XOr:
+			panic("impl xor")
+		case .XOrImm:
+			panic("impl xori")
+		case .Cmp:
+			panic("impl cmp")
+		case .CmpImm:
+			panic("impl cmpi")
+	}
+	return true
 }
 
 aarch64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
@@ -135,7 +212,7 @@ aarch64_get_param_regmask :: proc(ctx: ^RegAllocContext, proto: ^FunctionProto, 
 
 aarch64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> RegisterMask {
 	regmask := transmute(RegisterMask)insr_table[AArch64Insr(n.uop)].in_regmask
-	uop := Amd64Insr(n.uop)
+	uop := AArch64Insr(n.uop)
 	#partial switch uop {
 		case .Call:
 			// FIXME: If you have too many integer arguments into the function the codegen backend for the lanuage might make some assumptions about the ABI instead of naively just spitting out types...
@@ -169,7 +246,7 @@ aarch64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask
 	}
 
 	regmask := transmute(RegisterMask)table_ent.out_regmask
-	uop := Amd64Insr(n.uop)
+	uop := AArch64Insr(n.uop)
 	#partial switch uop {
 		case .Param:
 			start_proj_idx := n.extra.derived.(^ProjExtra).idx
@@ -207,7 +284,7 @@ aarch64_get_two_address_index :: proc(ctx: ^RegAllocContext, n: ^Node) -> int {
 InsrMatchProc :: #type proc (n: ^Node) -> bool
 @(private = "file")
 InsrMatchPred :: struct {
-	insr: Amd64Insr,
+	insr: AArch64Insr,
 	pred: InsrMatchProc,
 }
 @(private = "file")
@@ -269,8 +346,8 @@ match_table := [NodeKind]InsrMatch {
 	.Sar = { { { insr = .SarImm, pred = aarch64_imm_format }, { insr = .Sar, pred = aarch64_reg_format } } },
 	.Rol = {},
 	.Ror = {},
-	.UDiv = { { { insr = .DivImm, pred = amd64_imm_format }, { insr = .Div, pred = amd64_reg_format } } },
-	.SDiv = { { { insr = .DivImm, pred = amd64_imm_format }, { insr = .Div, pred = amd64_reg_format } } },
+	.UDiv = { { { insr = .DivImm, pred = aarch64_imm_format }, { insr = .Div, pred = aarch64_reg_format } } },
+	.SDiv = { { { insr = .DivImm, pred = aarch64_imm_format }, { insr = .Div, pred = aarch64_reg_format } } },
 	.UMod = {},
 	.SMod = {},
 	.FAdd = { { { insr = .AddF } } },
@@ -279,14 +356,14 @@ match_table := [NodeKind]InsrMatch {
 	.FDiv = { { { insr = .DivF } } },
 	.FMax = {},
 	.FMin = {},
-	.CmpEq = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpNeq = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpULt = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpULe = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpSLt = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpSLe = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpFLt = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
-	.CmpFLe = { { { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
+	.CmpEq = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpNeq = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpULt = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpULe = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpSLt = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpSLe = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpFLt = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
+	.CmpFLe = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
 	.Not = {},
 	.Negate = {},
 }
