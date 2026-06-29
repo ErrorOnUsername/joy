@@ -99,17 +99,69 @@ aarch64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	return INVALID_OP
 }
 
+AARCH64_OP_LOAD_REG_64  :: 0b11111000011
+AARCH64_OP_LOAD_REG_32  :: 0b10111000011
+AARCH64_OP_LOAD_REG_16  :: 0b01111000010
+AARCH64_OP_LOAD_REG_8   :: 0b00111000011
+AARCH64_OP_LOAD_IMM_64  :: 0b1111100101
+AARCH64_OP_LOAD_IMM_32  :: 0b1011100101
+AARCH64_OP_LOAD_IMM_16  :: 0b0111100101
+AARCH64_OP_LOAD_IMM_8   :: 0b0011100101
+AARCH64_OP_STORE_REG_64 :: 0b11111000001
+AARCH64_OP_STORE_REG_32 :: 0b10111000001
+AARCH64_OP_STORE_REG_16 :: 0b01111000001
+AARCH64_OP_STORE_REG_8  :: 0b00111000001
+AARCH64_OP_STORE_IMM_64 :: 0b1111100100
+AARCH64_OP_STORE_IMM_32 :: 0b1011100100
+AARCH64_OP_STORE_IMM_16 :: 0b0111100100
+AARCH64_OP_STORE_IMM_8  :: 0b0011100100
+AARCH64_OP_ADD          :: 0b10001011
+AARCH64_OP_ADD_IMM      :: 0b1001000100
+AARCH64_OP_SUB          :: 0b11001011
+AARCH64_OP_SUB_IMM      :: 0b1101000100
+AARCH64_OP_MUL          :: 0b10011011000
+AARCH64_OP_DIV          :: 0b10011010110
+AARCH64_OP_CMP          :: 0b11101011
+AARCH64_OP_JMP          :: 0b000101
+AARCH64_OP_BR           :: 0b01010100
+AARCH64_OP_CALL         :: 0b100101
+AARCH64_OP_RET          :: 0b1101011001011111000000
+
+enc_reg_reg :: proc(opcode: int, shift: int, rm: i128, imm6: int, rn: i128, rd: i128) -> u32 {
+	assert(rm >= 0 && rm < 32)
+	assert(rn >= 0 && rn < 32)
+	assert(rd >= 0 && rd < 32)
+	return u32(opcode << 24) | u32(shift << 21) | u32(rm << 16) | u32(imm6 << 10) | u32(rn << 5) | u32(rd)
+}
+
+enc_ret :: proc(opcode: int) -> u32 {
+	return u32(opcode) << 10
+}
+
+aarch64_enc_reg_binop :: proc(fn: ^Function, n: ^Node, opcode: int) {
+	s0 := get_reg(fn, n.inputs[1])
+	s1 := get_reg(fn, n.inputs[2])
+	dest := get_reg(fn, n)
+	enc := enc_reg_reg(opcode, 0, s1, 0, s0, dest)
+	enc_out32(&fn.output.data, int(enc))
+}
+
 aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	uop := AArch64Insr(n.uop)
 	switch uop {
 		case .Invalid:
 		case .Start:
-			panic("impl start")
+			if fn.stack_size > 0 {
+				enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
+			}
 		case .Param:
 		case .Proj:
 		case .Local:
 		case .Ret:
-			panic("impl ret")
+			if fn.stack_size > 0 {
+				enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
+			}
+			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
 		case .Call:
 			panic("impl call")
 		case .Jmp:
