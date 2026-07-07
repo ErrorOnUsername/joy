@@ -210,9 +210,15 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 
 	low_date_time := u32(0xFFFFFFFF & time.time_to_unix(time.now()))
 
+	pe_machine: PEMachine
+	switch ctx.arch {
+	case .Amd64: pe_machine = .Amd64
+	case .AArch64: pe_machine = .AArch64
+	}
+
 	header := PEHeader {
 		magic = 0x0000_4550, // literally "PE\0\0"
-		machine = .Amd64,
+		machine = pe_machine,
 		section_count = 0,
 		time_date_stamp = low_date_time,
 		symbol_table_pointer = 0,
@@ -400,7 +406,8 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 
 	PEMachine :: enum(u16) {
 		Unknown = 0,
-		Amd64 = 0x8664,
+		Amd64   = 0x8664,
+		AArch64 = 0xaa64,
 	}
 
 	PECharacteristics :: enum(u16) {
@@ -633,6 +640,40 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	file_size := size_of(header)
 
+	zero_page_segment := SegmentLoadCmd {
+		cmd = { .SegmentLoad64, size_of(SegmentLoadCmd) },
+		name = { 0x5F, 0x5F, 0x50, 0x41, 0x47, 0x45, 0x5A, 0x45, 0x52, 0x4F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __PAGEZERO
+		addr = 0,
+		addr_size = 4 * 1024 * 1024 * 1024,
+		file_offset = 0,
+		file_size = 0,
+		max_perms = {},
+		init_perms = {},
+		num_sections = 0,
+		flags = {},
+	}
+
+	file_size += int(zero_page_segment.cmd.size)
+
+	text_sections: [dynamic]MachOSegmentSection
+	for section in lc.sections {
+	}
+
+	text_segment := SegmentLoadCmd {
+		cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(text_sections))) },
+		name = { 0x5F, 0x5F, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __TEXT
+		addr = 0,
+		addr_size = 0,
+		file_offset = 0,
+		file_size = 0,
+		max_perms = {},
+		init_perms = {},
+		num_sections = 0,
+		flags = {},
+	}
+
+	file_size += int(text_segment.cmd.size)
+
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
 
@@ -643,6 +684,9 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	file_pos: u32
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(header)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&text_segment, size_of(text_segment)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(text_sections), size_of(MachOSegmentSection) * len(text_sections)))
 
 	write_err := os.write_entire_file("test.bin", file_data)
 	if write_err != nil {

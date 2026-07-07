@@ -152,14 +152,14 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Invalid:
 		case .Start:
 			if fn.stack_size > 0 {
-				enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
+				// enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
 			}
 		case .Param:
 		case .Proj:
 		case .Local:
 		case .Ret:
 			if fn.stack_size > 0 {
-				enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
+				// enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
 			}
 			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
 		case .Call:
