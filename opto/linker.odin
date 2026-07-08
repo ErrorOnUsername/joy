@@ -674,6 +674,44 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	file_size += int(text_segment.cmd.size)
 
+	rodata_sections: [dynamic]MachOSegmentSection
+	for section in lc.sections {
+	}
+
+	rodata_segment := SegmentLoadCmd {
+		cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(rodata_sections))) },
+		name = { 0x5F, 0x5F, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __TEXT
+		addr = 0,
+		addr_size = 0,
+		file_offset = 0,
+		file_size = 0,
+		max_perms = {},
+		init_perms = {},
+		num_sections = 0,
+		flags = {},
+	}
+
+	file_size += int(rodata_segment.cmd.size)
+
+	data_sections: [dynamic]MachOSegmentSection
+	for section in lc.sections {
+	}
+
+	data_segment := SegmentLoadCmd {
+		cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(data_sections))) },
+		name = { 0x5F, 0x5F, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __TEXT
+		addr = 0,
+		addr_size = 0,
+		file_offset = 0,
+		file_size = 0,
+		max_perms = {},
+		init_perms = {},
+		num_sections = 0,
+		flags = {},
+	}
+
+	file_size += int(data_segment.cmd.size)
+
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
 
@@ -687,6 +725,10 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&text_segment, size_of(text_segment)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(text_sections), size_of(MachOSegmentSection) * len(text_sections)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&rodata_segment, size_of(rodata_segment)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(rodata_sections), size_of(MachOSegmentSection) * len(rodata_sections)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&data_segment, size_of(data_segment)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(data_sections), size_of(MachOSegmentSection) * len(data_sections)))
 
 	write_err := os.write_entire_file("test.bin", file_data)
 	if write_err != nil {
