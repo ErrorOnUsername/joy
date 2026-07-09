@@ -655,8 +655,8 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	file_size += int(zero_page_segment.cmd.size)
 
-	alloc_segment_load_from_sections :: proc(out: ^SegmentLoadSlot, name: string, sections: []MachOSegmentSection) -> int {
-		// if len(sections) == 0 do return 0
+	alloc_segment_load_from_sections :: proc(out: ^SegmentLoadSlot, name: string, perms: MachOSegmentPermissionFlags, flags: MachOSegmentFlags, sections: []MachOSegmentSection) -> int {
+		if len(sections) == 0 do return 0
 
 		cmd := &out.cmd
 
@@ -669,12 +669,37 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		cmd.addr_size = 0
 		cmd.file_offset = 0
 		cmd.file_size = 0
-		cmd.max_perms = {}
-		cmd.init_perms = {}
-		cmd.num_sections = 0
-		cmd.flags = {}
+		cmd.max_perms = perms
+		cmd.init_perms = perms
+		cmd.num_sections = u32(len(sections))
+		cmd.flags = flags
 
-		out.section_start_ptr = raw_data(sections)
+		if len(sections) > 0 {
+			out.section_start_ptr = raw_data(sections)
+		}
+
+		return 1
+	}
+
+	init_section :: proc(out: ^MachOSegmentSection, segment_name: string, name: string, from: LinkSection) -> int {
+		if len(from.data) == 0 do return 0
+
+		for i in 0..<len(name) {
+			out.section_name[i] = name[i]
+		}
+		for i in 0..<len(segment_name) {
+			out.segment_name[i] = segment_name[i]
+		}
+		out.section_addr = 0
+		out.section_size = 0
+		out.section_file_offset = 0
+		out.alignment = 0
+		out.relos_file_offset = 0
+		out.relo_count = 0
+		out.flag_and_type = 0
+		out.reserved_0 = 0
+		out.reserved_1 = 0
+		out.reserved_2 = 0
 
 		return 1
 	}
@@ -687,21 +712,19 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	used_segment_loads := 0
 	segment_loads: [3]SegmentLoadSlot // __TEXT, __DATA, and __DATA_CONST
 
-	text_sections: [dynamic]MachOSegmentSection
-	for section in lc.sections {
-	}
-	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__TEXT", text_sections[:])
+	text_sections: [1]MachOSegmentSection
+	used_text_sections := init_section(&text_sections[0], "__TEXT", "__text", lc.sections[.Code])
+	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__TEXT", { .Read, .Execute }, {}, text_sections[:used_text_sections])
 
-	rodata_sections: [dynamic]MachOSegmentSection
-	for section in lc.sections {
-	}
-	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA_CONST", rodata_sections[:])
+	rodata_sections: [1]MachOSegmentSection
+	used_rodata_sections := init_section(&rodata_sections[0], "__DATA_CONST", "__data", lc.sections[.ROData])
+	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA_CONST", { .Read, .Write }, { .ReadOnly }, rodata_sections[:used_rodata_sections])
 
-	data_sections: [dynamic]MachOSegmentSection
-	for section in lc.sections {
-	}
-	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA", data_sections[:])
-
+	data_sections: [2]MachOSegmentSection
+	used_data_sections := 0
+	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__bss", lc.sections[.BSS])
+	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__data", lc.sections[.Data])
+	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA", { .Read, .Write }, {}, data_sections[:used_data_sections])
 
 	load_cmds_size := size_of(SegmentLoadCmd) // the zero page
 	for i in 0..<used_segment_loads {
@@ -711,6 +734,8 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_size += load_cmds_size
 	header.load_cmd_count = u32(used_segment_loads) + 1
 	header.load_cmds_size = u32(load_cmds_size)
+
+	size_of_headers := file_size
 
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
@@ -725,7 +750,9 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
 	for i in 0..<used_segment_loads {
 		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&segment_loads[i].cmd, size_of(SegmentLoadCmd)))
-		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(segment_loads[i].section_start_ptr, int(segment_loads[i].cmd.size) - size_of(SegmentLoadCmd)))
+		if segment_loads[i].cmd.num_sections > 0 {
+			file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(segment_loads[i].section_start_ptr, int(segment_loads[i].cmd.size) - size_of(SegmentLoadCmd)))
+		}
 	}
 
 	write_err := os.write_entire_file("test.bin", file_data)
