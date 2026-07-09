@@ -655,62 +655,62 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	file_size += int(zero_page_segment.cmd.size)
 
+	alloc_segment_load_from_sections :: proc(out: ^SegmentLoadSlot, name: string, sections: []MachOSegmentSection) -> int {
+		// if len(sections) == 0 do return 0
+
+		cmd := &out.cmd
+
+		cmd.cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(sections))) }
+		assert(len(name) <= 16)
+		for i in 0..<len(name) {
+			cmd.name[i] = name[i]
+		}
+		cmd.addr = 0
+		cmd.addr_size = 0
+		cmd.file_offset = 0
+		cmd.file_size = 0
+		cmd.max_perms = {}
+		cmd.init_perms = {}
+		cmd.num_sections = 0
+		cmd.flags = {}
+
+		out.section_start_ptr = raw_data(sections)
+
+		return 1
+	}
+
+	SegmentLoadSlot :: struct {
+		cmd: SegmentLoadCmd,
+		section_start_ptr: rawptr,
+	}
+
+	used_segment_loads := 0
+	segment_loads: [3]SegmentLoadSlot // __TEXT, __DATA, and __DATA_CONST
+
 	text_sections: [dynamic]MachOSegmentSection
 	for section in lc.sections {
 	}
-
-	text_segment := SegmentLoadCmd {
-		cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(text_sections))) },
-		name = { 0x5F, 0x5F, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __TEXT
-		addr = 0,
-		addr_size = 0,
-		file_offset = 0,
-		file_size = 0,
-		max_perms = {},
-		init_perms = {},
-		num_sections = 0,
-		flags = {},
-	}
-
-	file_size += int(text_segment.cmd.size)
+	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__TEXT", text_sections[:])
 
 	rodata_sections: [dynamic]MachOSegmentSection
 	for section in lc.sections {
 	}
-
-	rodata_segment := SegmentLoadCmd {
-		cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(rodata_sections))) },
-		name = { 0x5F, 0x5F, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __TEXT
-		addr = 0,
-		addr_size = 0,
-		file_offset = 0,
-		file_size = 0,
-		max_perms = {},
-		init_perms = {},
-		num_sections = 0,
-		flags = {},
-	}
-
-	file_size += int(rodata_segment.cmd.size)
+	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA_CONST", rodata_sections[:])
 
 	data_sections: [dynamic]MachOSegmentSection
 	for section in lc.sections {
 	}
+	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA", data_sections[:])
 
-	data_segment := SegmentLoadCmd {
-		cmd = { .SegmentLoad64, u32(size_of(SegmentLoadCmd) + (size_of(MachOSegmentSection) * len(data_sections))) },
-		name = { 0x5F, 0x5F, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __TEXT
-		addr = 0,
-		addr_size = 0,
-		file_offset = 0,
-		file_size = 0,
-		max_perms = {},
-		init_perms = {},
-		num_sections = 0,
-		flags = {},
+
+	load_cmds_size := size_of(SegmentLoadCmd) // the zero page
+	for i in 0..<used_segment_loads {
+		load_cmds_size += int(segment_loads[i].cmd.size)
 	}
 
-	file_size += int(data_segment.cmd.size)
+	file_size += load_cmds_size
+	header.load_cmd_count = u32(used_segment_loads) + 1
+	header.load_cmds_size = u32(load_cmds_size)
 
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
@@ -723,12 +723,10 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos: u32
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&header, size_of(header)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&text_segment, size_of(text_segment)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(text_sections), size_of(MachOSegmentSection) * len(text_sections)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&rodata_segment, size_of(rodata_segment)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(rodata_sections), size_of(MachOSegmentSection) * len(rodata_sections)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&data_segment, size_of(data_segment)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(raw_data(data_sections), size_of(MachOSegmentSection) * len(data_sections)))
+	for i in 0..<used_segment_loads {
+		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&segment_loads[i].cmd, size_of(SegmentLoadCmd)))
+		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(segment_loads[i].section_start_ptr, int(segment_loads[i].cmd.size) - size_of(SegmentLoadCmd)))
+	}
 
 	write_err := os.write_entire_file("test.bin", file_data)
 	if write_err != nil {
