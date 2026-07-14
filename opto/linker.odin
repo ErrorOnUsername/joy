@@ -655,7 +655,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	file_size += int(zero_page_segment.cmd.size)
 
-	alloc_segment_load_from_sections :: proc(out: ^SegmentLoadSlot, name: string, perms: MachOSegmentPermissionFlags, flags: MachOSegmentFlags, sections: []MachOSegmentSection) -> int {
+	alloc_segment_load_from_sections :: proc(out: ^SegmentLoadSlot, name: string, perms: MachOSegmentPermissionFlags, flags: MachOSegmentFlags, sections: []SectionEntry) -> int {
 		if len(sections) == 0 do return 0
 
 		cmd := &out.cmd
@@ -681,25 +681,28 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		return 1
 	}
 
-	init_section :: proc(out: ^MachOSegmentSection, segment_name: string, name: string, from: LinkSection) -> int {
+	init_section :: proc(out: ^SectionEntry, segment_name: string, name: string, type: u32, flags: u32, from: ^LinkSection) -> int {
 		if len(from.data) == 0 do return 0
 
+		out.src = from
+		sect := &out.macho
+
 		for i in 0..<len(name) {
-			out.section_name[i] = name[i]
+			sect.section_name[i] = name[i]
 		}
 		for i in 0..<len(segment_name) {
-			out.segment_name[i] = segment_name[i]
+			sect.segment_name[i] = segment_name[i]
 		}
-		out.section_addr = 0
-		out.section_size = 0
-		out.section_file_offset = 0
-		out.alignment = 0
-		out.relos_file_offset = 0
-		out.relo_count = 0
-		out.flag_and_type = 0
-		out.reserved_0 = 0
-		out.reserved_1 = 0
-		out.reserved_2 = 0
+		sect.section_addr = 0
+		sect.section_size = 0
+		sect.section_file_offset = 0
+		sect.alignment = 0
+		sect.relos_file_offset = 0
+		sect.relo_count = 0
+		sect.flag_and_type = flags | type
+		sect.reserved_0 = 0
+		sect.reserved_1 = 0
+		sect.reserved_2 = 0
 
 		return 1
 	}
@@ -712,30 +715,70 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	used_segment_loads := 0
 	segment_loads: [3]SegmentLoadSlot // __TEXT, __DATA, and __DATA_CONST
 
-	text_sections: [1]MachOSegmentSection
-	used_text_sections := init_section(&text_sections[0], "__TEXT", "__text", lc.sections[.Code])
+	SectionEntry :: struct {
+		src: ^LinkSection,
+		macho: MachOSegmentSection,
+	}
+
+	text_sections: [1]SectionEntry
+	used_text_sections := init_section(&text_sections[0], "__TEXT", "__text", u32(MachOSectionType.ZeroFillOnDemand), u32(MachOSectionFlag.PureInstructions), &lc.sections[.Code])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__TEXT", { .Read, .Execute }, {}, text_sections[:used_text_sections])
 
-	rodata_sections: [1]MachOSegmentSection
-	used_rodata_sections := init_section(&rodata_sections[0], "__DATA_CONST", "__data", lc.sections[.ROData])
+	rodata_sections: [1]SectionEntry
+	used_rodata_sections := init_section(&rodata_sections[0], "__DATA_CONST", "__data", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.ROData])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA_CONST", { .Read, .Write }, { .ReadOnly }, rodata_sections[:used_rodata_sections])
 
-	data_sections: [2]MachOSegmentSection
+	data_sections: [2]SectionEntry
 	used_data_sections := 0
-	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__bss", lc.sections[.BSS])
-	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__data", lc.sections[.Data])
+	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__bss", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.BSS])
+	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__data", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.Data])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA", { .Read, .Write }, {}, data_sections[:used_data_sections])
+
+	entry_point_load := ApplicationMainEntryPointLoadCmd {
+		cmd = { .AppMainEntryPoint, size_of(ApplicationMainEntryPointLoadCmd) },
+		addr = 0,
+		stack_memory_size = 0,
+	}
 
 	load_cmds_size := size_of(SegmentLoadCmd) // the zero page
 	for i in 0..<used_segment_loads {
 		load_cmds_size += int(segment_loads[i].cmd.size)
 	}
+	load_cmds_size += size_of(ApplicationMainEntryPointLoadCmd)
 
 	file_size += load_cmds_size
 	header.load_cmd_count = u32(used_segment_loads) + 1
 	header.load_cmds_size = u32(load_cmds_size)
 
 	size_of_headers := file_size
+
+	vaddr := uint(zero_page_segment.addr_size)
+
+	code_base_va: uint
+
+	for &seg in segment_loads {
+		file_start := file_size
+		vaddr_start := vaddr
+		seg.cmd.addr = vaddr_start
+		sections := slice.from_ptr(transmute(^SectionEntry)seg.section_start_ptr, int(seg.cmd.num_sections))
+		for &sect in sections {
+			align := 1 << uint(sect.macho.alignment) // align is in log2
+			vaddr = rt.align_forward(vaddr, uint(align))
+			file_size = rt.align_forward(file_size, align)
+			if sect.src.type == .Code do code_base_va = vaddr
+			sect.macho.section_addr = vaddr
+			sect.macho.section_size = len(sect.src.data)
+			sect.macho.section_file_offset = u32(file_size)
+			vaddr += uint(sect.macho.section_size)
+			file_size += len(sect.src.data)
+		}
+		seg.cmd.addr_size = int(vaddr - vaddr_start)
+		seg.cmd.file_size = file_size - file_start
+	}
+
+	assert(code_base_va != 0)
+	entry_offset := code_base_va + uint(lc.symbol_offsets["_start"].offset)
+	entry_point_load.addr = entry_offset
 
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
@@ -750,10 +793,13 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
 	for i in 0..<used_segment_loads {
 		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&segment_loads[i].cmd, size_of(SegmentLoadCmd)))
-		if segment_loads[i].cmd.num_sections > 0 {
-			file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(segment_loads[i].section_start_ptr, int(segment_loads[i].cmd.size) - size_of(SegmentLoadCmd)))
+		for j in 0..<segment_loads[i].cmd.num_sections {
+			sect := (transmute([^]SectionEntry)segment_loads[i].section_start_ptr)[j]
+			file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&sect.macho, size_of(MachOSegmentSection)))
+			copy_obj_data(sect.macho.section_file_offset, file_data, sect.src.data)
 		}
 	}
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
 
 	write_err := os.write_entire_file("test.bin", file_data)
 	if write_err != nil {
