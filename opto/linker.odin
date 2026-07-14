@@ -747,7 +747,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	load_cmds_size += size_of(ApplicationMainEntryPointLoadCmd)
 
 	file_size += load_cmds_size
-	header.load_cmd_count = u32(used_segment_loads) + 1
+	header.load_cmd_count = u32(used_segment_loads) + 2
 	header.load_cmds_size = u32(load_cmds_size)
 
 	size_of_headers := file_size
@@ -1034,7 +1034,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	CommandType :: enum(u32) {
 		SegmentLoad64     = 0x19,
 		ApplicationUUID   = 0x1B,
-		AppMainEntryPoint = 0x28,
+		AppMainEntryPoint = 0x80000028,
 		MinimumOSVersion  = 0x32,
 	}
 
