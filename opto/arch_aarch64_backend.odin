@@ -138,6 +138,17 @@ enc_ret :: proc(opcode: int) -> u32 {
 	return u32(opcode) << 10
 }
 
+aarch64_imm12 :: proc(imm: int) -> bool {
+	return true
+}
+
+enc_reg_imm :: proc(opcode: int, imm12: int, rn: int, rd: int) -> u32 {
+	assert(rn >= 0 && rn < 32)
+	assert(rd >= 0 && rd < 32)
+	assert(aarch64_imm12(imm12))
+	return u32(opcode << 23) | u32(imm12 << 10) | u32(rn << 5) | u32(rd)
+}
+
 aarch64_enc_reg_binop :: proc(fn: ^Function, n: ^Node, opcode: int) {
 	s0 := get_reg(fn, n.inputs[1])
 	s1 := get_reg(fn, n.inputs[2])
@@ -146,22 +157,30 @@ aarch64_enc_reg_binop :: proc(fn: ^Function, n: ^Node, opcode: int) {
 	enc_out32(&fn.output.data, int(enc))
 }
 
+aarch64_regname :: proc(reg: i128) -> string {
+	assert(reg < i128(AArch64Reg.MAX_REG))
+	return impl_aarch64.reg_names[reg]
+}
+
 aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	uop := AArch64Insr(n.uop)
 	switch uop {
 		case .Invalid:
 		case .Start:
 			if fn.stack_size > 0 {
-				// enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
+				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
+				log(fn, "    sub sp, sp, #{}", fn.stack_size)
 			}
 		case .Param:
 		case .Proj:
 		case .Local:
 		case .Ret:
 			if fn.stack_size > 0 {
-				// enc_out32(&fn.output.data, int(enc_reg_imm_binop()))
+				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_ADD_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
+				log(fn, "    add sp, sp, #{}", fn.stack_size)
 			}
 			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
+			log(fn, "    ret")
 		case .Call:
 			panic("impl call")
 		case .Jmp:
@@ -171,6 +190,30 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .GetMemberPtr:
 			panic("impl getmemberptr")
 		case .Store:
+			rd := get_reg(fn, n)
+			offset := 0
+			ptr_reg := get_reg(fn, n.inputs[2])
+			if ptr_reg >= i128(AArch64Reg.MAX_REG) {
+				ptr_reg = i128(AArch64Reg.SP)
+				offset = get_local_slot_offset(fn, n.inputs[2])
+			}
+			val := n.inputs[3]
+			if is_const_node(val) {
+				imm := get_imm_int(val)
+				if offset != 0 {
+					log(fn, "    str #{}, [{}, #{}]", imm, aarch64_regname(ptr_reg), offset)
+				} else {
+					log(fn, "    str #{}, [{}]", imm, aarch64_regname(ptr_reg))
+				}
+			} else {
+				val_reg := get_reg(fn, val)
+				assert(val_reg < i128(AArch64Reg.MAX_REG))
+				if offset != 0 {
+					log(fn, "    str {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+				} else {
+					log(fn, "    str {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+				}
+			}
 			panic("impl store")
 		case .Add:
 			panic("impl add")

@@ -95,7 +95,7 @@ enc_out16 :: proc(out: ^[dynamic]u8, imm: int) {
 }
 
 enc_out32 :: proc(out: ^[dynamic]u8, imm: int) {
-	assert(bits.I32_MIN <= imm && imm <= bits.I32_MAX) // make sure its in the imm range
+	assert(bits.I32_MIN <= imm && imm <= bits.U32_MAX) // make sure its in the imm range
 	data := transmute(uint)imm
 	append(out, u8(data >> 0) & 0xFF)
 	append(out, u8(data >> 8) & 0xFF)
