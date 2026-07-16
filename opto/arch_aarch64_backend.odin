@@ -149,12 +149,25 @@ enc_reg_imm :: proc(opcode: int, imm12: int, rn: int, rd: int) -> u32 {
 	return u32(opcode << 23) | u32(imm12 << 10) | u32(rn << 5) | u32(rd)
 }
 
-aarch64_enc_reg_binop :: proc(fn: ^Function, n: ^Node, opcode: int) {
-	s0 := get_reg(fn, n.inputs[1])
-	s1 := get_reg(fn, n.inputs[2])
-	dest := get_reg(fn, n)
-	enc := enc_reg_reg(opcode, 0, s1, 0, s0, dest)
-	enc_out32(&fn.output.data, int(enc))
+StoreOption :: enum {
+	UXTW = 0b010,
+	LSL = 0b011,
+	SXTW = 0b110,
+	SXTX = 0b111,
+}
+
+enc_str :: proc(opcode: int, offset: int, option: StoreOption, shift: int, val: int, ptr: int ) -> u32 {
+	assert(val >= 0 && val <= 32)
+	assert(ptr >= 0 && ptr <= 32)
+	assert(offset >= 0 && offset <= 32)
+	return u32(opcode << 21) | u32(offset << 16) | (u32(option) << 13) | u32(shift << 12) | u32(2 << 10) | u32(ptr << 5) | u32(val)
+}
+
+enc_str_imm :: proc(opcode: int, imm12: int, ptr: int, rt: int) -> u32 {
+	assert(ptr >= 0 && ptr <= 32)
+	assert(rt >= 0 && rt <= 32)
+	assert(aarch64_imm12(imm12))
+	return u32(opcode << 22) | u32(imm12 << 10) | u32(ptr << 5) | u32(rt)
 }
 
 aarch64_regname :: proc(reg: i128) -> string {
@@ -197,24 +210,39 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 				ptr_reg = i128(AArch64Reg.SP)
 				offset = get_local_slot_offset(fn, n.inputs[2])
 			}
-			val := n.inputs[3]
-			if is_const_node(val) {
-				imm := get_imm_int(val)
-				if offset != 0 {
-					log(fn, "    str #{}, [{}, #{}]", imm, aarch64_regname(ptr_reg), offset)
+			val_reg := get_reg(fn, n.inputs[3])
+			assert(val_reg < i128(AArch64Reg.MAX_REG))
+			opcode: int
+			insr: u32
+			bw := n.inputs[3].type.bitwidth
+			if offset != 0 {
+				if bw <= 8 {
+					opcode = AARCH64_OP_STORE_IMM_8
+				} else if bw <= 16 {
+					opcode = AARCH64_OP_STORE_IMM_16
+				} else if bw <= 32 {
+					opcode = AARCH64_OP_STORE_IMM_32
 				} else {
-					log(fn, "    str #{}, [{}]", imm, aarch64_regname(ptr_reg))
+					assert(bw <= 64)
+					opcode = AARCH64_OP_STORE_IMM_64
 				}
+				insr = enc_str_imm(opcode, offset, int(ptr_reg), int(val_reg))
+				log(fn, "    str {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 			} else {
-				val_reg := get_reg(fn, val)
-				assert(val_reg < i128(AArch64Reg.MAX_REG))
-				if offset != 0 {
-					log(fn, "    str {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+				if bw <= 8 {
+					opcode = AARCH64_OP_STORE_REG_8
+				} else if bw <= 16 {
+					opcode = AARCH64_OP_STORE_REG_16
+				} else if bw <= 32 {
+					opcode = AARCH64_OP_STORE_REG_32
 				} else {
-					log(fn, "    str {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+					assert(bw <= 64)
+					opcode = AARCH64_OP_STORE_REG_64
 				}
+				insr = enc_str(opcode, 0, .SXTX, 0, int(val_reg), int(ptr_reg))
+				log(fn, "    str {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 			}
-			panic("impl store")
+			enc_out32(&fn.output.data, int(insr))
 		case .Add:
 			panic("impl add")
 		case .AddImm:
