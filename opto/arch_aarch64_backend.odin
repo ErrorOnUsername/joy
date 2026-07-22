@@ -139,7 +139,7 @@ enc_ret :: proc(opcode: int) -> u32 {
 }
 
 aarch64_imm12 :: proc(imm: int) -> bool {
-	return true
+	return imm >= 0 && imm < (1 << 9)
 }
 
 enc_reg_imm :: proc(opcode: int, imm12: int, rn: int, rd: int) -> u32 {
@@ -218,29 +218,35 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			if offset != 0 {
 				if bw <= 8 {
 					opcode = AARCH64_OP_STORE_IMM_8
+					log(fn, "    str.b {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 16 {
 					opcode = AARCH64_OP_STORE_IMM_16
+					log(fn, "    str.h {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 32 {
 					opcode = AARCH64_OP_STORE_IMM_32
+					log(fn, "    str.w {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else {
 					assert(bw <= 64)
 					opcode = AARCH64_OP_STORE_IMM_64
+					log(fn, "    str.x {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				}
 				insr = enc_str_imm(opcode, offset, int(ptr_reg), int(val_reg))
-				log(fn, "    str {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 			} else {
 				if bw <= 8 {
 					opcode = AARCH64_OP_STORE_REG_8
+					log(fn, "    str.b {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 16 {
 					opcode = AARCH64_OP_STORE_REG_16
+					log(fn, "    str.h {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 32 {
 					opcode = AARCH64_OP_STORE_REG_32
+					log(fn, "    str.w {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else {
 					assert(bw <= 64)
 					opcode = AARCH64_OP_STORE_REG_64
+					log(fn, "    str.x {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				}
 				insr = enc_str(opcode, 0, .SXTX, 0, int(val_reg), int(ptr_reg))
-				log(fn, "    str {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 			}
 			enc_out32(&fn.output.data, int(insr))
 		case .Add:
