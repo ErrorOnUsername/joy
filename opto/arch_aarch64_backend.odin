@@ -156,18 +156,24 @@ StoreOption :: enum {
 	SXTX = 0b111,
 }
 
-enc_str :: proc(opcode: int, offset: int, option: StoreOption, shift: int, val: int, ptr: int ) -> u32 {
+enc_ldstr :: proc(opcode: int, offset: int, option: StoreOption, shift: int, val: int, ptr: int ) -> u32 {
 	assert(val >= 0 && val <= 32)
 	assert(ptr >= 0 && ptr <= 32)
-	assert(offset >= 0 && offset <= 32)
 	return u32(opcode << 21) | u32(offset << 16) | (u32(option) << 13) | u32(shift << 12) | u32(2 << 10) | u32(ptr << 5) | u32(val)
 }
 
-enc_str_imm :: proc(opcode: int, imm12: int, ptr: int, rt: int) -> u32 {
+enc_ldstr_imm :: proc(opcode: int, imm12: int, ptr: int, rt: int) -> u32 {
 	assert(ptr >= 0 && ptr <= 32)
 	assert(rt >= 0 && rt <= 32)
 	assert(aarch64_imm12(imm12))
 	return u32(opcode << 22) | u32(imm12 << 10) | u32(ptr << 5) | u32(rt)
+}
+
+enc_madd :: proc(opcode: int, rm: int, ra: int, rn: int, rd: int) -> u32 {
+	assert(rm >= 0 && rm <= 32)
+	assert(rn >= 0 && rn <= 32)
+	assert(rn >= 0 && rn <= 32)
+	return u32(opcode << 21) | u32(rm << 16) | u32(ra << 10) | u32(rn << 5) | u32(rd)
 }
 
 aarch64_regname :: proc(reg: i128) -> string {
@@ -196,11 +202,62 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
 			log(fn, "    ret")
 		case .Call:
-			panic("impl call")
+			target := n.inputs[2]
+			target_sym := target.extra.derived.(^SymbolExtra).sym
+			add_global_relo(fn, n, nil)
+			insr := u32(AARCH64_OP_CALL << 26)
+			enc_out32(&fn.output.data, int(insr))
+			log(fn, "    bl {}", target_sym.name)
 		case .Jmp:
 			panic("impl jmp")
 		case .Load:
-			panic("impl load")
+			dst_reg := get_reg(fn, n)
+			assert(dst_reg < i128(AArch64Reg.MAX_REG))
+			ptr_reg := get_reg(fn, n.inputs[2])
+			offset := 0
+			if ptr_reg >= i128(AArch64Reg.MAX_REG) {
+				ptr_reg = i128(AArch64Reg.SP)
+				offset = get_local_slot_offset(fn, n.inputs[2])
+			}
+
+			insr: u32
+			bw := n.type.bitwidth
+			if offset != 0 {
+				opcode := -1
+				if bw <= 8 {
+					opcode = AARCH64_OP_LOAD_IMM_8
+					log(fn, "    ldr.b {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
+				} else if bw <= 16 {
+					opcode = AARCH64_OP_LOAD_IMM_16
+					log(fn, "    ldr.h {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
+				} else if bw <= 32 {
+					opcode = AARCH64_OP_LOAD_IMM_32
+					log(fn, "    ldr.w {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
+				} else {
+					assert(bw <= 64)
+					opcode = AARCH64_OP_LOAD_IMM_64
+					log(fn, "    ldr.x {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
+				}
+				insr = enc_ldstr_imm(opcode, offset, int(ptr_reg), int(dst_reg))
+			} else {
+				opcode := -1
+				if bw <= 8 {
+					opcode = AARCH64_OP_LOAD_REG_8
+					log(fn, "    ldr.b {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
+				} else if bw <= 16 {
+					opcode = AARCH64_OP_LOAD_REG_16
+					log(fn, "    ldr.h {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
+				} else if bw <= 32 {
+					opcode = AARCH64_OP_LOAD_REG_32
+					log(fn, "    ldr.w {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
+				} else {
+					assert(bw <= 64)
+					opcode = AARCH64_OP_LOAD_REG_64
+					log(fn, "    ldr.x {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
+				}
+				insr = enc_ldstr(opcode, -1, .SXTX, 0, int(dst_reg), int(ptr_reg))
+			}
+			enc_out32(&fn.output.data, int(insr))
 		case .GetMemberPtr:
 			panic("impl getmemberptr")
 		case .ConstStore:
@@ -232,7 +289,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 					opcode = AARCH64_OP_STORE_IMM_64
 					log(fn, "    str.x {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				}
-				insr = enc_str_imm(opcode, offset, int(ptr_reg), int(val_reg))
+				insr = enc_ldstr_imm(opcode, offset, int(ptr_reg), int(val_reg))
 			} else {
 				if bw <= 8 {
 					opcode = AARCH64_OP_STORE_REG_8
@@ -248,7 +305,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 					opcode = AARCH64_OP_STORE_REG_64
 					log(fn, "    str.x {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				}
-				insr = enc_str(opcode, 0, .SXTX, 0, int(val_reg), int(ptr_reg))
+				insr = enc_ldstr(opcode, -1, .SXTX, 0, int(val_reg), int(ptr_reg))
 			}
 			enc_out32(&fn.output.data, int(insr))
 		case .Add:
@@ -260,7 +317,12 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .SubImm:
 			panic("impl subi")
 		case .Mul:
-			panic("impl mul")
+			dst_reg := get_reg(fn, n)
+			l_reg := get_reg(fn, n.inputs[1])
+			r_reg := get_reg(fn, n.inputs[2])
+			insr := enc_madd(AARCH64_OP_MUL, int(r_reg), -1, int(l_reg), int(dst_reg))
+			log(fn, "    mul {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
+			enc_out32(&fn.output.data, int(insr))
 		case .MulImm:
 			panic("impl muli")
 		case .Div:
