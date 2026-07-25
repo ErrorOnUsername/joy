@@ -70,7 +70,7 @@ insr_select :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 
 is_selectable_node :: proc(n: ^Node) -> bool {
 	#partial switch n.kind {
-		case .End, .Region, .IntConst, .F32Const, .F64Const, .Symbol, .Phi:
+		case .End, .Region, .Symbol, .Phi:
 			return false
 		case .Proj:
 			return !(ty_is_ctrl(n.type) || ty_is_mem(n.type))

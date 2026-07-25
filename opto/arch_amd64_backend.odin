@@ -774,6 +774,7 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	return true
 }
 
+@(private = "file")
 get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
 	extra := local.extra.derived.(^LocalExtra)
 	return extra.stack_pos

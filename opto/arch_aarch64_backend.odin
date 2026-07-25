@@ -179,6 +179,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	uop := AArch64Insr(n.uop)
 	switch uop {
 		case .Invalid:
+		case .Imm:
 		case .Start:
 			if fn.stack_size > 0 {
 				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
@@ -202,8 +203,9 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			panic("impl load")
 		case .GetMemberPtr:
 			panic("impl getmemberptr")
+		case .ConstStore:
+			panic("impl conststore")
 		case .Store:
-			rd := get_reg(fn, n)
 			offset := 0
 			ptr_reg := get_reg(fn, n.inputs[2])
 			if ptr_reg >= i128(AArch64Reg.MAX_REG) {
@@ -234,17 +236,17 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			} else {
 				if bw <= 8 {
 					opcode = AARCH64_OP_STORE_REG_8
-					log(fn, "    str.b {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+					log(fn, "    str.b {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				} else if bw <= 16 {
 					opcode = AARCH64_OP_STORE_REG_16
-					log(fn, "    str.h {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+					log(fn, "    str.h {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				} else if bw <= 32 {
 					opcode = AARCH64_OP_STORE_REG_32
-					log(fn, "    str.w {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+					log(fn, "    str.w {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				} else {
 					assert(bw <= 64)
 					opcode = AARCH64_OP_STORE_REG_64
-					log(fn, "    str.x {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
+					log(fn, "    str.x {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				}
 				insr = enc_str(opcode, 0, .SXTX, 0, int(val_reg), int(ptr_reg))
 			}
@@ -307,6 +309,12 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			panic("impl cmpi")
 	}
 	return true
+}
+
+@(private = "file")
+get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
+	extra := local.extra.derived.(^LocalExtra)
+	return fn.stack_size + extra.stack_pos
 }
 
 aarch64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
@@ -439,6 +447,13 @@ aarch64_imm_format :: proc(n: ^Node) -> bool {
 	return aarch64_is_reg_type(n.inputs[1]) && is_const_node(n.inputs[2])
 }
 
+aarch64_is_imm_store :: proc(n: ^Node) -> bool {
+	for user in n.users {
+		if user.n.kind == .Store do return true
+	}
+	return false
+}
+
 @(private = "file")
 match_table := [NodeKind]InsrMatch {
 	.Start = { { { insr = .Start } } },
@@ -446,9 +461,9 @@ match_table := [NodeKind]InsrMatch {
 	.Region = {},
 	.Param = { { { insr = .Param } } },
 	.Proj = { { { insr = .Proj } } },
-	.IntConst = {},
-	.F32Const = {},
-	.F64Const = {},
+	.IntConst = { { { insr = .ConstStore, pred = aarch64_is_imm_store }, { insr = .Imm } } },
+	.F32Const = { { { insr = .ConstStore, pred = aarch64_is_imm_store }, { insr = .Imm } } },
+	.F64Const = { { { insr = .ConstStore, pred = aarch64_is_imm_store }, { insr = .Imm } } },
 	.Local = { { { insr = .Local } } },
 	.Symbol = {},
 	.CalleeSave = {},
@@ -508,6 +523,7 @@ InsrTableEntry :: struct {
 @(private = "file")
 insr_table := [AArch64Insr]InsrTableEntry {
 	.Invalid = { },
+	.Imm = { },
 	.Start = { in_regmask = {}, out_regmask = {} },
 	.Param = { in_regmask = {}, out_regmask = {} },
 	.Proj = { in_regmask = {}, out_regmask = {} },
@@ -517,6 +533,7 @@ insr_table := [AArch64Insr]InsrTableEntry {
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
 	.Load = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.GetMemberPtr = { in_regmask = GPR_READ_MASK | transmute(AArch64RegMask)SPILL_MASK, out_regmask = GPR_WRITE_MASK },
+	.ConstStore = { in_regmask = {}, out_regmask = GPR_WRITE_MASK },
 	.Store = { in_regmask = GPR_READ_MASK, out_regmask = {} },
 	.Add = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.AddImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
@@ -550,6 +567,7 @@ insr_table := [AArch64Insr]InsrTableEntry {
 
 AArch64Insr :: enum(u32) {
 	Invalid,
+	Imm,
 	Start,
 	Param,
 	Proj,
@@ -559,6 +577,7 @@ AArch64Insr :: enum(u32) {
 	Jmp,
 	Load,
 	GetMemberPtr,
+	ConstStore,
 	Store,
 	Add,
 	AddImm,
