@@ -1,5 +1,7 @@
 package opto
 
+import "core:math/bits"
+
 @(private = "file")
 GPR_READ_MASK := AArch64RegMask {
 	.X0,  .X1,  .X2,  .X3,  .X4,  .X5,  .X6,  .X7,  .X8,  .X9,  .X10, .X11,
@@ -115,6 +117,11 @@ AARCH64_OP_STORE_IMM_64 :: 0b1111100100
 AARCH64_OP_STORE_IMM_32 :: 0b1011100100
 AARCH64_OP_STORE_IMM_16 :: 0b0111100100
 AARCH64_OP_STORE_IMM_8  :: 0b0011100100
+AARCH64_OP_MOVE_IMM8    :: 0b0
+AARCH64_OP_MOVE_KEEP    :: 0b0
+AARCH64_OP_MOVE_INV     :: 0b0
+AARCH64_OP_MOVE_ZERO    :: 0b0
+AARCH64_OP_MOVE_WIDE    :: 0b0
 AARCH64_OP_ADD          :: 0b10001011
 AARCH64_OP_ADD_IMM      :: 0b1001000100
 AARCH64_OP_SUB          :: 0b11001011
@@ -139,7 +146,11 @@ enc_ret :: proc(opcode: int) -> u32 {
 }
 
 aarch64_imm12 :: proc(imm: int) -> bool {
-	return imm >= 0 && imm < (1 << 9)
+	return imm >= 0 && imm < (1 << 12)
+}
+
+aarch64_imm16 :: proc(imm: int) -> bool {
+	return imm >= 0 && imm < (1 << 16)
 }
 
 enc_reg_imm :: proc(opcode: int, imm12: int, rn: int, rd: int) -> u32 {
@@ -189,7 +200,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Start:
 			if fn.stack_size > 0 {
 				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
-				log(fn, "    sub sp, sp, #{}", fn.stack_size)
+				log(fn, "    sub.x sp, sp, #{}", fn.stack_size)
 			}
 		case .Param:
 		case .Proj:
@@ -197,7 +208,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Ret:
 			if fn.stack_size > 0 {
 				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_ADD_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
-				log(fn, "    add sp, sp, #{}", fn.stack_size)
+				log(fn, "    add.x sp, sp, #{}", fn.stack_size)
 			}
 			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
 			log(fn, "    ret")
@@ -261,7 +272,26 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .GetMemberPtr:
 			panic("impl getmemberptr")
 		case .ConstStore:
-			panic("impl conststore")
+			assert(is_const_node(n))
+			imm := get_imm_int(n)
+			dst_reg := get_reg(fn, n)
+			bw := n.type.bitwidth
+			opcode := AARCH64_OP_MOVE_WIDE
+			mov_type := "w"
+			hw := 0
+
+			if imm < 0 {
+				opcode = AARCH64_OP_MOVE_INV
+				mov_type = "i"
+				imm = ~imm
+			}
+
+			assert(aarch64_imm16(imm))
+
+			insr := (opcode << 23) | (hw << 21) | (imm << 5) | int(dst_reg)
+			log(fn, "    mov.{} {}, #{}", mov_type, aarch64_regname(dst_reg), imm)
+
+			enc_out32(&fn.output.data, insr)
 		case .Store:
 			offset := 0
 			ptr_reg := get_reg(fn, n.inputs[2])
