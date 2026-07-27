@@ -670,6 +670,14 @@ insr_fmin :: proc(fn: ^Function, lhs: ^Node, rhs: ^Node) -> ^Node {
 	return insr_binop(fn, .FMin, lhs, rhs)
 }
 
+is_cmp_node :: proc(n: ^Node) -> bool {
+	#partial switch n.kind {
+	case .CmpEq, .CmpNeq, .CmpULt, .CmpULe, .CmpSLt, .CmpSLe, .CmpFLt, .CmpFLe:
+		return true
+	}
+	return false
+}
+
 @(private = "file")
 insr_cmp :: proc(fn: ^Function, kind: NodeKind, lhs: ^Node, rhs: ^Node) -> ^Node {
 	assert(ty_equal(lhs.type, rhs.type), "compare operand type mismatch")

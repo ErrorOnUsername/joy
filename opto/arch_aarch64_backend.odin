@@ -123,12 +123,13 @@ AARCH64_OP_MOVE_INV     :: 0b0
 AARCH64_OP_MOVE_ZERO    :: 0b0
 AARCH64_OP_MOVE_WIDE    :: 0b0
 AARCH64_OP_ADD          :: 0b10001011
-AARCH64_OP_ADD_IMM      :: 0b1001000100
+AARCH64_OP_ADD_IMM      :: 0b100100010
 AARCH64_OP_SUB          :: 0b11001011
-AARCH64_OP_SUB_IMM      :: 0b1101000100
+AARCH64_OP_SUB_IMM      :: 0b110100010
 AARCH64_OP_MUL          :: 0b10011011000
 AARCH64_OP_DIV          :: 0b10011010110
 AARCH64_OP_CMP          :: 0b11101011
+AARCH64_OP_CMP_IMM      :: 0b111100010
 AARCH64_OP_JMP          :: 0b000101
 AARCH64_OP_BR           :: 0b01010100
 AARCH64_OP_CALL         :: 0b100101
@@ -220,7 +221,68 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			enc_out32(&fn.output.data, int(insr))
 			log(fn, "    bl {}", target_sym.name)
 		case .Jmp:
-			panic("impl jmp")
+			target: ^Node
+			if n.kind == .Branch {
+				AArch64Cond :: enum(u32) {
+					EQ = 0b0000,
+					NE = 0b0001,
+					CC = 0b0011,
+					LS = 0b1001,
+					LT = 0b1011,
+					LE = 0b1101,
+				}
+				arm_cond :: proc(cmp: NodeKind) -> (AArch64Cond, string) {
+					cond: AArch64Cond
+					str := ""
+					#partial switch cmp {
+					case .CmpEq:
+						cond = .EQ
+						str = "eq"
+					case .CmpNeq:
+						cond = .NE
+						str = "ne"
+					case .CmpULt:
+						cond = .CC
+						str = "lo"
+					case .CmpULe:
+						cond = .LS
+						str = "ls"
+					case .CmpSLt:
+						cond = .LT
+						str = "lt"
+					case .CmpSLe:
+						cond = .LE
+						str = "le"
+					case .CmpFLt:
+						cond = .LT
+						str = "lt"
+					case .CmpFLe:
+						cond = .LE
+						str = "le"
+					case:
+						panic("cmp node has non cmp kind")
+					}
+					return cond, str
+				}
+				target = n.inputs[2]
+				bb := block_map_get_node_block(bm, target)
+				opcode := AARCH64_OP_JMP
+				off19 := 0
+				cond, cond_str := arm_cond(n.inputs[1].kind)
+				insr := u32(opcode << 26) | u32(off19 << 5) | u32(cond)
+				log(fn, "    b.{} {}", cond_str, bb.name)
+				enc_out32(&fn.output.data, int(insr))
+			} else {
+				assert(n.kind == .Goto)
+				target = n.inputs[1]
+				bb := block_map_get_node_block(bm, target)
+				opcode := AARCH64_OP_JMP
+				off := 0
+				insr := u32(opcode << 26) | u32(off)
+				log(fn, "    b {}", bb.name)
+				enc_out32(&fn.output.data, int(insr))
+			}
+			add_local_relo(fn, n, target)
 		case .Load:
 			dst_reg := get_reg(fn, n)
 			assert(dst_reg < i128(AArch64Reg.MAX_REG))
@@ -270,7 +332,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			}
 			enc_out32(&fn.output.data, int(insr))
 		case .GetMemberPtr:
-			panic("impl getmemberptr")
+			// panic("impl getmemberptr")
 		case .ConstStore:
 			assert(is_const_node(n))
 			imm := get_imm_int(n)
@@ -345,7 +407,15 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Sub:
 			panic("impl sub")
 		case .SubImm:
-			panic("impl subi")
+			dst_reg := get_reg(fn, n)
+			assert(dst_reg >= 0 && dst_reg <= 32)
+			v_reg := get_reg(fn, n.inputs[1])
+			assert(v_reg >= 0 && v_reg <= 32)
+			assert(is_const_node(n.inputs[2]))
+			imm := get_imm_int(n.inputs[2])
+			opcode := AARCH64_OP_SUB_IMM
+			insr := enc_reg_imm(opcode, imm, int(v_reg), int(dst_reg))
+			enc_out32(&fn.output.data, int(insr))
 		case .Mul:
 			dst_reg := get_reg(fn, n)
 			l_reg := get_reg(fn, n.inputs[1])
@@ -353,8 +423,6 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			insr := enc_madd(AARCH64_OP_MUL, int(r_reg), -1, int(l_reg), int(dst_reg))
 			log(fn, "    mul {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
 			enc_out32(&fn.output.data, int(insr))
-		case .MulImm:
-			panic("impl muli")
 		case .Div:
 			panic("impl div")
 		case .DivImm:
@@ -396,9 +464,27 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .XOrImm:
 			panic("impl xori")
 		case .Cmp:
-			panic("impl cmp")
+			opcode := AARCH64_OP_CMP_IMM
+			sh := 0
+			l_reg := get_reg(fn, n.inputs[1])
+			assert(l_reg >= 0 && l_reg <= 32)
+			r_reg := get_reg(fn, n.inputs[2])
+			assert(r_reg >= 0 && r_reg <= 32)
+			imm6 := 0
+			insr := u32(opcode << 24) | u32(sh << 22) | u32(r_reg << 16) | u32(imm6 << 10) | u32(l_reg << 5) | u32(0b11111)
+			log(fn, "    cmp {}, {}", aarch64_regname(l_reg), aarch64_regname(r_reg))
+			enc_out32(&fn.output.data, int(insr))
 		case .CmpImm:
-			panic("impl cmpi")
+			opcode := AARCH64_OP_CMP_IMM
+			sh := 0
+			arg_reg := get_reg(fn, n.inputs[1])
+			assert(arg_reg >= 0 && arg_reg <= 32)
+			assert(is_const_node(n.inputs[2]))
+			imm := get_imm_int(n.inputs[2])
+			assert(aarch64_imm12(imm))
+			insr := u32(opcode << 23) | u32(sh << 22) | u32(imm << 10) | (u32(arg_reg) << 5) | u32(0b11111)
+			log(fn, "    cmpi {}, #{}", aarch64_regname(arg_reg), imm)
+			enc_out32(&fn.output.data, int(insr))
 	}
 	return true
 }
@@ -541,7 +627,7 @@ aarch64_imm_format :: proc(n: ^Node) -> bool {
 
 aarch64_is_imm_store :: proc(n: ^Node) -> bool {
 	for user in n.users {
-		if user.n.kind == .Store do return true
+		if user.n.kind == .Store || user.n.kind == .Mul || is_cmp_node(user.n) do return true
 	}
 	return false
 }
@@ -576,7 +662,7 @@ match_table := [NodeKind]InsrMatch {
 	.XOr = { { { insr = .XOrImm, pred = aarch64_imm_format }, { insr = .XOr, pred = aarch64_reg_format } } },
 	.Add = { { { insr = .AddImm, pred = aarch64_imm_format }, { insr = .Add, pred = aarch64_reg_format } } },
 	.Sub = { { { insr = .SubImm, pred = aarch64_imm_format }, { insr = .Sub, pred = aarch64_reg_format } } },
-	.Mul = { { { insr = .MulImm, pred = aarch64_imm_format }, { insr = .Mul, pred = aarch64_reg_format } } },
+	.Mul = { { { insr = .Mul, pred = aarch64_reg_format } } },
 	.Shl = { { { insr = .ShlImm, pred = aarch64_imm_format }, { insr = .Shl, pred = aarch64_reg_format } } },
 	.Shr = { { { insr = .ShrImm, pred = aarch64_imm_format }, { insr = .Shr, pred = aarch64_reg_format } } },
 	.Sar = { { { insr = .SarImm, pred = aarch64_imm_format }, { insr = .Sar, pred = aarch64_reg_format } } },
@@ -632,7 +718,6 @@ insr_table := [AArch64Insr]InsrTableEntry {
 	.Sub = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.SubImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Mul = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
-	.MulImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Div = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.DivImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.AddF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
@@ -676,7 +761,6 @@ AArch64Insr :: enum(u32) {
 	Sub,
 	SubImm,
 	Mul,
-	MulImm,
 	Div,
 	DivImm,
 	AddF,
