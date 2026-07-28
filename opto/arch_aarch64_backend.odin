@@ -1,6 +1,7 @@
 package opto
 
 import "core:math/bits"
+import "core:slice"
 
 @(private = "file")
 GPR_READ_MASK := AArch64RegMask {
@@ -223,52 +224,11 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Jmp:
 			target: ^Node
 			if n.kind == .Branch {
-				AArch64Cond :: enum(u32) {
-					EQ = 0b0000,
-					NE = 0b0001,
-					CC = 0b0011,
-					LS = 0b1001,
-					LT = 0b1011,
-					LE = 0b1101,
-				}
-				arm_cond :: proc(cmp: NodeKind) -> (AArch64Cond, string) {
-					cond: AArch64Cond
-					str := ""
-					#partial switch cmp {
-					case .CmpEq:
-						cond = .EQ
-						str = "eq"
-					case .CmpNeq:
-						cond = .NE
-						str = "ne"
-					case .CmpULt:
-						cond = .CC
-						str = "lo"
-					case .CmpULe:
-						cond = .LS
-						str = "ls"
-					case .CmpSLt:
-						cond = .LT
-						str = "lt"
-					case .CmpSLe:
-						cond = .LE
-						str = "le"
-					case .CmpFLt:
-						cond = .LT
-						str = "lt"
-					case .CmpFLe:
-						cond = .LE
-						str = "le"
-					case:
-						panic("cmp node has non cmp kind")
-					}
-					return cond, str
-				}
 				target = n.inputs[2]
 				bb := block_map_get_node_block(bm, target)
 				opcode := AARCH64_OP_JMP
 				off19 := 0
-				cond, cond_str := arm_cond(n.inputs[1].kind)
+				cond, cond_str := aarch64_cond(n.inputs[1].kind)
 				insr := u32(opcode << 26) | u32(off19 << 5) | u32(cond)
 				log(fn, "    b.{} {}", cond_str, bb.name)
 				enc_out32(&fn.output.data, int(insr))
@@ -489,6 +449,48 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 	return true
 }
 
+AArch64Cond :: enum(u32) {
+	EQ = 0b0000,
+	NE = 0b0001,
+	CC = 0b0011,
+	LS = 0b1001,
+	LT = 0b1011,
+	LE = 0b1101,
+}
+aarch64_cond :: proc(cmp: NodeKind) -> (AArch64Cond, string) {
+	cond: AArch64Cond
+	str := ""
+	#partial switch cmp {
+	case .CmpEq:
+		cond = .EQ
+		str = "eq"
+	case .CmpNeq:
+		cond = .NE
+		str = "ne"
+	case .CmpULt:
+		cond = .CC
+		str = "lo"
+	case .CmpULe:
+		cond = .LS
+		str = "ls"
+	case .CmpSLt:
+		cond = .LT
+		str = "lt"
+	case .CmpSLe:
+		cond = .LE
+		str = "le"
+	case .CmpFLt:
+		cond = .LT
+		str = "lt"
+	case .CmpFLe:
+		cond = .LE
+		str = "le"
+	case:
+		panic("cmp node has non cmp kind")
+	}
+	return cond, str
+}
+
 @(private = "file")
 get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
 	extra := local.extra.derived.(^LocalExtra)
@@ -496,11 +498,45 @@ get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
 }
 
 aarch64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
-	panic("impl encoding size")
+	return 4 // arm has a regular insr encoding
 }
 
 aarch64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from_start_to_target: int) {
-	panic("impl patch_local_relo")
+	uop := AArch64Insr(n.uop)
+	rel_addr :: proc(off: int, bw: uint) -> int {
+		assert(off >= -(1 << bw) && off < 1 << bw)
+		ret := off
+		assert(ret & 0b11 == 0)
+		ret >>= 2
+		return ret & ((1 << bw) - 1)
+	}
+	#partial switch uop {
+	case .Jmp:
+		new_insr: u32
+		if n.kind == .Branch {
+			opcode := AARCH64_OP_BR
+			off19 := 0
+			cond, _ := aarch64_cond(n.inputs[1].kind)
+			new_insr = u32(opcode << 26) | u32(off19 << 5) | u32(cond)
+		} else {
+			assert(n.kind == .Goto)
+			opcode := AARCH64_OP_JMP
+			off := rel_addr(delta_from_start_to_target, 26)
+			new_insr = u32(opcode << 26) | u32(off)
+		}
+		patch_insr(fn.output.data[:], start, new_insr)
+	case .Call:
+		opcode := AARCH64_OP_CALL
+		off := rel_addr(delta_from_start_to_target, 26)
+		new_insr := u32(opcode << 26) | u32(off)
+		patch_insr(fn.output.data[:], start, new_insr)
+	}
+
+	patch_insr :: proc(to: []u8, at: int, insr: u32) {
+		new := insr
+		new_slice := slice.bytes_from_ptr(&new, size_of(new))
+		copy(to[at:at+4], new_slice)
+	}
 }
 
 aarch64_get_callee_save_regmask ::  proc(ctx: ^RegAllocContext) -> RegisterMask {
