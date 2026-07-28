@@ -530,6 +530,8 @@ aarch64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from
 		off := rel_addr(delta_from_start_to_target, 26)
 		new_insr := u32(opcode << 26) | u32(off)
 		patch_insr(fn.output.data[:], start, new_insr)
+	case:
+		panic("unexpected patch node")
 	}
 
 	patch_insr :: proc(to: []u8, at: int, insr: u32) {
