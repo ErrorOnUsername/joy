@@ -4,6 +4,7 @@ import rt "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:slice"
+import "core:strings"
 import "core:time"
 
 
@@ -170,6 +171,10 @@ create_and_write_object_file :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> boo
 	return true
 }
 
+align_forward_u32 :: proc(a, b: u32) -> u32 {
+	return u32(rt.align_forward(uint(a), uint(b)))
+}
+
 create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool {
 	dos_stub_code := [64]u8 {
 		0x0E,             // push %cs
@@ -266,9 +271,6 @@ create_and_write_pe_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bool 
 	shdr_data := make([][]u8, len(lc.sections))
 	defer delete(shdr_data)
 
-	align_forward_u32 :: proc(a, b: u32) -> u32 {
-		return u32(rt.align_forward(uint(a), uint(b)))
-	}
 
 	size_of_dos_stub := size_of(DOSHeader) + len(dos_stub_code)
 	size_of_headers := u32(size_of_dos_stub + size_of(PEHeader) + size_of(PE64OptionalHeader) + size_of(PESectionHeader) * len(section_headers))
@@ -734,6 +736,26 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__data", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.Data])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA", { .Read, .Write }, {}, data_sections[:used_data_sections])
 
+	linkedit_segment := SegmentLoadCmd {
+		cmd = { .SegmentLoad64, size_of(SegmentLoadCmd) },
+		name = { 0x5F, 0x5F, 0x4C, 0x49, 0x4E, 0x4B, 0x45, 0x44, 0x49, 0x54, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, // __LINKEDIT
+		addr = 0,
+		addr_size = 0,
+		file_offset = 0,
+		file_size = 0,
+		max_perms = { .Read },
+		init_perms = { .Read },
+		num_sections = 0,
+		flags = {},
+	}
+
+	dylinker_path := "/usr/lib/dyld"
+	dylinker_path_bytes := transmute([]u8)dylinker_path[:]
+	dylinker_load := LoadDyLinkerCmd {
+		cmd  = { .LoadDyLinker, align_forward_u32(size_of(LoadDyLinkerCmd) + u32(len(dylinker_path_bytes)), size_of(u64)) },
+		name = { size_of(LoadDyLinkerCmd) },
+	}
+
 	entry_point_load := ApplicationMainEntryPointLoadCmd {
 		cmd = { .AppMainEntryPoint, size_of(ApplicationMainEntryPointLoadCmd) },
 		addr = 0,
@@ -744,10 +766,12 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	for i in 0..<used_segment_loads {
 		load_cmds_size += int(segment_loads[i].cmd.size)
 	}
+	load_cmds_size += size_of(SegmentLoadCmd) // the __LINKEDIT
+	load_cmds_size += int(dylinker_load.cmd.size)
 	load_cmds_size += size_of(ApplicationMainEntryPointLoadCmd)
 
 	file_size += load_cmds_size
-	header.load_cmd_count = u32(used_segment_loads) + 2
+	header.load_cmd_count = u32(used_segment_loads) + 4
 	header.load_cmds_size = u32(load_cmds_size)
 
 	size_of_headers := file_size
@@ -799,6 +823,10 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 			copy_obj_data(sect.macho.section_file_offset, file_data, sect.src.data)
 		}
 	}
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&linkedit_segment, int(linkedit_segment.cmd.size)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dylinker_load, int(dylinker_load.cmd.size)))
+	file_pos = copy_obj_data(file_pos, file_data, dylinker_path_bytes)
+	file_pos = align_forward_u32(file_pos, size_of(u64))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
 
 	write_err := os.write_entire_file("test.bin", file_data)
@@ -985,6 +1013,15 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		LazyDyLibSymbolPointers = 0x10,
 	}
 
+	LoadDyLinkerCmd :: struct {
+		using cmd: LoadCmd,
+		name: MachOLCStr,
+	}
+
+	MachOLCStr :: struct #raw_union {
+		offset: u32,
+	}
+
 	ApplicationUUIDLoadCmd :: struct {
 		using cmd: LoadCmd,
 		uuid:      [16]u8,
@@ -1032,6 +1069,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	}
 
 	CommandType :: enum(u32) {
+		LoadDyLinker      = 0xE,
 		SegmentLoad64     = 0x19,
 		ApplicationUUID   = 0x1B,
 		AppMainEntryPoint = 0x80000028,
