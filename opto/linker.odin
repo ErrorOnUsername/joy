@@ -824,7 +824,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		}
 	}
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&linkedit_segment, int(linkedit_segment.cmd.size)))
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dylinker_load, int(dylinker_load.cmd.size)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dylinker_load, size_of(dylinker_load)))
 	file_pos = copy_obj_data(file_pos, file_data, dylinker_path_bytes)
 	file_pos = align_forward_u32(file_pos, size_of(u64))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
