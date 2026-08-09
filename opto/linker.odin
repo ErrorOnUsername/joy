@@ -636,7 +636,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		file_type   = .DemandPagedExecutable,
 		load_cmd_count = 0,
 		load_cmds_size = 0,
-		flags          = {},
+		flags          = { .DyLdLink, .PIE },
 		reserved       = 0,
 	}
 
@@ -756,10 +756,46 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		name = { size_of(LoadDyLinkerCmd) },
 	}
 
+	symtab_load := SymTabLoadCmd {
+		cmd = { .SymTab, size_of(SymTabLoadCmd) },
+		table_off           = 0,
+		table_ent_count     = 0,
+		str_table_off       = 0,
+		str_table_ent_count = 0,
+	}
+
+	dysymtab_load := DySymTabLoadCmd {
+		cmd = { .DySymTab, size_of(DySymTabLoadCmd) },
+		first_local_sym          = 0,
+		local_sym_count          = 0,
+		first_ext_sym            = 0,
+		ext_sym_count            = 0,
+		first_undefined_sym      = 0,
+		undefined_sym_count      = 0,
+		toc_offset               = 0,
+		toc_entry_count          = 0,
+		module_table_off         = 0,
+		module_table_ent_count   = 0,
+		ext_ref_table_off        = 0,
+		ext_ref_table_ent_count  = 0,
+		indr_sym_table_off       = 0,
+		indr_sym_table_ent_count = 0,
+		ext_relo_table_off       = 0,
+		ext_relo_table_ent_count = 0,
+		loc_relo_table_off       = 0,
+		loc_relo_table_ent_count = 0,
+	}
+
 	entry_point_load := ApplicationMainEntryPointLoadCmd {
 		cmd = { .AppMainEntryPoint, size_of(ApplicationMainEntryPointLoadCmd) },
 		addr = 0,
 		stack_memory_size = 0,
+	}
+
+	codesig_load := LinkEditDataCommand {
+		cmd       = { .CodeSignature, size_of(LinkEditDataCommand) },
+		data_off  = 0,
+		data_size = 0,
 	}
 
 	load_cmds_size := size_of(SegmentLoadCmd) // the zero page
@@ -768,10 +804,13 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	}
 	load_cmds_size += size_of(SegmentLoadCmd) // the __LINKEDIT
 	load_cmds_size += int(dylinker_load.cmd.size)
+	load_cmds_size += size_of(SymTabLoadCmd)
+	load_cmds_size += size_of(DySymTabLoadCmd)
 	load_cmds_size += size_of(ApplicationMainEntryPointLoadCmd)
+	load_cmds_size += size_of(LinkEditDataCommand) // CodeSignature
 
 	file_size += load_cmds_size
-	header.load_cmd_count = u32(used_segment_loads) + 4
+	header.load_cmd_count = u32(used_segment_loads) + 7
 	header.load_cmds_size = u32(load_cmds_size)
 
 	size_of_headers := file_size
@@ -784,6 +823,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		file_start := file_size
 		vaddr_start := vaddr
 		seg.cmd.addr = vaddr_start
+		seg.cmd.file_offset = uint(file_size)
 		sections := slice.from_ptr(transmute(^SectionEntry)seg.section_start_ptr, int(seg.cmd.num_sections))
 		for &sect in sections {
 			align := 1 << uint(sect.macho.alignment) // align is in log2
@@ -796,13 +836,14 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 			vaddr += uint(sect.macho.section_size)
 			file_size += len(sect.src.data)
 		}
+		vaddr = rt.align_forward(vaddr, 0x4000)
 		seg.cmd.addr_size = int(vaddr - vaddr_start)
 		seg.cmd.file_size = file_size - file_start
 	}
 
 	assert(code_base_va != 0)
-	entry_offset := code_base_va + uint(lc.symbol_offsets["_start"].offset)
-	entry_point_load.addr = entry_offset
+	entry_offset := uint(lc.symbol_offsets["_start"].offset)
+	entry_point_load.addr = segment_loads[0].cmd.file_offset + entry_offset
 
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
@@ -824,10 +865,13 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		}
 	}
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&linkedit_segment, int(linkedit_segment.cmd.size)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&symtab_load, size_of(symtab_load)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dysymtab_load, size_of(dysymtab_load)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&dylinker_load, size_of(dylinker_load)))
 	file_pos = copy_obj_data(file_pos, file_data, dylinker_path_bytes)
 	file_pos = align_forward_u32(file_pos, size_of(u64))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&codesig_load, size_of(codesig_load)))
 
 	write_err := os.write_entire_file("test.bin", file_data)
 	if write_err != nil {
@@ -1013,6 +1057,12 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		LazyDyLibSymbolPointers = 0x10,
 	}
 
+	LinkEditDataCommand :: struct {
+		using cmd: LoadCmd,
+		data_off:  u32,
+		data_size: u32,
+	}
+
 	LoadDyLinkerCmd :: struct {
 		using cmd: LoadCmd,
 		name: MachOLCStr,
@@ -1031,6 +1081,36 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		using cmd:         LoadCmd,
 		addr:              uint,
 		stack_memory_size: int,
+	}
+
+	SymTabLoadCmd :: struct {
+		using cmd: LoadCmd,
+		table_off:           u32,
+		table_ent_count:     u32,
+		str_table_off:       u32,
+		str_table_ent_count: u32,
+	}
+
+	DySymTabLoadCmd :: struct {
+		using cmd: LoadCmd,
+		first_local_sym:          u32,
+		local_sym_count:          u32,
+		first_ext_sym:            u32,
+		ext_sym_count:            u32,
+		first_undefined_sym:      u32,
+		undefined_sym_count:      u32,
+		toc_offset:               u32,
+		toc_entry_count:          u32,
+		module_table_off:         u32,
+		module_table_ent_count:   u32,
+		ext_ref_table_off:        u32,
+		ext_ref_table_ent_count:  u32,
+		indr_sym_table_off:       u32,
+		indr_sym_table_ent_count: u32,
+		ext_relo_table_off:       u32,
+		ext_relo_table_ent_count: u32,
+		loc_relo_table_off:       u32,
+		loc_relo_table_ent_count: u32,
 	}
 
 	MinimumOSVersionLoadCmd :: struct {
@@ -1069,9 +1149,12 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	}
 
 	CommandType :: enum(u32) {
+		SymTab            = 0x2,
+		DySymTab          = 0xB,
 		LoadDyLinker      = 0xE,
 		SegmentLoad64     = 0x19,
 		ApplicationUUID   = 0x1B,
+		CodeSignature     = 0x1D,
 		AppMainEntryPoint = 0x80000028,
 		MinimumOSVersion  = 0x32,
 	}
