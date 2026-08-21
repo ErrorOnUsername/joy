@@ -1,6 +1,7 @@
 package opto
 
 import rt "base:runtime"
+import "core:crypto/sha2"
 import "core:fmt"
 import "core:os"
 import "core:slice"
@@ -841,6 +842,10 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		seg.cmd.file_size = file_size - file_start
 	}
 
+	total_linkedit_virt_size := rt.align_forward(int(codesig_load.data_size), 0x4000)
+	linkedit_segment.addr = vaddr
+	linkedit_segment.addr_size = total_linkedit_virt_size
+
 	assert(code_base_va != 0)
 	entry_offset := uint(lc.symbol_offsets["_start"].offset)
 	entry_point_load.addr = segment_loads[0].cmd.file_offset + entry_offset
@@ -872,6 +877,56 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = align_forward_u32(file_pos, size_of(u64))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&codesig_load, size_of(codesig_load)))
+
+	sha_ctx: sha2.Context_256
+	sha2.init_256(&sha_ctx)
+	code_signature_bytes: [32]u8 // 256 bits
+	hash_block_size := 0x1000
+	block_count := (int(file_pos) + (hash_block_size - 1)) / hash_block_size
+	sha2.update(&sha_ctx, file_data[:block_count * hash_block_size])
+	sha2.final(&sha_ctx, code_signature_bytes[:])
+
+	blob_headers_size := size_of(CS_SuperBlob) + size_of(CS_BlobIndex)
+	all_headers_size := blob_headers_size + size_of(CS_CodeDirectory)
+
+	superblob := CS_SuperBlob {
+		magic = .EmbeddedSignature,
+		len = signature_size,
+		count = 1,
+	}
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&superblob, size_of(superblob)))
+	blob_index := CS_BlobIndex {
+		type   = .CodeDirectory,
+		offset = blob_headers_size,
+	}
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&blob_index, size_of(blob_index)))
+	codesig_header := CS_CodeDirectory {
+		magic                = .CodeDirectory,
+		len                  = signature_size - blob_headers_size,
+		version              = .SupportsExecSeg,
+		flags                = { .AdHoc, .LinkerSigned },
+		hash_offset          = size_of(CS_CodeDirectory) + len(filename) + file_name_padding,
+		ident_offset         = size_of(CS_CodeDirectory),
+		special_slot_count   = 0,
+		code_slot_count      = block_count,
+		code_limit           = file_pos,
+		hash_size            = hash_size,
+		hash_type            = .SHA256,
+		platform             = {},
+		page_size            = 12, // 4KiB
+		unused_0             = 0,
+		scatter_offset       = 0,
+		team_offset          = 0,
+		unused_1             = 0,
+		code_limit_64        = 0,
+		exec_seg_base        = {},
+		exec_seg_limit       = {},
+		exec_seg_flags       = {},
+	}
+	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&codesig_header, size_of(codesig_header)))
+	file_pos = copy_obj_data(file_pos, file_data, filename[:])
+	file_pos += file_name_padding
+	file_pos = copy_obj_data(file_pos, file_data, code_signature_bytes[:])
 
 	write_err := os.write_entire_file("test.bin", file_data)
 	if write_err != nil {
@@ -1157,6 +1212,70 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		CodeSignature     = 0x1D,
 		AppMainEntryPoint = 0x80000028,
 		MinimumOSVersion  = 0x32,
+	}
+
+	CS_CodeDirectory :: struct {
+		magic:              CS_CodeDirectory_Magic,
+		len:                u32,
+		version:            CS_CodeDirectory_Version,
+		flags:              CS_CodeDirectory_Flags,
+		hash_offset:        u32,
+		ident_offset:       u32,
+		special_slot_count: u32,
+		code_slot_count:    u32,
+		code_limit:         u32,
+		hash_size:          u8,
+		hash_type:          CS_CodeDirectory_HashType,
+		platform:           CS_CodeDirectory_Platform,
+		page_size:          u8,
+		unused_0:           u32,
+		scatter_offset:     u32,
+		team_offset:        u32,
+		unused_1:           u32,
+		code_limit_64:      u64,
+		exec_seg_base:      u64,
+		exec_seg_limit:     u64,
+		exec_seg_flags:     u64,
+	}
+
+	CS_CodeDirectory_Magic :: enum(u32) {
+		CodeDirectory = 0xfade0c02,
+	}
+
+	CS_CodeDirectory_Version :: enum(u32) {
+		SupportsExecSeg = 0x20400,
+	}
+
+	CS_CodeDirectory_Flag :: enum {
+		AdHoc = 1,
+		LinkerSigned = 17,
+	}
+	CS_CodeDirectory_Flags :: bit_set[CS_CodeDirectory_Flag; u32]
+
+	CS_CodeDirectory_HashType :: enum(u8) {
+		SHA256 = 2,
+	}
+
+	CS_CodeDirectory_Platform :: enum(u8) {
+	}
+
+	CS_BlobIndex :: struct {
+		type:   CS_BlobIndex_Type,
+		offset: u32,
+	}
+
+	CS_BlobIndex_Type :: enum(u32) {
+		CodeDirectory = 0
+	}
+
+	CS_SuperBlob :: struct {
+		magic: CS_SuperBlob_Magic,
+		len:   u32,
+		count: u32,
+	}
+
+	CS_SuperBlob_Magic :: enum(u32) {
+		EmbeddedSignature = 0xfade0cc0,
 	}
 
 	return true
