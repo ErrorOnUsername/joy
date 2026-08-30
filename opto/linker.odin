@@ -724,7 +724,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	}
 
 	text_sections: [1]SectionEntry
-	used_text_sections := init_section(&text_sections[0], "__TEXT", "__text", u32(MachOSectionType.ZeroFillOnDemand), u32(MachOSectionFlag.PureInstructions), &lc.sections[.Code])
+	used_text_sections := init_section(&text_sections[0], "__TEXT", "__text", u32(MachOSectionType.Regular), u32(MachOSectionFlag.PureInstructions | MachOSectionFlag.SomeInstructions), &lc.sections[.Code])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__TEXT", { .Read, .Execute }, {}, text_sections[:used_text_sections])
 
 	rodata_sections: [1]SectionEntry
@@ -1125,6 +1125,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	}
 
 	MachOSectionType :: enum(u32) {
+		Regular                 = 0x00,
 		NonLazySymbolPointers   = 0x06,
 		LazySymbolPointers      = 0x07,
 		SymbolStubs             = 0x08,
