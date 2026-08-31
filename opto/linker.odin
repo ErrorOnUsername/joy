@@ -819,6 +819,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	vaddr := uint(zero_page_segment.addr_size)
 
 	code_base_va: uint
+	code_base_fileoff: uint
 
 	file_offset := 0
 
@@ -836,8 +837,9 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 			if sect.src.type == .Code {
 				prefix_size = u32(size_of_headers)
 				code_base_va = vaddr
+				code_base_fileoff = uint(prefix_size)
 			}
-			sect.macho.section_addr = vaddr
+			sect.macho.section_addr = uint(prefix_size) + vaddr
 			sect.macho.section_size = len(sect.src.data)
 			sect.macho.section_file_offset = prefix_size + u32(file_offset)
 			vaddr += uint(sect.macho.section_size)
@@ -875,7 +877,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	assert(code_base_va != 0)
 	entry_offset := uint(lc.symbol_offsets["_start"].offset)
-	entry_point_load.addr = segment_loads[0].cmd.file_offset + entry_offset
+	entry_point_load.addr = code_base_fileoff + entry_offset
 
 	file_data := make([]u8, file_size)
 	defer delete(file_data)
