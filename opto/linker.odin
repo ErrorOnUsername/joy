@@ -728,13 +728,13 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__TEXT", { .Read, .Execute }, {}, text_sections[:used_text_sections])
 
 	rodata_sections: [1]SectionEntry
-	used_rodata_sections := init_section(&rodata_sections[0], "__DATA_CONST", "__data", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.ROData])
+	used_rodata_sections := init_section(&rodata_sections[0], "__DATA_CONST", "__data", u32(MachOSectionType.Regular), 0, &lc.sections[.ROData])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA_CONST", { .Read, .Write }, { .ReadOnly }, rodata_sections[:used_rodata_sections])
 
 	data_sections: [2]SectionEntry
 	used_data_sections := 0
 	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__bss", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.BSS])
-	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__data", u32(MachOSectionType.ZeroFillOnDemand), 0, &lc.sections[.Data])
+	used_data_sections += init_section(&data_sections[used_data_sections], "__DATA", "__data", u32(MachOSectionType.Regular), 0, &lc.sections[.Data])
 	used_segment_loads += alloc_segment_load_from_sections(&segment_loads[used_segment_loads],  "__DATA", { .Read, .Write }, {}, data_sections[:used_data_sections])
 
 	linkedit_segment := SegmentLoadCmd {
@@ -892,9 +892,14 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
 	for i in 0..<used_segment_loads {
 		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&segment_loads[i].cmd, size_of(SegmentLoadCmd)))
+		seg_data_file_base := u32(size_of_headers) + u32(segment_loads[i].cmd.file_offset)
+		sect_bytes_written: u32
 		for j in 0..<segment_loads[i].cmd.num_sections {
 			sect := (transmute([^]SectionEntry)segment_loads[i].section_start_ptr)[j]
+			sect_pos := align_forward_u32(seg_data_file_base + sect_bytes_written, 1 << sect.macho.alignment)
 			file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&sect.macho, size_of(MachOSegmentSection)))
+			copy_obj_data(seg_data_file_base + sect_bytes_written + sect.macho.section_file_offset, file_data, sect.src.data)
+			sect_bytes_written += u32(len(sect.src.data))
 		}
 	}
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&linkedit_segment, int(linkedit_segment.cmd.size)))
@@ -905,13 +910,6 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = align_forward_u32(file_pos, size_of(u64))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&codesig_load, size_of(codesig_load)))
-
-	for i in 0..<used_segment_loads {
-		for j in 0..<segment_loads[i].cmd.num_sections {
-			sect := (transmute([^]SectionEntry)segment_loads[i].section_start_ptr)[j]
-			file_pos = copy_obj_data(file_pos, file_data, sect.src.data)
-		}
-	}
 
 	text_seg_file_start := u64(segment_loads[0].cmd.file_offset)
 	text_seg_file_size := u64(segment_loads[0].cmd.file_size)
