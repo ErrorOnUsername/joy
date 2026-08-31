@@ -820,33 +820,40 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	code_base_va: uint
 
+	file_offset := 0
+
 	for &seg in segment_loads {
-		file_start := file_size
+		seg_file_start := file_offset
 		vaddr_start := vaddr
 		seg.cmd.addr = vaddr_start
-		seg.cmd.file_offset = uint(file_size)
+		seg.cmd.file_offset = uint(file_offset)
 		sections := slice.from_ptr(transmute(^SectionEntry)seg.section_start_ptr, int(seg.cmd.num_sections))
 		for &sect in sections {
 			align := 1 << uint(sect.macho.alignment) // align is in log2
 			vaddr = rt.align_forward(vaddr, uint(align))
-			file_size = rt.align_forward(file_size, align)
-			if sect.src.type == .Code do code_base_va = vaddr
+			file_offset = rt.align_forward(file_offset, align)
+			prefix_size: u32
+			if sect.src.type == .Code {
+				prefix_size = u32(size_of_headers)
+				code_base_va = vaddr
+			}
 			sect.macho.section_addr = vaddr
 			sect.macho.section_size = len(sect.src.data)
-			sect.macho.section_file_offset = u32(file_size)
+			sect.macho.section_file_offset = prefix_size + u32(file_offset)
 			vaddr += uint(sect.macho.section_size)
-			file_size += len(sect.src.data)
+			file_offset += int(prefix_size) + len(sect.src.data)
 		}
 		vaddr = rt.align_forward(vaddr, 0x4000)
 		seg.cmd.addr_size = int(vaddr - vaddr_start)
-		seg.cmd.file_size = file_size - file_start
+		seg.cmd.file_size = rt.align_forward(file_offset - seg_file_start, 0x4000)
+		file_offset = rt.align_forward(file_offset, 0x4000)
 	}
 
 	filename := "test.bin"
 
 	CODESIG_HASH_SIZE :: 256 / 8
 	hash_block_size := 0x1000
-	block_count := (int(file_size) + (hash_block_size - 1)) / hash_block_size
+	block_count := (int(file_offset) + (hash_block_size - 1)) / hash_block_size
 
 	blob_headers_size := align_forward_u32(size_of(CS_SuperBlob) + size_of(CS_BlobIndex), 8)
 	fixed_headers_size := blob_headers_size + size_of(CS_CodeDirectory)
@@ -856,15 +863,15 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	full_size := align_forward_u32(full_raw_size, 16)
 
 	linkedit_segment.file_size = int(full_size)
-	linkedit_segment.file_offset = uint(file_size)
-	codesig_load.data_off = u32(file_size)
+	linkedit_segment.file_offset = uint(file_offset)
+	codesig_load.data_off = u32(file_offset)
 	codesig_load.data_size = full_size
 
 	total_linkedit_virt_size := rt.align_forward(int(codesig_load.data_size), 0x4000)
 	linkedit_segment.addr = vaddr
 	linkedit_segment.addr_size = total_linkedit_virt_size
 
-	file_size += int(full_size)
+	file_size += int(full_size) + file_offset
 
 	assert(code_base_va != 0)
 	entry_offset := uint(lc.symbol_offsets["_start"].offset)
@@ -886,7 +893,6 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		for j in 0..<segment_loads[i].cmd.num_sections {
 			sect := (transmute([^]SectionEntry)segment_loads[i].section_start_ptr)[j]
 			file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&sect.macho, size_of(MachOSegmentSection)))
-			copy_obj_data(sect.macho.section_file_offset, file_data, sect.src.data)
 		}
 	}
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&linkedit_segment, int(linkedit_segment.cmd.size)))
@@ -897,6 +903,13 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = align_forward_u32(file_pos, size_of(u64))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&entry_point_load, size_of(entry_point_load)))
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&codesig_load, size_of(codesig_load)))
+
+	for i in 0..<used_segment_loads {
+		for j in 0..<segment_loads[i].cmd.num_sections {
+			sect := (transmute([^]SectionEntry)segment_loads[i].section_start_ptr)[j]
+			file_pos = copy_obj_data(file_pos, file_data, sect.src.data)
+		}
+	}
 
 	text_seg_file_start := u64(segment_loads[0].cmd.file_offset)
 	text_seg_file_size := u64(segment_loads[0].cmd.file_size)
