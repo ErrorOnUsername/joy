@@ -120,9 +120,9 @@ AARCH64_OP_STORE_IMM_16 :: 0b0111100100
 AARCH64_OP_STORE_IMM_8  :: 0b0011100100
 AARCH64_OP_MOVE_IMM8    :: 0b0
 AARCH64_OP_MOVE_KEEP    :: 0b0
-AARCH64_OP_MOVE_INV     :: 0b0
+AARCH64_OP_MOVE_INV     :: 0b100100101
 AARCH64_OP_MOVE_ZERO    :: 0b0
-AARCH64_OP_MOVE_WIDE    :: 0b0
+AARCH64_OP_MOVE_WIDE    :: 0b110100101
 AARCH64_OP_ADD          :: 0b10001011
 AARCH64_OP_ADD_IMM      :: 0b100100010
 AARCH64_OP_SUB          :: 0b11001011
@@ -155,11 +155,11 @@ aarch64_imm16 :: proc(imm: int) -> bool {
 	return imm >= 0 && imm < (1 << 16)
 }
 
-enc_reg_imm :: proc(opcode: int, imm12: int, rn: int, rd: int) -> u32 {
+enc_reg_imm :: proc(opcode: int, imm12: int, rn: int, rd: int) -> int {
 	assert(rn >= 0 && rn < 32)
 	assert(rd >= 0 && rd < 32)
 	assert(aarch64_imm12(imm12))
-	return u32(opcode << 23) | u32(imm12 << 10) | u32(rn << 5) | u32(rd)
+	return (opcode << 23) | (imm12 << 10) | (rn << 5) | (rd)
 }
 
 StoreOption :: enum {
@@ -169,17 +169,18 @@ StoreOption :: enum {
 	SXTX = 0b111,
 }
 
-enc_ldstr :: proc(opcode: int, offset: int, option: StoreOption, shift: int, val: int, ptr: int ) -> u32 {
+enc_ldstr :: proc(opcode: int, offset: int, option: StoreOption, shift: int, val: int, ptr: int) -> int {
 	assert(val >= 0 && val <= 32)
 	assert(ptr >= 0 && ptr <= 32)
-	return u32(opcode << 21) | u32(offset << 16) | (u32(option) << 13) | u32(shift << 12) | u32(2 << 10) | u32(ptr << 5) | u32(val)
+	assert(shift >= 0 && shift <= 1)
+	return (opcode << 21) | (offset << 16) | (int(option) << 13) | (shift << 12) | (2 << 10) | (ptr << 5) | (val)
 }
 
-enc_ldstr_imm :: proc(opcode: int, imm12: int, ptr: int, rt: int) -> u32 {
+enc_ldstr_imm :: proc(opcode: int, imm12: int, ptr: int, rt: int) -> int {
 	assert(ptr >= 0 && ptr <= 32)
 	assert(rt >= 0 && rt <= 32)
 	assert(aarch64_imm12(imm12))
-	return u32(opcode << 22) | u32(imm12 << 10) | u32(ptr << 5) | u32(rt)
+	return (opcode << 22) | (imm12 << 10) | (ptr << 5) | (rt)
 }
 
 enc_madd :: proc(opcode: int, rm: int, ra: int, rn: int, rd: int) -> u32 {
@@ -201,7 +202,8 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Imm:
 		case .Start:
 			if fn.stack_size > 0 {
-				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
+				insr := enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))
+				enc_out32(&fn.output.data, insr)
 				log(fn, "    sub.x sp, sp, #{}", fn.stack_size)
 			}
 		case .Param:
@@ -209,7 +211,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Local:
 		case .Ret:
 			if fn.stack_size > 0 {
-				enc_out32(&fn.output.data, int(enc_reg_imm(AARCH64_OP_ADD_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))))
+				enc_out32(&fn.output.data, enc_reg_imm(AARCH64_OP_ADD_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP)))
 				log(fn, "    add.x sp, sp, #{}", fn.stack_size)
 			}
 			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
@@ -226,12 +228,12 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			if n.kind == .Branch {
 				target = n.inputs[2]
 				bb := block_map_get_node_block(bm, target)
-				opcode := AARCH64_OP_JMP
+				opcode := AARCH64_OP_BR
 				off19 := 0
 				cond, cond_str := aarch64_cond(n.inputs[1].kind)
-				insr := u32(opcode << 26) | u32(off19 << 5) | u32(cond)
+				insr := (opcode << 24) | (off19 << 5) | (1 << 4) | int(cond)
 				log(fn, "    b.{} {}", cond_str, bb.name)
-				enc_out32(&fn.output.data, int(insr))
+				enc_out32(&fn.output.data, insr)
 			} else {
 				assert(n.kind == .Goto)
 				target = n.inputs[1]
@@ -253,7 +255,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 				offset = get_local_slot_offset(fn, n.inputs[2])
 			}
 
-			insr: u32
+			insr: int
 			bw := n.type.bitwidth
 			if offset != 0 {
 				opcode := -1
@@ -275,22 +277,22 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			} else {
 				opcode := -1
 				if bw <= 8 {
-					opcode = AARCH64_OP_LOAD_REG_8
+					opcode = AARCH64_OP_LOAD_IMM_8
 					log(fn, "    ldr.b {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
 				} else if bw <= 16 {
-					opcode = AARCH64_OP_LOAD_REG_16
+					opcode = AARCH64_OP_LOAD_IMM_16
 					log(fn, "    ldr.h {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
 				} else if bw <= 32 {
-					opcode = AARCH64_OP_LOAD_REG_32
+					opcode = AARCH64_OP_LOAD_IMM_32
 					log(fn, "    ldr.w {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
 				} else {
 					assert(bw <= 64)
-					opcode = AARCH64_OP_LOAD_REG_64
+					opcode = AARCH64_OP_LOAD_IMM_64
 					log(fn, "    ldr.x {}, [{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg))
 				}
-				insr = enc_ldstr(opcode, -1, .SXTX, 0, int(dst_reg), int(ptr_reg))
+				insr = enc_ldstr_imm(opcode, 0, int(ptr_reg), int(dst_reg))
 			}
-			enc_out32(&fn.output.data, int(insr))
+			enc_out32(&fn.output.data, insr)
 		case .GetMemberPtr:
 			// panic("impl getmemberptr")
 		case .ConstStore:
@@ -324,7 +326,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			val_reg := get_reg(fn, n.inputs[3])
 			assert(val_reg < i128(AArch64Reg.MAX_REG))
 			opcode: int
-			insr: u32
+			insr: int
 			bw := n.inputs[3].type.bitwidth
 			if offset != 0 {
 				if bw <= 8 {
@@ -344,22 +346,22 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 				insr = enc_ldstr_imm(opcode, offset, int(ptr_reg), int(val_reg))
 			} else {
 				if bw <= 8 {
-					opcode = AARCH64_OP_STORE_REG_8
+					opcode = AARCH64_OP_STORE_IMM_8
 					log(fn, "    str.b {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				} else if bw <= 16 {
-					opcode = AARCH64_OP_STORE_REG_16
+					opcode = AARCH64_OP_STORE_IMM_16
 					log(fn, "    str.h {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				} else if bw <= 32 {
-					opcode = AARCH64_OP_STORE_REG_32
+					opcode = AARCH64_OP_STORE_IMM_32
 					log(fn, "    str.w {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				} else {
 					assert(bw <= 64)
-					opcode = AARCH64_OP_STORE_REG_64
+					opcode = AARCH64_OP_STORE_IMM_64
 					log(fn, "    str.x {}, [{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg))
 				}
-				insr = enc_ldstr(opcode, -1, .SXTX, 0, int(val_reg), int(ptr_reg))
+				insr = enc_ldstr_imm(opcode, 0, int(ptr_reg), int(val_reg))
 			}
-			enc_out32(&fn.output.data, int(insr))
+			enc_out32(&fn.output.data, insr)
 		case .Add:
 			panic("impl add")
 		case .AddImm:
@@ -375,12 +377,12 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			imm := get_imm_int(n.inputs[2])
 			opcode := AARCH64_OP_SUB_IMM
 			insr := enc_reg_imm(opcode, imm, int(v_reg), int(dst_reg))
-			enc_out32(&fn.output.data, int(insr))
+			enc_out32(&fn.output.data, insr)
 		case .Mul:
 			dst_reg := get_reg(fn, n)
 			l_reg := get_reg(fn, n.inputs[1])
 			r_reg := get_reg(fn, n.inputs[2])
-			insr := enc_madd(AARCH64_OP_MUL, int(r_reg), -1, int(l_reg), int(dst_reg))
+			insr := enc_madd(AARCH64_OP_MUL, int(r_reg), 0b11111, int(l_reg), int(dst_reg))
 			log(fn, "    mul {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
 			enc_out32(&fn.output.data, int(insr))
 		case .Div:
@@ -424,7 +426,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .XOrImm:
 			panic("impl xori")
 		case .Cmp:
-			opcode := AARCH64_OP_CMP_IMM
+			opcode := AARCH64_OP_CMP
 			sh := 0
 			l_reg := get_reg(fn, n.inputs[1])
 			assert(l_reg >= 0 && l_reg <= 32)
@@ -515,9 +517,9 @@ aarch64_patch_local_relo :: proc(fn: ^Function, n: ^Node, start: int, delta_from
 		new_insr: u32
 		if n.kind == .Branch {
 			opcode := AARCH64_OP_BR
-			off19 := 0
+			off19 := rel_addr(delta_from_start_to_target, 19)
 			cond, _ := aarch64_cond(n.inputs[1].kind)
-			new_insr = u32(opcode << 26) | u32(off19 << 5) | u32(cond)
+			new_insr = u32(opcode << 24) | u32(off19 << 5) | u32(cond)
 		} else {
 			assert(n.kind == .Goto)
 			opcode := AARCH64_OP_JMP

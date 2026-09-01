@@ -737,12 +737,6 @@ emit :: proc(ctx: ^OptoContext, fn: ^Function, blocks: []^BasicBlock, bm: ^Block
 
 	log(fn, "Successfully encoded {} instructions (patched {} local relocations, {} non-local unpatched relocations)", encode_count, local_relo_count, non_local_relo_count)
 
-	assert(len(fn.output.data) % 4 == 0)
-	insrs := slice.reinterpret([]u32, fn.output.data[:])
-	for insr, idx in insrs {
-		fmt.printfln(" {} = {:8x}", idx, insr)
-	}
-
 	return true
 }
 
