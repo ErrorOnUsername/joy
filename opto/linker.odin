@@ -873,7 +873,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	linkedit_segment.addr = vaddr
 	linkedit_segment.addr_size = total_linkedit_virt_size
 
-	file_size += int(full_size) + file_offset
+	file_size = int(full_size) + file_offset
 
 	assert(code_base_va != 0)
 	entry_offset := uint(lc.symbol_offsets["_start"].offset)
@@ -892,13 +892,16 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&zero_page_segment, int(zero_page_segment.cmd.size)))
 	for i in 0..<used_segment_loads {
 		file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&segment_loads[i].cmd, size_of(SegmentLoadCmd)))
-		seg_data_file_base := u32(size_of_headers) + u32(segment_loads[i].cmd.file_offset)
+		seg_data_file_base := u32(segment_loads[i].cmd.file_offset)
 		sect_bytes_written: u32
 		for j in 0..<segment_loads[i].cmd.num_sections {
 			sect := (transmute([^]SectionEntry)segment_loads[i].section_start_ptr)[j]
+			if sect.src.type == .Code && j == 0 { // only do this for the fist code section
+				seg_data_file_base += u32(size_of_headers)
+			}
 			sect_pos := align_forward_u32(seg_data_file_base + sect_bytes_written, 1 << sect.macho.alignment)
 			file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&sect.macho, size_of(MachOSegmentSection)))
-			copy_obj_data(seg_data_file_base + sect_bytes_written + sect.macho.section_file_offset, file_data, sect.src.data)
+			copy_obj_data(sect_pos, file_data, sect.src.data)
 			sect_bytes_written += u32(len(sect.src.data))
 		}
 	}
@@ -914,27 +917,30 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	text_seg_file_start := u64(segment_loads[0].cmd.file_offset)
 	text_seg_file_size := u64(segment_loads[0].cmd.file_size)
 
+	le_pos := u32(linkedit_segment.file_offset)
+
 	superblob := CS_SuperBlob {
 		magic = .EmbeddedSignature,
-		len   = full_size,
+		len   = u32be(full_size),
 		count = 1,
 	}
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&superblob, size_of(superblob)))
+	le_pos = copy_obj_data(le_pos, file_data, slice.bytes_from_ptr(&superblob, size_of(superblob)))
 	blob_index := CS_BlobIndex {
 		type   = .CodeDirectory,
-		offset = blob_headers_size,
+		offset = u32be(blob_headers_size),
 	}
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&blob_index, size_of(blob_index)))
+	le_pos = copy_obj_data(le_pos, file_data, slice.bytes_from_ptr(&blob_index, size_of(blob_index)))
+	le_pos = align_forward_u32(le_pos, 8)
 	codesig_header := CS_CodeDirectory {
 		magic              = .CodeDirectory,
-		len                = full_size - blob_headers_size,
+		len                = u32be(full_size - blob_headers_size),
 		version            = .SupportsExecSeg,
 		flags              = { .AdHoc, .LinkerSigned },
-		hash_offset        = size_of(CS_CodeDirectory) + u32(len(filename)) + file_name_padding,
+		hash_offset        = u32be(size_of(CS_CodeDirectory) + u32(len(filename)) + file_name_padding),
 		ident_offset       = size_of(CS_CodeDirectory),
 		special_slot_count = 0,
-		code_slot_count    = u32(block_count),
-		code_limit         = file_pos,
+		code_slot_count    = u32be(block_count),
+		code_limit         = u32be(linkedit_segment.file_offset),
 		hash_size          = CODESIG_HASH_SIZE,
 		hash_type          = .SHA256,
 		platform           = {},
@@ -944,21 +950,23 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		team_offset        = 0,
 		unused_1           = 0,
 		code_limit_64      = 0,
-		exec_seg_base      = text_seg_file_start,
-		exec_seg_limit     = text_seg_file_size,
+		exec_seg_base      = u64be(text_seg_file_start),
+		exec_seg_limit     = u64be(text_seg_file_size),
 		exec_seg_flags     = { .MainBinary }, // FIXME: This only gets set if we're linking an exe, which might not always be true
 	}
-	file_pos = copy_obj_data(file_pos, file_data, slice.bytes_from_ptr(&codesig_header, size_of(codesig_header)))
-	file_pos = copy_obj_data(file_pos, file_data, transmute([]u8)filename)
-	file_pos += file_name_padding
+	assert(size_of(codesig_header) == 88)
+	le_pos = copy_obj_data(le_pos, file_data, slice.bytes_from_ptr(&codesig_header, size_of(codesig_header)))
+	le_pos = copy_obj_data(le_pos, file_data, transmute([]u8)filename)
+	le_pos += file_name_padding
 
 	sha_ctx: sha2.Context_256
 	for i in 0..<block_count {
 		sha2.init_256(&sha_ctx)
-		block_signature_output_bytes := file_data[file_pos:file_pos + CODESIG_HASH_SIZE]
+		block_signature_output_bytes := file_data[le_pos:le_pos + CODESIG_HASH_SIZE]
 		block_start := i * hash_block_size
-		sha2.update(&sha_ctx, file_data[block_start:block_start + CODESIG_HASH_SIZE])
+		sha2.update(&sha_ctx, file_data[block_start:block_start + hash_block_size])
 		sha2.final(&sha_ctx, block_signature_output_bytes[:])
+		le_pos += CODESIG_HASH_SIZE
 	}
 
 	write_err := os.write_entire_file(filename, file_data)
@@ -1250,33 +1258,33 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 
 	CS_CodeDirectory :: struct {
 		magic:              CS_CodeDirectory_Magic,
-		len:                u32,
+		len:                u32be,
 		version:            CS_CodeDirectory_Version,
 		flags:              CS_CodeDirectory_Flags,
-		hash_offset:        u32,
-		ident_offset:       u32,
-		special_slot_count: u32,
-		code_slot_count:    u32,
-		code_limit:         u32,
+		hash_offset:        u32be,
+		ident_offset:       u32be,
+		special_slot_count: u32be,
+		code_slot_count:    u32be,
+		code_limit:         u32be,
 		hash_size:          u8,
 		hash_type:          CS_CodeDirectory_HashType,
 		platform:           CS_CodeDirectory_Platform,
 		page_size:          u8,
 		unused_0:           u32,
-		scatter_offset:     u32,
-		team_offset:        u32,
+		scatter_offset:     u32be,
+		team_offset:        u32be,
 		unused_1:           u32,
-		code_limit_64:      u64,
-		exec_seg_base:      u64,
-		exec_seg_limit:     u64,
+		code_limit_64:      u64be,
+		exec_seg_base:      u64be,
+		exec_seg_limit:     u64be,
 		exec_seg_flags:     CS_CodeDirectory_ExecSegFlags,
 	}
 
-	CS_CodeDirectory_Magic :: enum(u32) {
+	CS_CodeDirectory_Magic :: enum(u32be) {
 		CodeDirectory = 0xfade0c02,
 	}
 
-	CS_CodeDirectory_Version :: enum(u32) {
+	CS_CodeDirectory_Version :: enum(u32be) {
 		SupportsExecSeg = 0x20400,
 	}
 
@@ -1284,7 +1292,7 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 		AdHoc = 1,
 		LinkerSigned = 17,
 	}
-	CS_CodeDirectory_Flags :: bit_set[CS_CodeDirectory_Flag; u32]
+	CS_CodeDirectory_Flags :: bit_set[CS_CodeDirectory_Flag; u32be]
 
 	CS_CodeDirectory_HashType :: enum(u8) {
 		SHA256 = 2,
@@ -1296,24 +1304,24 @@ create_and_write_macho_object :: proc(ctx: ^OptoContext, lc: ^LinkContext) -> bo
 	CS_CodeDirectory_ExecSegFlag :: enum {
 		MainBinary,
 	}
-	CS_CodeDirectory_ExecSegFlags :: bit_set[CS_CodeDirectory_ExecSegFlag; u64]
+	CS_CodeDirectory_ExecSegFlags :: bit_set[CS_CodeDirectory_ExecSegFlag; u64be]
 
 	CS_BlobIndex :: struct {
 		type:   CS_BlobIndex_Type,
-		offset: u32,
+		offset: u32be,
 	}
 
-	CS_BlobIndex_Type :: enum(u32) {
+	CS_BlobIndex_Type :: enum(u32be) {
 		CodeDirectory = 0
 	}
 
 	CS_SuperBlob :: struct {
 		magic: CS_SuperBlob_Magic,
-		len:   u32,
-		count: u32,
+		len:   u32be,
+		count: u32be,
 	}
 
-	CS_SuperBlob_Magic :: enum(u32) {
+	CS_SuperBlob_Magic :: enum(u32be) {
 		EmbeddedSignature = 0xfade0cc0,
 	}
 
