@@ -78,6 +78,7 @@ impl_aarch64 := ArchImpl {
 		},
 	},
 	select = aarch64_select,
+	select_new = aarch64_select_new,
 	encode = aarch64_encode,
 	encoding_size = aarch64_encoding_size,
 	patch_local_relo = aarch64_patch_local_relo,
@@ -100,6 +101,10 @@ aarch64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	}
 
 	return INVALID_OP
+}
+
+aarch64_select_new :: proc(fn: ^Function, n: ^Node) -> ^Node {
+	unimplemented("impl aarch64_select_new")
 }
 
 AARCH64_OP_LOAD_REG_64  :: 0b11111000011

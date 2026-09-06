@@ -57,6 +57,7 @@ impl_amd64 := ArchImpl {
 		},
 	},
 	select = amd64_select,
+	select_new = amd64_select_new,
 	encode = amd64_encode,
 	encoding_size = amd64_encoding_size,
 	patch_local_relo = amd64_patch_local_relo,
@@ -86,6 +87,10 @@ amd64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 	}
 
 	return INVALID_OP
+}
+
+amd64_select_new :: proc(fn: ^Function, n: ^Node) -> ^Node {
+	unimplemented("impl amd64_select_new")
 }
 
 amd64_bw_type_suffix :: proc(bw: int) -> string {

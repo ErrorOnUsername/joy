@@ -21,6 +21,7 @@ ArchImpl :: struct {
 	reg_names: []string,
 	abi: []PlatformABI,
 	select: #type proc(fn: ^Function, n: ^Node) -> MachineOp,
+	select_new: #type proc(fn: ^Function, n: ^Node) -> ^Node,
 	encode: #type proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool,
 	encoding_size: #type proc(n: ^Node, delta_from_start_to_target: int) -> int,
 	patch_local_relo: #type proc(fn: ^Function, n: ^Node, start: int, delta_from_start_to_target: int),
@@ -56,6 +57,14 @@ arch_impl :: proc(arch: Arch) -> ^ArchImpl {
 			return &impl_aarch64
 	}
 	return nil
+}
+
+arch_uses_new_isel :: proc(arch: Arch) -> bool {
+	#partial switch arch {
+	case .AArch64: return true
+	}
+
+	return false
 }
 
 arch_get_register_mask_str :: proc(arch: Arch, mask: RegisterMask) -> string {

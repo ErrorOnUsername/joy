@@ -9,7 +9,11 @@ codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	log(fn, "-- Begin CodeGen --")
 	defer log(fn, "-- End CodeGen --")
 
-	insr_select(ctx, fn) or_return
+	if arch_uses_new_isel(ctx.arch) {
+		insr_select_new(ctx, fn) or_return
+	} else {
+		insr_select(ctx, fn) or_return
+	}
 
 	block_map := block_map_create(fn)
 	defer block_map_destroy(&block_map)
@@ -64,6 +68,77 @@ insr_select :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 		}
 
 		pop(&stack)
+	}
+
+	return true
+}
+
+insr_select_new :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
+	log(fn, "-- Begin ISelNew --")
+	defer log(fn, "-- End ISelNew --")
+
+	impl := arch_impl(ctx.arch)
+
+	mach_node_map: map[^Node]^Node
+	defer delete(mach_node_map)
+	stack: [dynamic]^Node
+	defer delete(stack)
+
+	append(&stack, fn.end)
+
+	for len(stack) > 0 {
+		x := stack[len(stack) - 1]
+
+		if mach_node_map[x] != nil do continue
+
+		unhandled_input := false
+		for input in x.inputs {
+			if input != nil && mach_node_map[input] == nil {
+				unhandled_input = true
+				append(&stack, input)
+				break
+			}
+		}
+		if unhandled_input do continue
+
+		mach := impl.select_new(fn, x)
+		if mach == nil {
+			log(fn, "Error: Couldn't select machine node for node '{}{}'", x.kind, x.gvn)
+			return false
+		}
+
+		mach_node_map[x] = mach
+
+		pop(&stack)
+	}
+
+	fn.start = mach_node_map[fn.start]
+	fn.end   = mach_node_map[fn.end]
+
+	// We have to run a fixup on the mach nodes to hook up the users. We can't do it
+	// during isel beacuse we build the nodes in reverse order, so we don't know all
+	// of our users yet.
+	{
+		visited: Worklist
+		worklist_init(&visited, fn.node_count)
+		defer worklist_deinit(&visited)
+
+		clear(&stack)
+		append(&stack, fn.end)
+
+		for len(stack) > 0 {
+			x := stack[len(stack) - 1]
+			worklist_push(&visited, x)
+
+			for input, idx in x.inputs {
+				append(&input.users, User { x, idx })
+				if !worklist_contains(&visited, input) {
+					append(&stack, input)
+				}
+			}
+
+			pop(&stack)
+		}
 	}
 
 	return true
