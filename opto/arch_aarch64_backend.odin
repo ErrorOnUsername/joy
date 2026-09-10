@@ -91,20 +91,123 @@ impl_aarch64 := ArchImpl {
 }
 
 aarch64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
-	assert(n.uop == 0)
-	match := match_table[n.kind]
-	for pred in match.predicates {
-		if pred.pred == nil || pred.pred(n) {
-			log(fn, "{}{} -> aarch64.{}", n.kind, n.gvn, pred.insr)
-			return MachineOp(pred.insr)
-		}
-	}
-
-	return INVALID_OP
+	unimplemented("old function")
 }
 
 aarch64_select_new :: proc(fn: ^Function, n: ^Node) -> ^Node {
-	unimplemented("impl aarch64_select_new")
+	switch n.kind {
+	case .Start:
+		return new_mach_node(fn, u32(AArch64Insr.Start), n)
+	case .End:
+		return clone_node(fn, n)
+	case .Region:
+		return clone_node(fn, n)
+	case .Proj:
+		return new_mach_node(fn, u32(AArch64Insr.Proj), n)
+	case .IntConst:
+		return new_mach_node(fn, u32(AArch64Insr.ConstStore), n)
+	case .F32Const:
+		return new_mach_node(fn, u32(AArch64Insr.ConstStore), n)
+	case .F64Const:
+		return new_mach_node(fn, u32(AArch64Insr.ConstStore), n)
+	case .Local:
+		return new_mach_node(fn, u32(AArch64Insr.Local), n)
+	case .Symbol:
+		return clone_node(fn, n)
+	case .Param:
+		return new_mach_node(fn, u32(AArch64Insr.Param), n)
+	case .CalleeSave:
+		return clone_node(fn, n)
+	case .Return:
+		return new_mach_node(fn, u32(AArch64Insr.Ret), n)
+	case .Call:
+		return new_mach_node(fn, u32(AArch64Insr.Call), n)
+	case .Branch:
+		return new_mach_node(fn, u32(AArch64Insr.Jmp), n)
+	case .Goto:
+		return new_mach_node(fn, u32(AArch64Insr.Jmp), n)
+	case .Phi:
+		return clone_node(fn, n)
+	case .Load:
+		return new_mach_node(fn, u32(AArch64Insr.Load), n)
+	case .Store:
+		return new_mach_node(fn, u32(AArch64Insr.Store), n)
+	case .MemCpy:
+		unimplemented("aarch64 memcpy")
+	case .MemSet:
+		unimplemented("aarch64 memset")
+	case .VolatileRead:
+		return new_mach_node(fn, u32(AArch64Insr.Load), n)
+	case .VolatileWrite:
+		return new_mach_node(fn, u32(AArch64Insr.Store), n)
+	case .GetMemberPtr:
+		unimplemented("aarch64 getmemberptr")
+	case .And:
+		return new_mach_node(fn, u32(AArch64Insr.And), n)
+	case .Or:
+		return new_mach_node(fn, u32(AArch64Insr.Or), n)
+	case .XOr:
+		return new_mach_node(fn, u32(AArch64Insr.XOr), n)
+	case .Add:
+		return new_mach_node(fn, u32(AArch64Insr.Add), n)
+	case .Sub:
+		return new_mach_node(fn, u32(AArch64Insr.Sub), n)
+	case .Mul:
+		return new_mach_node(fn, u32(AArch64Insr.Mul), n)
+	case .Shl:
+		return new_mach_node(fn, u32(AArch64Insr.Shl), n)
+	case .Shr:
+		return new_mach_node(fn, u32(AArch64Insr.Shr), n)
+	case .Sar:
+		return new_mach_node(fn, u32(AArch64Insr.Sar), n)
+	case .Rol:
+		return new_mach_node(fn, u32(AArch64Insr.Rol), n)
+	case .Ror:
+		return new_mach_node(fn, u32(AArch64Insr.Ror), n)
+	case .UDiv:
+		return new_mach_node(fn, u32(AArch64Insr.Div), n)
+	case .SDiv:
+		return new_mach_node(fn, u32(AArch64Insr.Div), n)
+	case .UMod:
+		return new_mach_node(fn, u32(AArch64Insr.Mod), n)
+	case .SMod:
+		return new_mach_node(fn, u32(AArch64Insr.Mod), n)
+	case .FAdd:
+		return new_mach_node(fn, u32(AArch64Insr.AddF), n)
+	case .FSub:
+		return new_mach_node(fn, u32(AArch64Insr.SubF), n)
+	case .FMul:
+		return new_mach_node(fn, u32(AArch64Insr.MulF), n)
+	case .FDiv:
+		return new_mach_node(fn, u32(AArch64Insr.DivF), n)
+	case .FMax:
+		return new_mach_node(fn, u32(AArch64Insr.MaxF), n)
+	case .FMin:
+		return new_mach_node(fn, u32(AArch64Insr.MinF), n)
+	case .CmpEq:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpNeq:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpULt:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpULe:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpSLt:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpSLe:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpFLt:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .CmpFLe:
+		return new_mach_node(fn, u32(AArch64Insr.Cmp), n)
+	case .Not:
+		return new_mach_node(fn, u32(AArch64Insr.Not), n)
+	case .Negate:
+		return new_mach_node(fn, u32(AArch64Insr.Neg), n)
+	case .MachineOp:
+		panic("got a machine op in isel")
+	}
+	panic("unhandled aarch64 instruction")
 }
 
 AARCH64_OP_LOAD_REG_64  :: 0b11111000011
@@ -394,6 +497,8 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			panic("impl div")
 		case .DivImm:
 			panic("impl divi")
+		case .Mod:
+			panic("impl mod")
 		case .AddF:
 			panic("impl addf")
 		case .SubF:
@@ -402,6 +507,10 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			panic("impl mulf")
 		case .DivF:
 			panic("impl divf")
+		case .MaxF:
+			panic("impl maxf")
+		case .MinF:
+			panic("impl minf")
 		case .Sal:
 			panic("impl sal")
 		case .SalImm:
@@ -410,6 +519,10 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			panic("impl sar")
 		case .SarImm:
 			panic("impl sari")
+		case .Rol:
+			panic("impl rol")
+		case .Ror:
+			panic("impl ror")
 		case .Shl:
 			panic("impl shl")
 		case .ShlImm:
@@ -452,6 +565,10 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			insr := u32(opcode << 23) | u32(sh << 22) | u32(imm << 10) | (u32(arg_reg) << 5) | u32(0b11111)
 			log(fn, "    cmpi {}, #{}", aarch64_regname(arg_reg), imm)
 			enc_out32(&fn.output.data, int(insr))
+		case .Not:
+			panic("impl not")
+		case .Neg:
+			panic("impl neg")
 	}
 	return true
 }
@@ -640,18 +757,6 @@ aarch64_get_two_address_index :: proc(ctx: ^RegAllocContext, n: ^Node) -> int {
 	panic("impl get_two_address_index")
 }
 
-@(private = "file")
-InsrMatchProc :: #type proc (n: ^Node) -> bool
-@(private = "file")
-InsrMatchPred :: struct {
-	insr: AArch64Insr,
-	pred: InsrMatchProc,
-}
-@(private = "file")
-InsrMatch :: struct {
-	predicates: []InsrMatchPred,
-}
-
 aarch64_is_reg_type :: proc(n: ^Node) -> bool {
 	return ty_is_int(n.type) || ty_is_float(n.type) || ty_is_ptr(n.type)
 }
@@ -675,64 +780,6 @@ aarch64_is_imm_store :: proc(n: ^Node) -> bool {
 		if user.n.kind == .Store || user.n.kind == .Mul || is_cmp_node(user.n) do return true
 	}
 	return false
-}
-
-@(private = "file")
-match_table := [NodeKind]InsrMatch {
-	.Start = { { { insr = .Start } } },
-	.End = {},
-	.Region = {},
-	.Param = { { { insr = .Param } } },
-	.Proj = { { { insr = .Proj } } },
-	.IntConst = { { { insr = .ConstStore, pred = aarch64_is_imm_store }, { insr = .Imm } } },
-	.F32Const = { { { insr = .ConstStore, pred = aarch64_is_imm_store }, { insr = .Imm } } },
-	.F64Const = { { { insr = .ConstStore, pred = aarch64_is_imm_store }, { insr = .Imm } } },
-	.Local = { { { insr = .Local } } },
-	.Symbol = {},
-	.CalleeSave = {},
-	.Return = { { { insr = .Ret } } },
-	.Call = { { { insr = .Call } } },
-	.Branch = { { { insr = .Jmp } } },
-	.Goto = { { { insr = .Jmp } } },
-	.Phi = {},
-	.Load = { { { insr = .Load } } },
-	.Store = { { { insr = .Store } } },
-	.MemCpy = {},
-	.MemSet = {},
-	.VolatileRead = { { { insr = .Load } } },
-	.VolatileWrite = { { { insr = .Store } } },
-	.GetMemberPtr = { { { insr = .GetMemberPtr } } },
-	.And = { { { insr = .AndImm, pred = aarch64_imm_format }, { insr = .And, pred = aarch64_reg_format } } },
-	.Or = { { { insr = .OrImm, pred = aarch64_imm_format }, { insr = .Or, pred = aarch64_reg_format } } },
-	.XOr = { { { insr = .XOrImm, pred = aarch64_imm_format }, { insr = .XOr, pred = aarch64_reg_format } } },
-	.Add = { { { insr = .AddImm, pred = aarch64_imm_format }, { insr = .Add, pred = aarch64_reg_format } } },
-	.Sub = { { { insr = .SubImm, pred = aarch64_imm_format }, { insr = .Sub, pred = aarch64_reg_format } } },
-	.Mul = { { { insr = .Mul, pred = aarch64_reg_format } } },
-	.Shl = { { { insr = .ShlImm, pred = aarch64_imm_format }, { insr = .Shl, pred = aarch64_reg_format } } },
-	.Shr = { { { insr = .ShrImm, pred = aarch64_imm_format }, { insr = .Shr, pred = aarch64_reg_format } } },
-	.Sar = { { { insr = .SarImm, pred = aarch64_imm_format }, { insr = .Sar, pred = aarch64_reg_format } } },
-	.Rol = {},
-	.Ror = {},
-	.UDiv = { { { insr = .DivImm, pred = aarch64_imm_format }, { insr = .Div, pred = aarch64_reg_format } } },
-	.SDiv = { { { insr = .DivImm, pred = aarch64_imm_format }, { insr = .Div, pred = aarch64_reg_format } } },
-	.UMod = {},
-	.SMod = {},
-	.FAdd = { { { insr = .AddF } } },
-	.FSub = { { { insr = .SubF } } },
-	.FMul = { { { insr = .MulF } } },
-	.FDiv = { { { insr = .DivF } } },
-	.FMax = {},
-	.FMin = {},
-	.CmpEq = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpNeq = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpULt = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpULe = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpSLt = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpSLe = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpFLt = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.CmpFLe = { { { insr = .CmpImm, pred = aarch64_imm_format }, { insr = .Cmp, pred = aarch64_reg_format } } },
-	.Not = {},
-	.Negate = {},
 }
 
 @(private = "file")
@@ -765,14 +812,19 @@ insr_table := [AArch64Insr]InsrTableEntry {
 	.Mul = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Div = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.DivImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Mod = { },
 	.AddF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
 	.SubF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
 	.MulF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
 	.DivF = { in_regmask = XMM_MASK, out_regmask = XMM_MASK, two_address_index = 1 },
+	.MaxF = { },
+	.MinF = { },
 	.Sal = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.SalImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Sar = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.SarImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
+	.Rol = { },
+	.Ror = { },
 	.Shl = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.ShlImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Shr = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
@@ -785,6 +837,8 @@ insr_table := [AArch64Insr]InsrTableEntry {
 	.XOrImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Cmp = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
 	.CmpImm = { in_regmask = GPR_READ_MASK, out_regmask = FLAGS_MASK },
+	.Not = { },
+	.Neg = { },
 }
 
 AArch64Insr :: enum(u32) {
@@ -808,14 +862,19 @@ AArch64Insr :: enum(u32) {
 	Mul,
 	Div,
 	DivImm,
+	Mod,
 	AddF,
 	SubF,
 	MulF,
 	DivF,
+	MaxF,
+	MinF,
 	Sal,
 	SalImm,
 	Sar,
 	SarImm,
+	Rol,
+	Ror,
 	Shl,
 	ShlImm,
 	Shr,
@@ -828,4 +887,6 @@ AArch64Insr :: enum(u32) {
 	XOrImm,
 	Cmp,
 	CmpImm,
+	Not,
+	Neg,
 }

@@ -213,6 +213,33 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 	return n
 }
 
+new_mach_node :: proc(fn: ^Function, uop: u32, from: ^Node) -> ^Node {
+	n, _ := new(Node, fn.allocator)
+	n.kind = from.kind
+	n.gvn = u32(fn.node_count)
+	n.type = from.type
+	n.extra = from.extra
+	n.uop = uop
+	if from != nil && len(from.inputs) > 0 {
+		n.inputs = make([]^Node, len(from.inputs), fn.allocator)
+	}
+	fn.node_count += 1
+	return n
+}
+
+clone_node :: proc(fn: ^Function, from: ^Node) -> ^Node {
+	n, _ := new(Node, fn.allocator)
+	n.kind = from.kind
+	n.gvn = u32(fn.node_count)
+	n.type = from.type
+	n.extra = from.extra
+	if from != nil && len(from.inputs) > 0 {
+		n.inputs = make([]^Node, len(from.inputs), fn.allocator)
+	}
+	fn.node_count += 1
+	return n
+}
+
 is_const_node :: proc(n: ^Node) -> bool {
 	return n.kind == .IntConst || n.kind == .F32Const || n.kind == .F64Const
 }
@@ -829,7 +856,7 @@ NodeExtra :: struct {
 	derived: AnyExtra,
 }
 
-NodeKind :: enum {
+NodeKind :: enum(u32) {
 	Start,
 	End,
 
@@ -895,6 +922,8 @@ NodeKind :: enum {
 
 	Not,
 	Negate,
+
+	MachineOp,
 }
 
 node_get_data_start :: proc(n: ^Node) -> int {
@@ -953,6 +982,7 @@ node_get_data_start :: proc(n: ^Node) -> int {
 	case .CmpFLe:        return 1
 	case .Not:           return 1
 	case .Negate:        return 1
+	case .MachineOp:     unreachable()
 	}
 	return 0
 }

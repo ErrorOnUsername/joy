@@ -3,6 +3,7 @@ package opto
 import "core:fmt"
 import "core:strings"
 import "core:slice"
+import "base:runtime"
 
 
 codegen_function :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
@@ -89,57 +90,48 @@ insr_select_new :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	for len(stack) > 0 {
 		x := stack[len(stack) - 1]
 
-		if mach_node_map[x] != nil do continue
+		if mach_node_map[x] != nil {
+			pop(&stack)
+			continue
+		}
 
-		unhandled_input := false
-		for input in x.inputs {
-			if input != nil && mach_node_map[input] == nil {
-				unhandled_input = true
+		any_unhandled_inputs := false
+		for input, idx in x.inputs {
+			if input == nil do continue
+			if mach_node_map[input] == nil {
+				any_unhandled_inputs = true
 				append(&stack, input)
-				break
 			}
 		}
-		if unhandled_input do continue
+		if any_unhandled_inputs == true do continue
 
-		mach := impl.select_new(fn, x)
-		if mach == nil {
-			log(fn, "Error: Couldn't select machine node for node '{}{}'", x.kind, x.gvn)
-			return false
+		mach := select(impl, &mach_node_map, fn, x) or_return
+		assert(len(mach.inputs) == len(x.inputs), "Internal Error: MachineOp was allocated with different input count from source node")
+
+		for input, idx in x.inputs {
+			if input == nil do continue
+			assert(mach_node_map[input] != nil)
+			in_mach := mach_node_map[input]
+			mach.inputs[idx] = mach_node_map[input]
+			append(&in_mach.users, User { mach, idx })
 		}
-
-		mach_node_map[x] = mach
 
 		pop(&stack)
 	}
 
+	select :: proc(impl: ^ArchImpl, mach_map: ^map[^Node]^Node, fn: ^Function, n: ^Node) -> (^Node, bool) {
+		fmt.printfln("sel: {}", n.kind)
+		mach := impl.select_new(fn, n)
+		if mach == nil {
+			log(fn, "Error: Couldn't select machine node for node {}{}", n.kind, n.gvn)
+			return nil, false
+		}
+		mach_map[n] = mach
+		return mach, true
+	}
+
 	fn.start = mach_node_map[fn.start]
 	fn.end   = mach_node_map[fn.end]
-
-	// We have to run a fixup on the mach nodes to hook up the users. We can't do it
-	// during isel beacuse we build the nodes in reverse order, so we don't know all
-	// of our users yet.
-	{
-		visited: Worklist
-		worklist_init(&visited, fn.node_count)
-		defer worklist_deinit(&visited)
-
-		clear(&stack)
-		append(&stack, fn.end)
-
-		for len(stack) > 0 {
-			x := stack[len(stack) - 1]
-			worklist_push(&visited, x)
-
-			for input, idx in x.inputs {
-				append(&input.users, User { x, idx })
-				if !worklist_contains(&visited, input) {
-					append(&stack, input)
-				}
-			}
-
-			pop(&stack)
-		}
-	}
 
 	return true
 }

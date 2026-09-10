@@ -1152,6 +1152,7 @@ match_table := [NodeKind]InsrMatch {
 	.CmpFLe = { { { insr = .CmpMem, pred = amd64_mem_format }, { insr = .CmpImm, pred = amd64_imm_format }, { insr = .Cmp, pred = amd64_reg_format } } },
 	.Not = {},
 	.Negate = {},
+	.MachineOp = {},
 }
 
 @(private = "file")
