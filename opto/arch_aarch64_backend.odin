@@ -103,6 +103,9 @@ aarch64_select_new :: proc(fn: ^Function, n: ^Node) -> ^Node {
 	case .Region:
 		return clone_node(fn, n)
 	case .Proj:
+		if ty_is_ctrl(n.type) || ty_is_mem(n.type) {
+			return clone_node(fn, n)
+		}
 		return new_mach_node(fn, u32(AArch64Insr.Proj), n)
 	case .IntConst:
 		return new_mach_node(fn, u32(AArch64Insr.ConstStore), n)

@@ -120,7 +120,6 @@ insr_select_new :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	}
 
 	select :: proc(impl: ^ArchImpl, mach_map: ^map[^Node]^Node, fn: ^Function, n: ^Node) -> (^Node, bool) {
-		fmt.printfln("sel: {}", n.kind)
 		mach := impl.select_new(fn, n)
 		if mach == nil {
 			log(fn, "Error: Couldn't select machine node for node {}{}", n.kind, n.gvn)
