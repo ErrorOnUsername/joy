@@ -95,6 +95,18 @@ aarch64_select :: proc(fn: ^Function, n: ^Node) -> MachineOp {
 }
 
 aarch64_select_new :: proc(fn: ^Function, n: ^Node) -> ^Node {
+	mach := aarch64_select_new_internal(fn, n)
+	if mach == nil do return nil
+
+	if mach.uop != 0 {
+		log(fn, "{}{} -> aarch64.{}{}", n.kind, n.gvn, mach.kind, mach.gvn)
+	} else {
+		log(fn, "{}{} -> {}{}", n.kind, n.gvn, mach.kind, mach.gvn)
+	}
+	return mach
+}
+
+aarch64_select_new_internal :: proc(fn: ^Function, n: ^Node) -> ^Node {
 	switch n.kind {
 	case .Start:
 		return new_mach_node(fn, u32(AArch64Insr.Start), n)
@@ -144,7 +156,7 @@ aarch64_select_new :: proc(fn: ^Function, n: ^Node) -> ^Node {
 	case .VolatileWrite:
 		return new_mach_node(fn, u32(AArch64Insr.Store), n)
 	case .GetMemberPtr:
-		unimplemented("aarch64 getmemberptr")
+		return clone_node(fn, n)
 	case .And:
 		return new_mach_node(fn, u32(AArch64Insr.And), n)
 	case .Or:
