@@ -202,6 +202,8 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 		append(&bb.nodes, end)
 		block_map_set_node_block(bm, end, bb)
 
+		log(fn, "    bounds: {}{} -> {}{}", x.kind, x.gvn, end.kind, end.gvn)
+
 		blocks_map[block_name] = bb
 
 		// Add all the pinned nodes (for scheduling purposes later on)
@@ -209,9 +211,11 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 		for {
 			assert(walk == x || walk.inputs[0] != nil)
 			block_map_set_node_block(bm, walk, bb)
+			log(fn, "    pinned: {}{}", walk.kind, walk.gvn)
 			for u in walk.users {
-				if u.slot == 0 {
+				if u.slot == 0 && !(is_bb_start(u.n) || u.n.kind == .End) {
 					block_map_set_node_block(bm, u.n, bb)
+					log(fn, "    -> pinned: {}{}", u.n.kind, u.n.gvn)
 				}
 			}
 			if walk == x do break // We do this here instead of the loop condition so that we add the users of the start node
@@ -234,6 +238,25 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 
 		if x.kind == .Start {
 			start = bb
+		}
+	}
+
+	{
+		seen: map[string]^BasicBlock
+		defer delete(seen)
+		queue: [dynamic]^BasicBlock
+		defer delete(queue)
+		append(&queue, start)
+		for len(queue) > 0 {
+			head := pop_front(&queue)
+			seen[head.name] = head
+			for succ in head.succ {
+				s_bb := block_map_get_node_block(bm, succ)
+				log(fn, "cfg: {} -> {}", head.name, s_bb.name)
+				if !(s_bb.name in seen) {
+					append(&queue, s_bb)
+				}
+			}
 		}
 	}
 
@@ -311,6 +334,7 @@ build_cfg :: proc(ctx: ^OptoContext, fn: ^Function, bm: ^BlockMap) -> (blocks: [
 
 		pop(&block_stack)
 	}
+	assert(final_index == len(blocks_map))
 
 	return final_block_list, true
 }
