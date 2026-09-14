@@ -78,61 +78,61 @@ insr_select_new :: proc(ctx: ^OptoContext, fn: ^Function) -> bool {
 	log(fn, "-- Begin ISelNew --")
 	defer log(fn, "-- End ISelNew --")
 
-	impl := arch_impl(ctx.arch)
-
 	mach_node_map: map[^Node]^Node
 	defer delete(mach_node_map)
-	stack: [dynamic]^Node
-	defer delete(stack)
 
-	append(&stack, fn.end)
-
-	for len(stack) > 0 {
-		x := stack[len(stack) - 1]
-
-		if mach_node_map[x] != nil {
-			pop(&stack)
-			continue
-		}
-
-		any_unhandled_inputs := false
-		for input, idx in x.inputs {
-			if input == nil do continue
-			if mach_node_map[input] == nil {
-				any_unhandled_inputs = true
-				append(&stack, input)
-			}
-		}
-		if any_unhandled_inputs == true do continue
-
-		mach := select(impl, &mach_node_map, fn, x) or_return
-		assert(len(mach.inputs) == len(x.inputs), "Internal Error: MachineOp was allocated with different input count from source node")
-
-		for input, idx in x.inputs {
-			if input == nil do continue
-			assert(mach_node_map[input] != nil)
-			in_mach := mach_node_map[input]
-			mach.inputs[idx] = mach_node_map[input]
-			append(&in_mach.users, User { mach, idx })
-		}
-
-		pop(&stack)
-	}
-
-	select :: proc(impl: ^ArchImpl, mach_map: ^map[^Node]^Node, fn: ^Function, n: ^Node) -> (^Node, bool) {
-		mach := impl.select_new(fn, n)
-		if mach == nil {
-			log(fn, "Error: Couldn't select machine node for node {}{}", n.kind, n.gvn)
-			return nil, false
-		}
-		mach_map[n] = mach
-		return mach, true
-	}
-
+	fn.end = insr_select_new_internal(ctx, fn, &mach_node_map, fn.end) or_return
 	fn.start = mach_node_map[fn.start]
-	fn.end   = mach_node_map[fn.end]
+
+	visited: Worklist
+	worklist_init(&visited, fn.node_count)
+	defer worklist_deinit(&visited)
+
+	isel_fixup_users(fn.end, &visited)
 
 	return true
+}
+
+insr_select_new_internal :: proc(ctx: ^OptoContext, fn: ^Function, mach_node_map: ^map[^Node]^Node, n: ^Node) -> (out: ^Node, ok: bool) {
+	impl := arch_impl(ctx.arch)
+
+	if n == nil do return nil, false
+	x := mach_node_map[n]
+	if x := mach_node_map[n]; x != nil do return x, true
+
+	if n.uop != 0 {
+		for input, idx in n.inputs {
+			if input == nil do continue
+			n.inputs[idx] = insr_select_new_internal(ctx, fn, mach_node_map, input) or_return
+		}
+		return n, true
+	}
+
+	x = impl.select_new(fn, n)
+	if x == nil {
+		log(fn, "Error: Couldn't select machine node for node {}{}", n.kind, n.gvn)
+		return nil, false
+	}
+	assert(len(x.inputs) == len(n.inputs), "Internal Error: MachineOp was allocated with different input count from source node")
+
+	mach_node_map[n] = x
+
+	for input, idx in x.inputs {
+		if input == nil do continue
+		x.inputs[idx] = insr_select_new_internal(ctx, fn, mach_node_map, input) or_return
+	}
+
+	return x, true
+}
+
+isel_fixup_users :: proc(n: ^Node, visited: ^Worklist) {
+	if worklist_contains(visited, n) do return
+	worklist_push(visited, n)
+	for input, idx in n.inputs {
+		if input == nil do continue
+		append(&input.users, User { n, idx })
+		isel_fixup_users(input, visited)
+	}
 }
 
 is_selectable_node :: proc(n: ^Node) -> bool {

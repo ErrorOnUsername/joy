@@ -148,9 +148,9 @@ aarch64_select_new_internal :: proc(fn: ^Function, n: ^Node) -> ^Node {
 	case .Store:
 		return new_mach_node(fn, u32(AArch64Insr.Store), n)
 	case .MemCpy:
-		unimplemented("aarch64 memcpy")
+		return new_mach_node(fn, u32(AArch64Insr.MemCpy), n)
 	case .MemSet:
-		unimplemented("aarch64 memset")
+		return new_mach_node(fn, u32(AArch64Insr.MemSet), n)
 	case .VolatileRead:
 		return new_mach_node(fn, u32(AArch64Insr.Load), n)
 	case .VolatileWrite:
@@ -485,6 +485,10 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 				insr = enc_ldstr_imm(opcode, 0, int(ptr_reg), int(val_reg))
 			}
 			enc_out32(&fn.output.data, insr)
+		case .MemCpy:
+			panic("impl memcpy")
+		case .MemSet:
+			panic("impl memset")
 		case .Add:
 			panic("impl add")
 		case .AddImm:
@@ -820,6 +824,8 @@ insr_table := [AArch64Insr]InsrTableEntry {
 	.GetMemberPtr = { in_regmask = GPR_READ_MASK | transmute(AArch64RegMask)SPILL_MASK, out_regmask = GPR_WRITE_MASK },
 	.ConstStore = { in_regmask = {}, out_regmask = GPR_WRITE_MASK },
 	.Store = { in_regmask = GPR_READ_MASK, out_regmask = {} },
+	.MemCpy = { },
+	.MemSet = { },
 	.Add = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.AddImm = { in_regmask = GPR_WRITE_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
 	.Sub = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK, two_address_index = 1 },
@@ -870,6 +876,8 @@ AArch64Insr :: enum(u32) {
 	GetMemberPtr,
 	ConstStore,
 	Store,
+	MemCpy,
+	MemSet,
 	Add,
 	AddImm,
 	Sub,

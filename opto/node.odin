@@ -214,16 +214,8 @@ new_node :: proc(fn: ^Function, kind: NodeKind, type: Type, input_count: int) ->
 }
 
 new_mach_node :: proc(fn: ^Function, uop: u32, from: ^Node) -> ^Node {
-	n, _ := new(Node, fn.allocator)
-	n.kind = from.kind
-	n.gvn = u32(fn.node_count)
-	n.type = from.type
-	n.extra = from.extra
+	n := clone_node(fn, from)
 	n.uop = uop
-	if from != nil && len(from.inputs) > 0 {
-		n.inputs = make([]^Node, len(from.inputs), fn.allocator)
-	}
-	fn.node_count += 1
 	return n
 }
 
@@ -235,6 +227,7 @@ clone_node :: proc(fn: ^Function, from: ^Node) -> ^Node {
 	n.extra = from.extra
 	if from != nil && len(from.inputs) > 0 {
 		n.inputs = make([]^Node, len(from.inputs), fn.allocator)
+		copy(n.inputs, from.inputs)
 	}
 	fn.node_count += 1
 	return n
