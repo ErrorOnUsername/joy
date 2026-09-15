@@ -728,6 +728,20 @@ aarch64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> R
 			if from == 2 { // the slot
 				return transmute(RegisterMask)GPR_READ_MASK | SPILL_MASK
 			} // others take default
+		case .MemCpy:
+			if from == 2 || from == 3 { // dst, src
+				return transmute(RegisterMask)GPR_READ_MASK | SPILL_MASK
+			} else { // count
+				assert(from == 4)
+				return transmute(RegisterMask)GPR_READ_MASK
+			}
+		case .MemSet:
+			if from == 2 { // dst
+				return transmute(RegisterMask)GPR_READ_MASK | SPILL_MASK
+			} else { // val, count
+				assert(from == 3 || from == 4)
+				return transmute(RegisterMask)GPR_READ_MASK
+			}
 	}
 	assert(regmask != 0)
 	return regmask
