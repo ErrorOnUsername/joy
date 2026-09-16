@@ -494,7 +494,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 		if unhandled_input do continue
 
-		if n.kind != .Start && n.inputs[0] == nil { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
+		if n.kind != .Start && (n.inputs[0] == nil || is_const_node(n)) { // These can be moved since they aren't required to stay here like calls, volatile stores, jmps, etc you get it
 			// place the node before the first use and hoist out of loops where needed
 			pin_bb := block_map_get_node_block(bm, n)
 			highest_use: ^BasicBlock

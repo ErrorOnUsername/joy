@@ -259,11 +259,11 @@ AARCH64_OP_BR           :: 0b01010100
 AARCH64_OP_CALL         :: 0b100101
 AARCH64_OP_RET          :: 0b1101011001011111000000
 
-enc_reg_reg :: proc(opcode: int, shift: int, rm: i128, imm6: int, rn: i128, rd: i128) -> u32 {
+enc_reg_reg :: proc(opcode: int, shift: int, rm: i128, imm6: int, rn: i128, rd: i128) -> int {
 	assert(rm >= 0 && rm < 32)
 	assert(rn >= 0 && rn < 32)
 	assert(rd >= 0 && rd < 32)
-	return u32(opcode << 24) | u32(shift << 21) | u32(rm << 16) | u32(imm6 << 10) | u32(rn << 5) | u32(rd)
+	return (opcode << 24) | (shift << 21) | int(rm << 16) | (imm6 << 10) | int(rn << 5) | int(rd)
 }
 
 enc_ret :: proc(opcode: int) -> u32 {
@@ -486,15 +486,20 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			}
 			enc_out32(&fn.output.data, insr)
 		case .MemCpy:
-			panic("impl memcpy")
+		// panic("impl memcpy")
 		case .MemSet:
-			panic("impl memset")
+		//panic("impl memset")
 		case .Add:
 			panic("impl add")
 		case .AddImm:
 			panic("impl addi")
 		case .Sub:
-			panic("impl sub")
+			dst_reg := get_reg(fn, n)
+			l_reg := get_reg(fn, n.inputs[1])
+			r_reg := get_reg(fn, n.inputs[2])
+			insr := enc_reg_reg(AARCH64_OP_SUB, 1, l_reg, 0, r_reg, dst_reg)
+			log(fn, "    subi {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
+			enc_out32(&fn.output.data, insr)
 		case .SubImm:
 			dst_reg := get_reg(fn, n)
 			assert(dst_reg >= 0 && dst_reg <= 32)
@@ -504,6 +509,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			imm := get_imm_int(n.inputs[2])
 			opcode := AARCH64_OP_SUB_IMM
 			insr := enc_reg_imm(opcode, imm, int(v_reg), int(dst_reg))
+			log(fn, "    subi {}, {}, #{}", aarch64_regname(dst_reg), aarch64_regname(v_reg), imm)
 			enc_out32(&fn.output.data, insr)
 		case .Mul:
 			dst_reg := get_reg(fn, n)
