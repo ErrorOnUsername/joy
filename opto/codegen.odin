@@ -587,11 +587,11 @@ local_schedule :: proc(fn: ^Function, blocks: []^BasicBlock, bm: ^BlockMap, visi
 			for input, i in n.inputs {
 				if kind != .Region && i == 0 do continue
 				if input.kind == .IntConst {
-					fmt.sbprintf(sb, "${} ", input.extra.derived.(^IntConst).val)
+					fmt.sbprintf(sb, "${} <{}> ", input.extra.derived.(^IntConst).val, input.gvn)
 				} else if input.kind == .F32Const {
-					fmt.sbprintf(sb, "${} ", input.extra.derived.(^FloatConst).val.(f32))
+					fmt.sbprintf(sb, "${} <{}> ", input.extra.derived.(^FloatConst).val.(f32), input.gvn)
 				} else if input.kind == .F64Const {
-					fmt.sbprintf(sb, "${} ", input.extra.derived.(^FloatConst).val.(f32))
+					fmt.sbprintf(sb, "${} <{}> ", input.extra.derived.(^FloatConst).val.(f32), input.gvn)
 				} else if input.kind == .Local {
 					fmt.sbprintf(sb, "l.{}.{} ", input.extra.tag, input.gvn)
 				} else {
