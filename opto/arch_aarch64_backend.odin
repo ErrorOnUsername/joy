@@ -371,11 +371,23 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Load:
 			dst_reg := get_reg(fn, n)
 			assert(dst_reg < i128(AArch64Reg.MAX_REG))
-			ptr_reg := get_reg(fn, n.inputs[2])
 			offset := 0
-			if ptr_reg >= i128(AArch64Reg.MAX_REG) {
-				ptr_reg = i128(AArch64Reg.SP)
-				offset = get_local_slot_offset(fn, n.inputs[2])
+			ptr_reg: i128
+			if n.inputs[2].kind == .GetMemberPtr {
+				base := n.inputs[2].inputs[1]
+				ptr_reg = get_reg(fn, base)
+				if ptr_reg >= i128(AArch64Reg.MAX_REG) {
+					ptr_reg = i128(AArch64Reg.SP)
+					offset = get_local_slot_offset(fn, base)
+				}
+				imm := get_imm_int(n.inputs[2].inputs[2])
+				offset += imm
+			} else {
+				ptr_reg = get_reg(fn, n.inputs[2])
+				if ptr_reg >= i128(AArch64Reg.MAX_REG) {
+					ptr_reg = i128(AArch64Reg.SP)
+					offset = get_local_slot_offset(fn, n.inputs[2])
+				}
 			}
 
 			insr: int
@@ -441,10 +453,22 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			enc_out32(&fn.output.data, insr)
 		case .Store:
 			offset := 0
-			ptr_reg := get_reg(fn, n.inputs[2])
-			if ptr_reg >= i128(AArch64Reg.MAX_REG) {
-				ptr_reg = i128(AArch64Reg.SP)
-				offset = get_local_slot_offset(fn, n.inputs[2])
+			ptr_reg: i128
+			if n.inputs[2].kind == .GetMemberPtr {
+				base := n.inputs[2].inputs[1]
+				ptr_reg = get_reg(fn, base)
+				if ptr_reg >= i128(AArch64Reg.MAX_REG) {
+					ptr_reg = i128(AArch64Reg.SP)
+					offset = get_local_slot_offset(fn, base)
+				}
+				imm := get_imm_int(n.inputs[2].inputs[2])
+				offset += imm
+			} else {
+				ptr_reg = get_reg(fn, n.inputs[2])
+				if ptr_reg >= i128(AArch64Reg.MAX_REG) {
+					ptr_reg = i128(AArch64Reg.SP)
+					offset = get_local_slot_offset(fn, n.inputs[2])
+				}
 			}
 			val_reg := get_reg(fn, n.inputs[3])
 			assert(val_reg < i128(AArch64Reg.MAX_REG))
