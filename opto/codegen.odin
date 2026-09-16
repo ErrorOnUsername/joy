@@ -456,7 +456,7 @@ schedule_global_early :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 				}
 			}
 
-			log(fn, "moving node v{} to block {}", n.gvn, deepest_input_bb.name)
+			log(fn, "moving node {}{} to block {}", n.kind, n.gvn, deepest_input_bb.name)
 
 			block_map_set_node_block(bm, n, deepest_input_bb)
 		}
@@ -516,7 +516,7 @@ final_global_schedule :: proc(fn: ^Function, bm: ^BlockMap, visited: ^Worklist) 
 
 			block_map_set_node_block(bm, n, final_bb)
 
-			log(fn, "moving node v{} from {} to {}", n.gvn, pin_bb.name, final_bb.name)
+			log(fn, "moving node {}{} from {} to {}", n.kind, n.gvn, pin_bb.name, final_bb.name)
 		}
 
 		pop(&stack)
