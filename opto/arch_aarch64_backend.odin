@@ -514,15 +514,20 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .MemSet:
 		//panic("impl memset")
 		case .Add:
-			panic("impl add")
+			dst_reg := get_reg(fn, n)
+			l_reg := get_reg(fn, n.inputs[1])
+			r_reg := get_reg(fn, n.inputs[2])
+			insr := enc_reg_reg(AARCH64_OP_SUB, 1, l_reg, 0, r_reg, dst_reg)
+			log(fn, "    sub {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
+			enc_out32(&fn.output.data, insr)
 		case .AddImm:
 			panic("impl addi")
 		case .Sub:
 			dst_reg := get_reg(fn, n)
 			l_reg := get_reg(fn, n.inputs[1])
 			r_reg := get_reg(fn, n.inputs[2])
-			insr := enc_reg_reg(AARCH64_OP_SUB, 1, l_reg, 0, r_reg, dst_reg)
-			log(fn, "    subi {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
+			insr := enc_reg_reg(AARCH64_OP_ADD, 1, l_reg, 0, r_reg, dst_reg)
+			log(fn, "    sub {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
 			enc_out32(&fn.output.data, insr)
 		case .SubImm:
 			dst_reg := get_reg(fn, n)

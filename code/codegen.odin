@@ -749,6 +749,14 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 
 			cg_emit_expr(ctx, e.body) or_return
 
+			// loop latch
+			{
+				iv_val := opto.insr_load(fn, opto.TY_PTR, iv_slot, false)
+				one_const := opto.new_int_const(fn, opto.TY_PTR, u64(1))
+				add_val := opto.insr_add(fn, iv_val, one_const)
+				opto.insr_store(fn, iv_slot, add_val, false)
+			}
+
 			opto.insr_goto(fn, loop_header)
 
 			opto.set_control(fn, loop_end)
