@@ -259,11 +259,12 @@ AARCH64_OP_BR           :: 0b01010100
 AARCH64_OP_CALL         :: 0b100101
 AARCH64_OP_RET          :: 0b1101011001011111000000
 
+// shifted reg form for reg-reg ops
 enc_reg_reg :: proc(opcode: int, shift: int, rm: i128, imm6: int, rn: i128, rd: i128) -> int {
 	assert(rm >= 0 && rm < 32)
 	assert(rn >= 0 && rn < 32)
 	assert(rd >= 0 && rd < 32)
-	return (opcode << 24) | (shift << 21) | int(rm << 16) | (imm6 << 10) | int(rn << 5) | int(rd)
+	return (opcode << 24) | (shift << 22) | int(rm << 16) | (imm6 << 10) | int(rn << 5) | int(rd)
 }
 
 enc_ret :: proc(opcode: int) -> u32 {
@@ -349,7 +350,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Jmp:
 			target: ^Node
 			if n.kind == .Branch {
-				target = n.inputs[2]
+				target = n.inputs[3]
 				bb := block_map_get_node_block(bm, target)
 				opcode := AARCH64_OP_BR
 				off19 := 0
@@ -399,13 +400,19 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 					log(fn, "    ldr.b {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 16 {
 					opcode = AARCH64_OP_LOAD_IMM_16
+					assert(offset & 0b1 == 0, "unaligned 16-bit store offset")
+					offset >>= 1
 					log(fn, "    ldr.h {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 32 {
 					opcode = AARCH64_OP_LOAD_IMM_32
+					assert(offset & 0b11 == 0, "unaligned 32-bit store offset")
+					offset >>= 2
 					log(fn, "    ldr.w {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
 				} else {
 					assert(bw <= 64)
 					opcode = AARCH64_OP_LOAD_IMM_64
+					assert(offset & 0b111 == 0, "unaligned 64-bit store offset")
+					offset >>= 3
 					log(fn, "    ldr.x {}, [{}, #{}]", aarch64_regname(dst_reg), aarch64_regname(ptr_reg), offset)
 				}
 				insr = enc_ldstr_imm(opcode, offset, int(ptr_reg), int(dst_reg))
@@ -481,13 +488,19 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 					log(fn, "    str.b {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 16 {
 					opcode = AARCH64_OP_STORE_IMM_16
+					assert(offset & 0b1 == 0, "unaligned 16-bit store offset")
+					offset >>= 1
 					log(fn, "    str.h {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else if bw <= 32 {
 					opcode = AARCH64_OP_STORE_IMM_32
+					assert(offset & 0b11 == 0, "unaligned 32-bit store offset")
+					offset >>= 2
 					log(fn, "    str.w {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				} else {
 					assert(bw <= 64)
+					assert(offset & 0b111 == 0, "unaligned 64-bit store offset")
 					opcode = AARCH64_OP_STORE_IMM_64
+					offset >>= 3
 					log(fn, "    str.x {}, [{}, #{}]", aarch64_regname(val_reg), aarch64_regname(ptr_reg), offset)
 				}
 				insr = enc_ldstr_imm(opcode, offset, int(ptr_reg), int(val_reg))
@@ -510,15 +523,17 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			}
 			enc_out32(&fn.output.data, insr)
 		case .MemCpy:
+			log(fn, "    memcpy")
 		// panic("impl memcpy")
 		case .MemSet:
+			log(fn, "    memset")
 		//panic("impl memset")
 		case .Add:
 			dst_reg := get_reg(fn, n)
 			l_reg := get_reg(fn, n.inputs[1])
 			r_reg := get_reg(fn, n.inputs[2])
-			insr := enc_reg_reg(AARCH64_OP_SUB, 1, l_reg, 0, r_reg, dst_reg)
-			log(fn, "    sub {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
+			insr := enc_reg_reg(AARCH64_OP_ADD, 0, r_reg, 0, l_reg, dst_reg)
+			log(fn, "    add {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
 			enc_out32(&fn.output.data, insr)
 		case .AddImm:
 			panic("impl addi")
@@ -526,7 +541,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			dst_reg := get_reg(fn, n)
 			l_reg := get_reg(fn, n.inputs[1])
 			r_reg := get_reg(fn, n.inputs[2])
-			insr := enc_reg_reg(AARCH64_OP_ADD, 1, l_reg, 0, r_reg, dst_reg)
+			insr := enc_reg_reg(AARCH64_OP_SUB, 0, r_reg, 0, l_reg, dst_reg)
 			log(fn, "    sub {}, {}, {}", aarch64_regname(dst_reg), aarch64_regname(l_reg), aarch64_regname(r_reg))
 			enc_out32(&fn.output.data, insr)
 		case .SubImm:
@@ -630,39 +645,40 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 AArch64Cond :: enum(u32) {
 	EQ = 0b0000,
 	NE = 0b0001,
-	CC = 0b0011,
-	LS = 0b1001,
-	LT = 0b1011,
-	LE = 0b1101,
+	HS = 0b0010,
+	HI = 0b1000,
+	GE = 0b1010,
+	GT = 0b1100,
 }
+
 aarch64_cond :: proc(cmp: NodeKind) -> (AArch64Cond, string) {
 	cond: AArch64Cond
 	str := ""
 	#partial switch cmp {
 	case .CmpEq:
-		cond = .EQ
-		str = "eq"
-	case .CmpNeq:
 		cond = .NE
 		str = "ne"
+	case .CmpNeq:
+		cond = .EQ
+		str = "eq"
 	case .CmpULt:
-		cond = .CC
-		str = "lo"
+		cond = .HS
+		str = "hs"
 	case .CmpULe:
-		cond = .LS
-		str = "ls"
+		cond = .HI
+		str = "hi"
 	case .CmpSLt:
-		cond = .LT
-		str = "lt"
+		cond = .GE
+		str = "ge"
 	case .CmpSLe:
-		cond = .LE
-		str = "le"
+		cond = .GT
+		str = "gt"
 	case .CmpFLt:
-		cond = .LT
-		str = "lt"
+		cond = .GE
+		str = "ge"
 	case .CmpFLe:
-		cond = .LE
-		str = "le"
+		cond = .GT
+		str = "gt"
 	case:
 		panic("cmp node has non cmp kind")
 	}
