@@ -173,6 +173,8 @@ amd64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		target := n.inputs[2]
 		target_name := target.extra.derived.(^SymbolExtra).sym.name
 		log(fn, "        call %%{}", target_name)
+	case .SysCall:
+		unimplemented("impl syscall")
 	case .Jmp:
 		target: ^Node
 		if n.kind == .Branch {
@@ -1111,6 +1113,7 @@ match_table := [NodeKind]InsrMatch {
 	.CalleeSave = {},
 	.Return = { { { insr = .Ret, pred = amd64_reg_format } } },
 	.Call = { { { insr = .Call } } },
+	.SysCall = { { { insr = .SysCall } } },
 	.Branch = { { { insr = .Jmp } } },
 	.Goto = { { { insr = .Jmp } } },
 	.Phi = {},
@@ -1172,6 +1175,7 @@ insr_table := [Amd64Insr]InsrTableEntry {
 	.Local = { in_regmask = {}, out_regmask = transmute(Amd64RegMask)SPILL_MASK },
 	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
+	.SysCall = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
 	.Load = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.GetMemberPtr = { in_regmask = GPR_READ_MASK | transmute(Amd64RegMask)SPILL_MASK, out_regmask = GPR_WRITE_MASK },
@@ -1223,6 +1227,7 @@ Amd64Insr :: enum {
 	Local,
 	Ret,
 	Call,
+	SysCall,
 	Jmp,
 	Load,
 	GetMemberPtr,

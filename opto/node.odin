@@ -367,6 +367,123 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	return n
 }
 
+insr_syscall0 :: proc(fn: ^Function, no: ^Node) -> ^Node {
+	n := new_node(fn, .SysCall, TY_TUPLE, 2 + 1)
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+
+	set_input(n, 2, no)
+
+	fn.meta.call_count += 1
+
+	ret := new_proj(fn, TY_I64, n, 2)
+	return ret
+}
+
+insr_syscall1 :: proc(fn: ^Function, no: ^Node, a0: ^Node) -> ^Node {
+	n := new_node(fn, .SysCall, TY_TUPLE, 2 + 2)
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+
+	set_input(n, 2, no)
+	set_input(n, 3, a0)
+
+	fn.meta.call_count += 1
+
+	ret := new_proj(fn, TY_I64, n, 2)
+	return ret
+}
+
+insr_syscall2 :: proc(fn: ^Function, no: ^Node, a0: ^Node, a1: ^Node) -> ^Node {
+	n := new_node(fn, .SysCall, TY_TUPLE, 2 + 3)
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+
+	set_input(n, 2, no)
+	set_input(n, 3, a0)
+	set_input(n, 4, a1)
+
+	fn.meta.call_count += 1
+
+	ret := new_proj(fn, TY_I64, n, 2)
+	return ret
+}
+
+insr_syscall3 :: proc(fn: ^Function, no: ^Node, a0: ^Node, a1: ^Node, a2: ^Node) -> ^Node {
+	n := new_node(fn, .SysCall, TY_TUPLE, 2 + 4)
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+
+	set_input(n, 2, no)
+	set_input(n, 3, a0)
+	set_input(n, 4, a1)
+	set_input(n, 5, a2)
+
+	fn.meta.call_count += 1
+
+	ret := new_proj(fn, TY_I64, n, 2)
+	return ret
+}
+
+insr_syscall4 :: proc(fn: ^Function, no: ^Node, a0: ^Node, a1: ^Node, a2: ^Node, a3: ^Node) -> ^Node {
+	n := new_node(fn, .SysCall, TY_TUPLE, 2 + 5)
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+
+	set_input(n, 2, no)
+	set_input(n, 3, a0)
+	set_input(n, 4, a1)
+	set_input(n, 5, a2)
+	set_input(n, 6, a3)
+
+	fn.meta.call_count += 1
+
+	ret := new_proj(fn, TY_I64, n, 2)
+	return ret
+}
+
+insr_syscall5 :: proc(fn: ^Function, no: ^Node, a0: ^Node, a1: ^Node, a2: ^Node, a3: ^Node, a4: ^Node) -> ^Node {
+	n := new_node(fn, .SysCall, TY_TUPLE, 2 + 6)
+
+	ctrl_proj := new_proj(fn, TY_CTRL, n, 0)
+	mem_proj := new_proj(fn, TY_MEM, n, 1)
+
+	set_input(n, 0, transfer_control(fn, ctrl_proj))
+	set_input(n, 1, insert_mem_effect(fn, mem_proj))
+
+	set_input(n, 2, no)
+	set_input(n, 3, a0)
+	set_input(n, 4, a1)
+	set_input(n, 5, a2)
+	set_input(n, 6, a3)
+	set_input(n, 7, a4)
+
+	fn.meta.call_count += 1
+
+	ret := new_proj(fn, TY_I64, n, 2)
+	return ret
+}
+
 // FIXME(RD): This stuff is assuming windows-amd64 abi. There's probably some fucked shit going on with sys-v that we should support
 get_debug_type_register_class :: proc(dbg_ty: ^DebugType) -> RegisterClass {
 	size := debug_type_get_size(dbg_ty)
@@ -871,6 +988,7 @@ NodeKind :: enum(u32) {
 	CalleeSave,
 	Return,
 	Call,
+	SysCall,
 	Branch,
 	Goto,
 	Phi,
@@ -938,6 +1056,7 @@ node_get_data_start :: proc(n: ^Node) -> int {
 	case .CalleeSave:    return 0
 	case .Return:        return 2
 	case .Call:          return 3
+	case .SysCall:       return 2
 	case .Branch:        return 1
 	case .Goto:          return 1
 	case .Phi:           return 0

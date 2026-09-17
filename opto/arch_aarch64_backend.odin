@@ -138,6 +138,8 @@ aarch64_select_new_internal :: proc(fn: ^Function, n: ^Node) -> ^Node {
 		return new_mach_node(fn, u32(AArch64Insr.Ret), n)
 	case .Call:
 		return new_mach_node(fn, u32(AArch64Insr.Call), n)
+	case .SysCall:
+		return new_mach_node(fn, u32(AArch64Insr.SysCall), n)
 	case .Branch:
 		return new_mach_node(fn, u32(AArch64Insr.Jmp), n)
 	case .Goto:
@@ -394,6 +396,8 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			insr := u32(AARCH64_OP_CALL << 26)
 			enc_out32(&fn.output.data, int(insr))
 			log(fn, "    bl {}", target_sym.name)
+		case .SysCall:
+			unimplemented("impl syscall")
 		case .Jmp:
 			target: ^Node
 			if n.kind == .Branch {
@@ -932,6 +936,7 @@ insr_table := [AArch64Insr]InsrTableEntry {
 	.Local = { in_regmask = {}, out_regmask = transmute(AArch64RegMask)SPILL_MASK },
 	.Ret = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Call = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
+	.SysCall = { /* this gets set on insr select */ in_regmask = {}, out_regmask = {} },
 	.Jmp = { in_regmask = FLAGS_MASK, out_regmask = {} },
 	.Load = { in_regmask = GPR_READ_MASK, out_regmask = GPR_WRITE_MASK },
 	.GetMemberPtr = { in_regmask = GPR_READ_MASK | transmute(AArch64RegMask)SPILL_MASK, out_regmask = GPR_WRITE_MASK },
@@ -984,6 +989,7 @@ AArch64Insr :: enum(u32) {
 	Local,
 	Ret,
 	Call,
+	SysCall,
 	Jmp,
 	Load,
 	GetMemberPtr,
