@@ -27,6 +27,8 @@ FunctionMetaState :: struct {
 	curr_ctrl: ^Node,
 	curr_mem: ^Node,
 
+	call_count: int,
+
 	logs: [dynamic]string,
 }
 
@@ -359,6 +361,8 @@ insr_call :: proc(fn: ^Function, target: ^Node, proto: ^FunctionProto, params: [
 	}
 
 	n.extra = extra
+
+	fn.meta.call_count += 1
 
 	return n
 }

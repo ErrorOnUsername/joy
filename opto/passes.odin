@@ -5,13 +5,17 @@ dump_module :: proc(mod: ^Module, out_path: string) -> bool {
 	return dump_module_gviz(mod, out_path)
 }
 
+OPTO_LOGGING_ENABLED :: false
+
 run_passes :: proc(ctx: ^OptoContext) -> bool {
 	// TODO(RD): multi-thread this, with the thread pool so that the main compiler
 	//           can pump this and make it go wide (think pick_up_work)
 	mod_head := ctx.modules
 	for mod_head != nil {
 		mod := &mod_head.el
-		dump_module(mod, "asm.gv") or_return
+		when OPTO_LOGGING_ENABLED {
+			dump_module(mod, "asm.gv") or_return
+		}
 		for sym in mod.symbols {
 			#partial switch s in sym.derived {
 				case ^Function:

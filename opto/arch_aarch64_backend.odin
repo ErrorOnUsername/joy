@@ -226,6 +226,12 @@ aarch64_select_new_internal :: proc(fn: ^Function, n: ^Node) -> ^Node {
 	panic("unhandled aarch64 instruction")
 }
 
+AARCH64_OP_LDP_PRE      :: 0b1010100111
+AARCH64_OP_LDP_POST     :: 0b1010100011
+AARCH64_OP_LDP_OFF      :: 0b1010100101
+AARCH64_OP_STP_PRE      :: 0b1010100110
+AARCH64_OP_STP_POST     :: 0b1010100010
+AARCH64_OP_STP_OFF      :: 0b1010100100
 AARCH64_OP_LOAD_REG_64  :: 0b11111000011
 AARCH64_OP_LOAD_REG_32  :: 0b10111000011
 AARCH64_OP_LOAD_REG_16  :: 0b01111000010
@@ -268,8 +274,12 @@ enc_reg_reg :: proc(opcode: int, shift: int, rm: i128, imm6: int, rn: i128, rd: 
 	return (opcode << 24) | (shift << 22) | int(rm << 16) | (imm6 << 10) | int(rn << 5) | int(rd)
 }
 
-enc_ret :: proc(opcode: int) -> u32 {
-	return u32(opcode) << 10
+enc_ret :: proc(opcode: int) -> int {
+	return (opcode << 10) | (int(AArch64Reg.X30) << 5) // We have to specify that we want to return through the link register(LR/X30)
+}
+
+aarch64_imm7 :: proc(imm: int) -> bool {
+	return imm >= -(1 << 7) && imm < (1 << 7)
 }
 
 aarch64_imm12 :: proc(imm: int) -> bool {
@@ -315,6 +325,16 @@ enc_madd :: proc(opcode: int, rm: int, ra: int, rn: int, rd: int) -> u32 {
 	return u32(opcode << 21) | u32(rm << 16) | u32(ra << 10) | u32(rn << 5) | u32(rd)
 }
 
+enc_ldstp :: proc(opcode: int, rt: int, rt2: int, rn: int, imm7: int) -> int {
+	assert(rt >= 0 && rt <= 32)
+	assert(rt2 >= 0 && rt2 <= 32)
+	assert(rn >= 0 && rn <= 32)
+	assert(imm7 % 8 == 0)
+	imm := imm7 / 8 // we divide to preserve the sign bit
+	assert(aarch64_imm7(imm))
+	return (opcode << 22) | ((imm & 0x7F) << 15) | (rt2 << 10) | (rn << 5) | (rt)
+}
+
 aarch64_regname :: proc(reg: i128) -> string {
 	assert(reg < i128(AArch64Reg.MAX_REG))
 	return impl_aarch64.reg_names[reg]
@@ -328,19 +348,44 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Start:
 			if fn.stack_size > 0 {
 				fn.stack_size = runtime.align_forward(fn.stack_size, 0x10)
+				fn.stack_size += 16 if fn.meta.call_count > 0 else 0 // stack frame management
 				insr := enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))
 				enc_out32(&fn.output.data, insr)
 				log(fn, "    sub.x sp, sp, #{}", fn.stack_size)
+			}
+			if fn.meta.call_count > 0 {
+				if fn.stack_size == 0 {
+					// Here we use the pre-index form since we have no allocated stack frame
+					enc_out32(&fn.output.data, enc_ldstp(AARCH64_OP_STP_PRE, int(AArch64Reg.X29), int(AArch64Reg.X30), int(AArch64Reg.SP), -16))
+					log(fn, "    stp x29, x30, [sp, -#16]!")
+				} else {
+					// Here we use the signed-offset form so that we squeeze into the allocated frame
+					enc_out32(&fn.output.data, enc_ldstp(AARCH64_OP_STP_OFF, int(AArch64Reg.X29), int(AArch64Reg.X30), int(AArch64Reg.SP), fn.stack_size - 16))
+					log(fn, "    stp x29, x30, [sp, #wtv]")
+				}
 			}
 		case .Param:
 		case .Proj:
 		case .Local:
 		case .Ret:
+			if fn.meta.call_count > 0 {
+				if fn.stack_size == 0 {
+					// post-index form since this was precedded by the pre-index form so we
+					// need to set the stack pointer back to the way it was
+					enc_out32(&fn.output.data, enc_ldstp(AARCH64_OP_LDP_POST, int(AArch64Reg.X29), int(AArch64Reg.X30), int(AArch64Reg.SP), 16))
+					log(fn, "    ldp x29, x30, [sp], #16")
+				} else {
+					// We have an explicit slot in the stack, so we just need to get it back
+					// with the signed-offset form
+					enc_out32(&fn.output.data, enc_ldstp(AARCH64_OP_LDP_OFF, int(AArch64Reg.X29), int(AArch64Reg.X30), int(AArch64Reg.SP), fn.stack_size - 16))
+					log(fn, "    ldp x29, x30, [sp, #wtv]")
+				}
+			}
 			if fn.stack_size > 0 {
 				enc_out32(&fn.output.data, enc_reg_imm(AARCH64_OP_ADD_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP)))
 				log(fn, "    add.x sp, sp, #{}", fn.stack_size)
 			}
-			enc_out32(&fn.output.data, int(enc_ret(AARCH64_OP_RET)))
+			enc_out32(&fn.output.data, enc_ret(AARCH64_OP_RET))
 			log(fn, "    ret")
 		case .Call:
 			target := n.inputs[2]
@@ -690,7 +735,8 @@ aarch64_cond :: proc(cmp: NodeKind) -> (AArch64Cond, string) {
 @(private = "file")
 get_local_slot_offset :: proc(fn: ^Function, local: ^Node) -> int {
 	extra := local.extra.derived.(^LocalExtra)
-	return fn.stack_size + extra.stack_pos
+	frame_data_size := 16 if fn.meta.call_count > 0 else 0
+	return fn.stack_size - frame_data_size + extra.stack_pos
 }
 
 aarch64_encoding_size :: proc(n: ^Node, delta_from_start_to_target: int) -> int {
