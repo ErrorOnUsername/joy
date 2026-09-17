@@ -1,5 +1,6 @@
 package opto
 
+import "base:runtime"
 import "core:math/bits"
 import "core:slice"
 
@@ -326,6 +327,7 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 		case .Imm:
 		case .Start:
 			if fn.stack_size > 0 {
+				fn.stack_size = runtime.align_forward(fn.stack_size, 0x10)
 				insr := enc_reg_imm(AARCH64_OP_SUB_IMM, fn.stack_size, int(AArch64Reg.SP), int(AArch64Reg.SP))
 				enc_out32(&fn.output.data, insr)
 				log(fn, "    sub.x sp, sp, #{}", fn.stack_size)
