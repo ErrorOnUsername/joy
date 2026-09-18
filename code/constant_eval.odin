@@ -57,6 +57,7 @@ get_string_literal_value :: proc(ctx: ^CheckerContext, lit: ^StringLiteralExpr) 
 		write_idx += 1
 	}
 	val[char_count] = 0
+	val = val[:char_count]
 
 	checker := ctx.checker
 
@@ -174,4 +175,3 @@ get_number_literal_value :: proc(ctx: ^CheckerContext, lit: ^NumberLiteralExpr) 
 
 	return true
 }
-

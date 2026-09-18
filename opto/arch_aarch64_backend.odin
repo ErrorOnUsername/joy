@@ -266,6 +266,7 @@ AARCH64_OP_CMP_IMM      :: 0b111100010
 AARCH64_OP_JMP          :: 0b000101
 AARCH64_OP_BR           :: 0b01010100
 AARCH64_OP_CALL         :: 0b100101
+AARCH64_OP_SYSCALL      :: 0b11010100000000000001000000000001
 AARCH64_OP_RET          :: 0b1101011001011111000000
 
 // shifted reg form for reg-reg ops
@@ -394,10 +395,11 @@ aarch64_encode :: proc(fn: ^Function, n: ^Node, bm: ^BlockMap) -> bool {
 			target_sym := target.extra.derived.(^SymbolExtra).sym
 			add_global_relo(fn, n, nil)
 			insr := u32(AARCH64_OP_CALL << 26)
-			enc_out32(&fn.output.data, int(insr))
 			log(fn, "    bl {}", target_sym.name)
+			enc_out32(&fn.output.data, int(insr))
 		case .SysCall:
-			unimplemented("impl syscall")
+			log(fn, "    svc #80")
+			enc_out32(&fn.output.data, int(AARCH64_OP_SYSCALL))
 		case .Jmp:
 			target: ^Node
 			if n.kind == .Branch {
@@ -821,6 +823,14 @@ aarch64_get_src_regmask :: proc(ctx: ^RegAllocContext, n: ^Node, from: int) -> R
 			proto := n.extra.derived.(^CallExtra).proto
 			regmask = aarch64_get_param_regmask(ctx, proto, param_node.type, param_offset)
 			assert(regmask != 0)
+		case .SysCall:
+			if from == 2 { // the syscall number
+				regmask = transmute(RegisterMask)AArch64RegMask { .X16 }
+			} else {
+				assert(from > 2)
+				param_idx := from - 3
+				regmask = impl_aarch64.abi[0].int_param_regs[param_idx]
+			}
 		case .Ret:
 			regmask = impl_aarch64.abi[0].return_regs // TODO: There's register splitting on SysV so just make sure all that bullshit works, idk...
 		case .Load:
@@ -868,6 +878,8 @@ aarch64_get_dst_regmask :: proc(ctx: ^RegAllocContext, n: ^Node) -> RegisterMask
 		case .Proj:
 			regmask = aarch64_get_dst_regmask(ctx, n.inputs[0])
 		case .Call:
+			regmask = impl_aarch64.abi[0].return_regs
+		case .SysCall:
 			regmask = impl_aarch64.abi[0].return_regs
 	}
 	return regmask // some insrs are allowed to not produce any regs (Stores for example)

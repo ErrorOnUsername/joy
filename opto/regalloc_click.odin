@@ -199,7 +199,7 @@ build_live_ranges :: proc(ctx: ^RegAllocContext, attempt_no: int, blocks: []^Bas
 
 				// looking up to inputs to check for self-conflicts
 				arch := arch_impl(ctx.arch)
-				input_slice_start := 2 if ty_is_mem(n.type) || n.kind == .Load else 3 if n.kind == .Call else 1 // fugly as all getout but leave me alone im annoyed rn
+				input_slice_start := 2 if ty_is_mem(n.type) || n.kind == .Load else 3 if n.kind == .Call else 2 if n.kind == .SysCall else 1 // fugly as all getout but leave me alone im annoyed rn
 				for input, idx in n.inputs[input_slice_start:] {
 					assert(input != nil)
 					src_regmask := arch.get_src_regmask(ctx, n, idx + input_slice_start) // the for loop uses a different index for the slice interator since its a whole new slice, not just a sub-iter

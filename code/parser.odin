@@ -82,6 +82,8 @@ parse_top_level_stmnts :: proc(file_data: ^FileData, mod: ^Module) -> (ok := tru
 
 	for ok && first_tk.kind != .EndOfFile {
 		#partial switch first_tk.kind {
+			case .Hash:
+				ok = parse_attrib(file_data)
 			case .Const:
 				decl_ptr := parse_decl(file_data, mod.file_scope)
 
@@ -103,10 +105,62 @@ parse_top_level_stmnts :: proc(file_data: ^FileData, mod: ^Module) -> (ok := tru
 				ok = false
 		}
 
+		if first_tk.kind != .Hash && len(file_data.pending_attribs) > 0 {
+			log_spanned_error(&first_tk.span, "Internal Compiler Error: Failed to bind preceding attributes to this statement")
+			return false
+		}
+
 		first_tk = curr_tk(file_data)
 	}
 
 	return
+}
+
+parse_attrib :: proc(file_data: ^FileData) -> bool {
+	if !try_consume_tk(file_data, .Hash) {
+		log_spanned_error(&curr_tk(file_data).span, "expected '#'")
+		return false
+	}
+
+	if !try_consume_tk(file_data, .LSquare) {
+		log_spanned_error(&curr_tk(file_data).span, "Expected '[' to begin attribute, but got something else")
+		return false
+	}
+
+	attr_name := curr_tk(file_data)
+	if !try_consume_tk(file_data, .Ident) {
+		log_spanned_error(&attr_name.span, "Expected identifier for attribute name, but got something else")
+		return false
+	}
+
+	attrib := new_node(Attrib, attr_name.span)
+	attrib.name = attr_name.str
+
+	if try_consume_tk(file_data, .LParen) {
+		iter_tk := curr_tk(file_data)
+		for iter_tk.kind != .RParen {
+			if len(attrib.args) > 0 && !try_consume_tk(file_data, .Comma) {
+				log_spanned_error(&curr_tk(file_data).span, "Expected ',' to separate attribute values")
+				return false
+			}
+			arg := parse_expr(file_data)
+			append(&attrib.args, arg)
+			iter_tk = curr_tk(file_data)
+		}
+		paren_end := try_consume_tk(file_data, .RParen)
+		assert(paren_end)
+	}
+
+	if !try_consume_tk(file_data, .RSquare) {
+		log_spanned_error(&curr_tk(file_data).span, "Expected ']' to terminate attribute, but got something else")
+		return false
+	}
+
+	consume_newlines(file_data)
+
+	append(&file_data.pending_attribs, attrib)
+
+	return true
 }
 
 parse_decl :: proc(file_data: ^FileData, scope: ^Scope) -> ^ConstDecl {
@@ -121,6 +175,9 @@ parse_decl :: proc(file_data: ^FileData, scope: ^Scope) -> ^ConstDecl {
 
 	decl := new_node(ConstDecl, name_tk.span)
 	decl.name = name_tk.str
+	resize(&decl.attribs, len(file_data.pending_attribs))
+	copy(decl.attribs[:], file_data.pending_attribs[:])
+	clear(&file_data.pending_attribs)
 
 	colon_tk := curr_tk(file_data)
 	if try_consume_tk(file_data, .Colon) {

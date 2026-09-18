@@ -16,9 +16,11 @@ FileData :: struct {
 	tokens: [dynamic]Token,
 	tk_idx: uint,
 
+	pending_attribs: [dynamic]^Attrib,
+
 	pkg: ^Package,
 	mod: ^Module,
-	
+
 	cur_scope: ^Scope,
 }
 

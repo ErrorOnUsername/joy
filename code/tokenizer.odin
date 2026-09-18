@@ -39,6 +39,11 @@ lex_next_token :: proc(data: ^FileData) -> (token: Token) {
 				token.kind = .EndOfLine
 				lex_assign_span(data, &token, 2)
 				return
+			case '#':
+				data.read_idx += 1
+				token.kind = .Hash
+				lex_assign_span(data, &token, 1)
+				return
 			case '=':
 				data.read_idx += 1
 				if lex_try_consume(data, '=') {
@@ -555,6 +560,8 @@ TokenKind :: enum {
 	Enum,
 	Union,
 	Fn,
+
+	Hash,
 
 	Ident,
 	StringLiteral,

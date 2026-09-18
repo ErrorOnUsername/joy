@@ -98,8 +98,19 @@ ProcProto :: struct {
 	using expr:  Expr,
 	name:        string,
 	params:      [dynamic]^VarDecl,
+	builtin:     BuiltinID,
 	body:        ^Scope,
 	return_type: ^Expr,
+}
+
+BuiltinID :: enum {
+	None,
+	Syscall0,
+	Syscall1,
+	Syscall2,
+	Syscall3,
+	Syscall4,
+	Syscall5,
 }
 
 Ident :: struct {
@@ -277,6 +288,7 @@ AnyStmnt :: union {
 
 Stmnt :: struct {
 	using node:    Node,
+	attribs:       [dynamic]^Attrib,
 	derived_stmnt: AnyStmnt,
 }
 
@@ -313,6 +325,12 @@ Expr :: struct {
 AnyNode :: union {
 	^Stmnt,
 	^Expr,
+}
+
+Attrib :: struct {
+	using node: Node,
+	name: string,
+	args: [dynamic]^Expr,
 }
 
 Node :: struct {

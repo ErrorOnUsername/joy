@@ -141,7 +141,10 @@ tc_initialize_in_scope :: proc(c: ^Checker, s: ^Scope) -> bool {
 						scope_ok := tc_initialize_in_scope(c, v)
 						if !scope_ok do return false
 					case ^ProcProto:
-						scope_ok := tc_initialize_in_scope(c, v.body)
+						scope_ok := true
+						if v.body != nil {
+							scope_ok = tc_initialize_in_scope(c, v.body)
+						}
 						if !scope_ok do return false
 				}
 
@@ -265,9 +268,63 @@ tc_check_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 			ctx.hint_type = s.type
 			defer ctx.hint_type = last_hint_ty
 
+			builtin_id: BuiltinID
+			builtin_span: Span
+			for attr in s.attribs {
+				if attr.name == "builtin" {
+					assert(len(attr.args) == 1)
+					builtin_name := attr.args[0]
+					name_ty, name_addr_mode := tc_check_expr(ctx, builtin_name)
+					if name_addr_mode != .RValue {
+						log_spanned_error(&builtin_name.span, "builtin name must be an rvalue")
+						return false
+					}
+					if ty_is_untyped_builtin(name_ty) {
+						name_ty = get_untyped_default_concrete_ty(name_ty)
+					}
+					if !ty_is_string(name_ty) {
+						log_spanned_errorf(&builtin_name.span, "builtin name must be string, got: {}", name_ty.name)
+						return false
+					}
+					builtin_span = attr.span
+					builtin_lit := builtin_name.derived_expr.(^StringLiteralExpr)
+					switch builtin_lit.val {
+					case "syscall0":
+						builtin_id = .Syscall0
+					case "syscall1":
+						builtin_id = .Syscall1
+					case "syscall2":
+						builtin_id = .Syscall2
+					case "syscall3":
+						builtin_id = .Syscall3
+					case "syscall4":
+						builtin_id = .Syscall4
+					case "syscall5":
+						builtin_id = .Syscall5
+					case:
+						unimplemented("unknown builtin fn")
+					}
+				} else {
+					unimplemented("implement generic attributes")
+				}
+			}
+
 			if s.value != nil {
 				ty, addr_mode := tc_check_expr(ctx, s.value)
 				if ty == nil do return false
+
+				if proto, is_proto := s.value.derived_expr.(^ProcProto); is_proto {
+					proto.builtin = builtin_id
+					names := [BuiltinID]string { .None = "", .Syscall0 = "syscall0", .Syscall1 = "syscall1", .Syscall2 = "syscall2", .Syscall3 = "syscall3", .Syscall4 = "syscall4", .Syscall5 = "syscall5" }
+					if builtin_id != .None {
+						if s.name != names[builtin_id] {
+							log_spanned_errorf(&stmnt.span, "Function '{}' is marked as builtin '{}', but the names don't match", proto.name, names[builtin_id])
+							return false
+						}
+					}
+				} else if builtin_id != .None {
+					log_spanned_error(&builtin_span, "Only function declarations can be marked 'builtin'")
+				}
 
 				if addr_mode == .Invalid {
 					log_spanned_error(&s.value.span, "Expression does produce a value")
@@ -300,6 +357,8 @@ tc_check_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 				log_spanned_errorf(&s.span, "Redefinition of variable '{:s}'", s.name)
 				return false
 			}
+
+			assert(len(s.attribs) == 0)
 
 			if s.type_hint != nil {
 				ty := tc_check_type(ctx, s.type_hint)
@@ -527,7 +586,7 @@ tc_check_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^Type, AddressingMo
 			ty := new_type(FnType, ctx.mod, "fn")
 
 			for p in ex.params {
-				if p.name in ex.body.symbols {
+				if ex.body != nil && p.name in ex.body.symbols {
 					log_spanned_error(&p.span, "Redefinition of function parameter")
 					return nil, .Invalid
 				}
@@ -575,7 +634,9 @@ tc_check_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^Type, AddressingMo
 				add_param := FnParameter { p.name, p.type }
 				append(&ty.params, add_param)
 
-				ex.body.symbols[p.name] = p
+				if ex.body != nil {
+					ex.body.symbols[p.name] = p
+				}
 			}
 
 			if ex.return_type != nil {
@@ -589,13 +650,13 @@ tc_check_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (^Type, AddressingMo
 
 			ex.type = ty
 
-			assert(ex.body != nil)
+			if ex.body != nil {
+				sync.mutex_lock(&ctx.checker.proc_work_mutex)
+				defer sync.mutex_unlock(&ctx.checker.proc_work_mutex)
 
-			sync.mutex_lock(&ctx.checker.proc_work_mutex)
-			defer sync.mutex_unlock(&ctx.checker.proc_work_mutex)
-
-			data := ProcBodyWorkData { ex, ctx.mod }
-			append(&ctx.checker.proc_bodies, data)
+				data := ProcBodyWorkData { ex, ctx.mod }
+				append(&ctx.checker.proc_bodies, data)
+			}
 
 			return ty, .RValue
 		case ^Ident:

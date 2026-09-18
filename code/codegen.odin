@@ -16,6 +16,8 @@ cg_emit_stmnt :: proc(ctx: ^CheckerContext, stmnt: ^Stmnt) -> bool {
 		case ^ConstDecl:
 			#partial switch v in s.value.derived_expr {
 				case ^ProcProto:
+					if v.builtin != .None do return true
+
 					dbg := cg_get_debug_type(mod, v.type, &v.span) or_return
 					proto := opto.new_function_proto_from_debug_type(mod, dbg)
 					fn := opto.new_function(mod, s.name, proto)
@@ -862,31 +864,66 @@ cg_emit_expr :: proc(ctx: ^CheckerContext, expr: ^Expr) -> (ret: ^opto.Node, ok:
 
 			fn_decl := e.target.derived_stmnt.(^ConstDecl)
 			target_function_in_callee_context := fn_decl.value.cg_val
+			ast_proto := fn_decl.value.derived_expr.(^ProcProto)
 
-			sym_extra := target_function_in_callee_context.extra.derived.(^opto.SymbolExtra)
-			actual_sym := sym_extra.sym
-			target_function := opto.add_sym(fn, actual_sym)
-			proto := actual_sym.derived.(^opto.Function).proto
-
-			for p, i in e.params {
-				v := cg_emit_expr(ctx, p) or_return
-				if opto.ty_is_ptr(v.type) && !opto.ty_is_ptr(proto.params[i].type) {
-					new_v, load_ok := cg_load_number_val(ctx, p)
-					if !load_ok {
-						log_spanned_errorf(&p.span, "Internal Compiler Error: Tried to emit load for for param of type {} but it failed", p.type.name)
-						return nil, false
+			if ast_proto.builtin != .None {
+				for p in e.params {
+					v := cg_emit_expr(ctx, p) or_return
+					if opto.ty_is_ptr(v.type) {
+						new_v, load_ok := cg_load_number_val(ctx, p)
+						if !load_ok {
+							log_spanned_errorf(&p.span, "Internal Compiler Error: Tried to emit load for syscall parameter, but it failed", v.type.kind)
+							return nil, false
+						}
+						v = new_v
 					}
-					v = new_v
+					append(&param_vals, v)
 				}
-				append(&param_vals, v)
-			}
 
-			call := opto.insr_call(fn, target_function, proto, param_vals[:])
-			extra := call.extra.derived.(^opto.CallExtra)
-			if len(proto.returns) > 0 {
-				assert(len(proto.returns) == 1)
-				e.cg_val = extra.projs[2]
-				return call, true
+				sc: ^opto.Node
+				switch ast_proto.builtin {
+				case .None: unreachable()
+				case .Syscall0:
+					sc = opto.insr_syscall0(fn, param_vals[0])
+				case .Syscall1:
+					sc = opto.insr_syscall1(fn, param_vals[0], param_vals[1])
+				case .Syscall2:
+					sc = opto.insr_syscall2(fn, param_vals[0], param_vals[1], param_vals[2])
+				case .Syscall3:
+					sc = opto.insr_syscall3(fn, param_vals[0], param_vals[1], param_vals[2], param_vals[3])
+				case .Syscall4:
+					sc = opto.insr_syscall4(fn, param_vals[0], param_vals[1], param_vals[2], param_vals[3], param_vals[4])
+				case .Syscall5:
+					sc = opto.insr_syscall5(fn, param_vals[0], param_vals[1], param_vals[2], param_vals[3], param_vals[4], param_vals[5])
+				}
+				e.cg_val = sc
+				return sc, true
+			} else {
+				sym_extra := target_function_in_callee_context.extra.derived.(^opto.SymbolExtra)
+				actual_sym := sym_extra.sym
+				target_function := opto.add_sym(fn, actual_sym)
+				proto := actual_sym.derived.(^opto.Function).proto
+
+				for p, i in e.params {
+					v := cg_emit_expr(ctx, p) or_return
+					if opto.ty_is_ptr(v.type) && !opto.ty_is_ptr(proto.params[i].type) {
+						new_v, load_ok := cg_load_number_val(ctx, p)
+						if !load_ok {
+							log_spanned_errorf(&p.span, "Internal Compiler Error: Tried to emit load for for param of type {} but it failed", p.type.name)
+							return nil, false
+						}
+						v = new_v
+					}
+					append(&param_vals, v)
+				}
+
+				call := opto.insr_call(fn, target_function, proto, param_vals[:])
+				extra := call.extra.derived.(^opto.CallExtra)
+				if len(proto.returns) > 0 {
+					assert(len(proto.returns) == 1)
+					e.cg_val = extra.projs[2]
+					return call, true
+				}
 			}
 
 			return nil, true
